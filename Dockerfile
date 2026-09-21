@@ -7,8 +7,8 @@ ENV NODE_ENV=production
 COPY package.json ./
 RUN npm install --omit=dev --no-audit --no-fund
 
-COPY src ./src
-COPY public ./public
+COPY server.js session.js store.js ./src/
+COPY chat.html portal.html ./public/
 
 ENV PORT=8080 \
     DATA_DIR=/data \
