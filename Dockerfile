@@ -39,7 +39,6 @@ ENV SESSIONS=3 \
     START_URL=https://web.whatsapp.com \
     BRAND="WhatsApp Hub"
 
-VOLUME ["/data"]
 EXPOSE 8080
 
 CMD ["/usr/local/bin/entrypoint.sh"]
