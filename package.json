@@ -13,7 +13,7 @@
     "deploy": "railway up"
   },
   "dependencies": {
-    "baileys": "^7.0.0-rc.9",
+    "baileys": "7.0.0-rc14",
     "qrcode": "^1.5.4"
   },
   "devDependencies": {
