@@ -1,0 +1,14 @@
+{
+  "name": "wa-hub",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Many independent WhatsApp Web sessions behind one URL, on Railway",
+  "scripts": {
+    "plan": "railway config plan",
+    "apply": "railway config apply",
+    "deploy": "railway up"
+  },
+  "devDependencies": {
+    "railway": "latest"
+  }
+}

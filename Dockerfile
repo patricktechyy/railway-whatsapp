@@ -1,35 +1,45 @@
+# Caddy is pulled in only for its static binary (reverse proxy + basic auth).
+FROM caddy:2 AS caddybin
+
 FROM debian:bookworm-slim
 
 ENV DEBIAN_FRONTEND=noninteractive \
-    PYTHONUNBUFFERED=1 \
-    HOME=/home/browser \
-    DATA_DIR=/data
+    LANG=C.UTF-8
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates curl wget git \
-    firefox-esr \
-    xvfb openbox x11vnc dbus-x11 \
-    nginx python3 python3-pip python3-venv \
-    procps psmisc util-linux \
-    fonts-liberation fonts-noto-color-emoji \
-    && rm -rf /var/lib/apt/lists/*
+      ca-certificates \
+      curl \
+      dbus-x11 \
+      firefox-esr \
+      fonts-liberation \
+      fonts-noto-color-emoji \
+      novnc \
+      openbox \
+      procps \
+      python3 \
+      supervisor \
+      websockify \
+      x11-utils \
+      x11vnc \
+      xauth \
+      xvfb \
+ && rm -rf /var/lib/apt/lists/*
 
-RUN useradd -m -u 1000 -s /bin/bash browser \
-    && mkdir -p /data /run/user/1000 \
-    && chown -R browser:browser /data /run/user/1000
+COPY --from=caddybin /usr/bin/caddy /usr/bin/caddy
 
-# Pinning isn't required for the architecture; noVNC is static client code.
-RUN git clone --depth 1 https://github.com/novnc/noVNC.git /opt/noVNC
-RUN python3 -m pip install --no-cache-dir --break-system-packages \
-    fastapi==0.141.1 \
-    uvicorn[standard] \
-    websockify
+COPY entrypoint.sh   /usr/local/bin/entrypoint.sh
+COPY run-firefox.sh  /usr/local/bin/run-firefox.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/run-firefox.sh
 
-WORKDIR /app
-COPY app /app/app
-COPY start.sh /app/start.sh
-RUN chmod +x /app/start.sh
+ENV SESSIONS=3 \
+    PORT=8080 \
+    DATA_DIR=/data \
+    SCREEN=1440x900x24 \
+    KIOSK=1 \
+    START_URL=https://web.whatsapp.com \
+    BRAND="WhatsApp Hub"
 
+VOLUME ["/data"]
 EXPOSE 8080
-HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 CMD curl -fsS http://127.0.0.1:${PORT:-8080}/health || exit 1
-CMD ["/app/start.sh"]
+
+CMD ["/usr/local/bin/entrypoint.sh"]
