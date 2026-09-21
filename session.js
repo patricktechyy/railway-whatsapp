@@ -8,12 +8,43 @@ import { Store, bare, isGroup, isLid, isPn, phoneOf, toPn } from './store.js'
 // only take the recent slice (lighter pairing spike on huge accounts).
 const FULL_HISTORY = process.env.FULL_HISTORY !== '0'
 
-// Baileys wants a pino-shaped logger. A stub keeps pino out of the image.
-const silent = {
-  level: 'silent',
-  child: () => silent,
-  trace() {}, debug() {}, info() {}, warn() {}, error() {}, fatal() {},
+// Baileys wants a pino-shaped logger. This one prints compact lines to the
+// Railway logs without pulling pino into the image.
+const LEVELS = { trace: 10, debug: 20, info: 30, warn: 40, error: 50, fatal: 60, silent: 99 }
+function makeLogger(prefix, level) {
+  const min = LEVELS[level] ?? LEVELS.warn
+  const emit = (lvl) => (a, b) => {
+    if (LEVELS[lvl] < min) return
+    const msg = typeof a === 'string' ? a : typeof b === 'string' ? b : ''
+    let extra = ''
+    if (a && typeof a === 'object') {
+      try {
+        const o = { ...a }
+        delete o.class
+        if (o.trace) {
+          extra += ' | ' + String(o.trace).split('\n')[0]
+          delete o.trace
+        }
+        if (o.err) {
+          extra += ' | ' + (o.err.message || String(o.err))
+          delete o.err
+        }
+        const j = JSON.stringify(o, (k, v) =>
+          v && v.type === 'Buffer' ? '<bytes>' : typeof v === 'string' && v.length > 160 ? v.slice(0, 160) + '…' : v
+        )
+        if (j && j !== '{}') extra += ' ' + j.slice(0, 500)
+      } catch {
+        extra += ' [unprintable]'
+      }
+    }
+    console.log(`${prefix} wa.${lvl}: ${msg}${extra}`)
+  }
+  const l = { level }
+  for (const k of ['trace', 'debug', 'info', 'warn', 'error', 'fatal']) l[k] = emit(k)
+  l.child = () => l
+  return l
 }
+const silent = makeLogger('', 'silent')
 
 let cached = null
 async function loadBaileys() {
@@ -101,11 +132,20 @@ async function resolveVersion(B) {
   }
 }
 
+// WA_BROWSER=chrome links as a plain web browser instead of the desktop app.
+// Desktop is what gets full history, so it's the default.
+function browserIdentity(B) {
+  if ((process.env.WA_BROWSER || '').toLowerCase() === 'chrome') {
+    return B.Browsers?.ubuntu ? B.Browsers.ubuntu('Chrome') : ['Ubuntu', 'Chrome', '22.04.4']
+  }
+  return B.Browsers?.macOS ? B.Browsers.macOS('Desktop') : ['Mac OS', 'Desktop', '14.4.1']
+}
+
 // Plain-language reasons for the codes WhatsApp closes connections with.
 const REASONS = {
   405: 'WhatsApp refused this client version — fetching a newer one and retrying',
   408: 'The connection timed out',
-  428: 'The connection was closed',
+  428: 'WhatsApp closed the connection',
   440: 'This WhatsApp session was opened by another copy of this server',
   403: 'WhatsApp refused this account (403)',
   500: "WhatsApp didn't accept the saved login",
@@ -129,6 +169,14 @@ const toJsonSafe = (obj) =>
   )
 const fromJsonSafe = (obj) =>
   JSON.parse(JSON.stringify(obj), (k, v) => (v && typeof v === 'object' && typeof v.$b === 'string' ? Buffer.from(v.$b, 'base64') : v))
+
+const safeJson = (v) => {
+  try {
+    return JSON.stringify(v).slice(0, 200)
+  } catch {
+    return String(v)
+  }
+}
 
 const num = (t) => (t == null ? 0 : typeof t === 'object' && t.toNumber ? t.toNumber() : Number(t) || 0)
 
@@ -183,7 +231,13 @@ export class Session extends EventEmitter {
 
   /** Someone opened the page: start an idle (never-linked) session. */
   wake() {
+    this.wokeAt = Date.now()
     if (!this.stopped && this.status === 'idle') this.start(true).catch((e) => this.log('start failed:', e.message))
+  }
+
+  /** Someone is looking, or just opened the page and is still connecting. */
+  watched() {
+    return this.viewers() > 0 || Date.now() - (this.wokeAt || 0) < 30000
   }
 
   schedule(ms, force = false) {
@@ -207,7 +261,7 @@ export class Session extends EventEmitter {
 
     // Not linked and nobody looking at the page: don't sit on WhatsApp's
     // servers generating QR codes for no one. Opening the page wakes it.
-    if (!this.registered && !force && this.viewers() === 0) {
+    if (!this.registered && !force && !this.watched()) {
       this.qr = null
       this.setStatus('idle')
       return
@@ -217,12 +271,18 @@ export class Session extends EventEmitter {
     const version = await resolveVersion(B)
     if (this.stopped || gen !== this.gen) return
 
+    // While pairing, let Baileys explain itself in the logs; once linked,
+    // only warnings. WA_LOG=info|debug|warn|silent overrides.
+    const level = process.env.WA_LOG || (this.registered ? 'warn' : 'info')
+    const browser = browserIdentity(B)
+    this.log(`connecting (${this.registered ? 'linked' : 'not linked yet'}, as ${browser.slice(0, 2).join(' ')})`)
+    this.diag = { at: Date.now(), qr: false, ws: null, net: null }
     const sock = B.makeWASocket({
       auth: state,
       version,
-      logger: silent,
+      logger: makeLogger(`[${this.key}]`, level),
       // A desktop identity is what makes WhatsApp send the proper backlog.
-      browser: B.Browsers?.macOS ? B.Browsers.macOS('Desktop') : ['Mac OS', 'Desktop', '14.4.1'],
+      browser,
       syncFullHistory: FULL_HISTORY,
       // Accept every history type. Leaving this out while syncFullHistory is
       // false makes some 7.x builds reject *all* history, including recent.
@@ -238,12 +298,22 @@ export class Session extends EventEmitter {
     })
     this.sock = sock
     const live = () => gen === this.gen && !this.stopped
+    const diag = this.diag
+
+    // The raw socket knows *why* it closed; Baileys flattens that to "428".
+    const ws = sock.ws
+    if (ws?.on) {
+      ws.on('close', (code, reason) => { diag.ws = { code, reason: reason ? String(reason).slice(0, 120) : '' } })
+      ws.on('error', (e) => { diag.net = e?.code || e?.message || String(e) })
+      ws.on('unexpected-response', (req, res) => { diag.net = `HTTP ${res?.statusCode} from WhatsApp during connect` })
+    }
 
     sock.ev.on('creds.update', saveCreds)
 
     sock.ev.on('connection.update', async (u) => {
       if (!live()) return
       if (u.qr) {
+        diag.qr = true
         this.qr = await QRCode.toDataURL(u.qr, { margin: 1, width: 320 })
         if (!live()) return
         this.lastError = null
@@ -344,8 +414,21 @@ export class Session extends EventEmitter {
     const DR = B.DisconnectReason || {}
     const err = u.lastDisconnect?.error
     const code = err?.output?.statusCode
-    const text = REASONS[code] || `Disconnected (${code ?? err?.message ?? 'unknown'})`
-    this.lastError = { code: code ?? null, text }
+    const d = this.diag || {}
+    const secs = d.at ? ((Date.now() - d.at) / 1000).toFixed(1) : '?'
+    let text = REASONS[code] || `Disconnected (${code ?? err?.message ?? 'unknown'})`
+    if (code === 428 && !d.qr && !this.registered) text += ' before sending a QR code'
+    const detail = [
+      `after ${secs}s`,
+      d.qr ? 'QR had been shown' : this.registered ? null : 'no QR yet',
+      d.ws ? `socket close ${d.ws.code}${d.ws.reason ? ' "' + d.ws.reason + '"' : ''}` : null,
+      d.net ? `network: ${d.net}` : null,
+      err?.message && err.message !== err?.output?.payload?.error ? `baileys: ${err.message}` : null,
+      err?.data ? `data: ${safeJson(err.data)}` : null,
+    ]
+      .filter(Boolean)
+      .join(' · ')
+    this.lastError = { code: code ?? null, text, detail }
     this.qr = null
 
     if (code === (DR.loggedOut ?? 401)) {
@@ -380,8 +463,8 @@ export class Session extends EventEmitter {
     }
 
     // Not linked and nobody watching: stop until someone opens the page.
-    if (!this.registered && this.viewers() === 0) {
-      this.log(`connection closed (${code}); idle until someone opens the page`)
+    if (!this.registered && !this.watched()) {
+      this.log(`connection closed (${code}) [${detail}]; idle until someone opens the page`)
       this.setStatus('idle')
       return
     }
@@ -389,7 +472,7 @@ export class Session extends EventEmitter {
     let wait = Math.min(60000, 1000 * 2 ** Math.min(this.attempts, 6))
     if (code === 440) wait = Math.max(wait, 30000) // let the other copy finish shutting down
     this.setStatus('reconnecting')
-    this.log(`connection closed (${code}): ${text}; retry ${this.failures} in ${Math.round(wait / 1000)}s`)
+    this.log(`connection closed (${code}): ${text} [${detail}]; retry ${this.failures} in ${Math.round(wait / 1000)}s`)
     this.schedule(wait, true)
   }
 
@@ -709,6 +792,7 @@ export class Session extends EventEmitter {
     this.qr = null
     this.registered = false
     this.failures = 0
+    this.attempts = 0
     this.lastError = null
     this.setStatus('logged-out')
     this.schedule(500) // shows a QR if someone is on the page, otherwise idles

@@ -113,6 +113,8 @@ yourself — they'd notice, because it signs them out.)
 | `MAX_CHATS` | `800` | Chats kept. |
 | `MAX_UPLOAD_MB` | `25` | Largest file you can send. |
 | `DATA_DIR` | `/data` | Must match the volume mount. |
+| `WA_LOG` | `info` while linking, `warn` after | Baileys' own logging. `debug` for more detail, `silent` for none. |
+| `WA_BROWSER` | `desktop` | `chrome` links as a plain browser instead of the desktop app (less history). |
 | `WA_VERSION` | auto | Force a WhatsApp Web version, e.g. `2.3000.1047506285`. Only if the logs show 405s that don't clear on their own. |
 
 ## Many people, many devices
