@@ -1,18 +1,19 @@
 {
   "name": "wa-lite",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
   "type": "module",
-  "description": "Several independent WhatsApp accounts, one per URL. No browser, no VNC.",
+  "description": "Several independent WhatsApp accounts, one per person, each with their own login. No browser, no VNC.",
   "engines": { "node": ">=20" },
   "scripts": {
     "start": "node src/server.js",
+    "dev": "node server.js",
     "plan": "railway config plan",
     "apply": "railway config apply",
     "deploy": "railway up"
   },
   "dependencies": {
-    "baileys": "^6.7.0",
+    "baileys": "^7.0.0-rc.9",
     "qrcode": "^1.5.4"
   },
   "devDependencies": {

@@ -1,210 +1,155 @@
-# wa-lite — several WhatsApp accounts, one URL each
+# wa-lite — several WhatsApp accounts, each with its own login
 
 ```
-https://your-app.up.railway.app/      ← portal, lists the sessions
-https://your-app.up.railway.app/1/    ← Ali's WhatsApp
-https://your-app.up.railway.app/2/    ← Budi's WhatsApp
-https://your-app.up.railway.app/3/    ← Citra's WhatsApp
+https://your-app.up.railway.app/              ← everyone signs in here
+https://your-app.up.railway.app/u/ali/        ← Ali's WhatsApp (only Ali's password opens it)
+https://your-app.up.railway.app/u/budi/       ← Budi's WhatsApp
+https://your-app.up.railway.app/admin         ← you: add / remove people
 ```
 
-Each URL is one person's own WhatsApp. Scan the QR code once from that phone and
-it stays linked. Chat list, message history, send, receive, photos, voice notes,
-documents. They can't see each other's chats. Restarting or redeploying doesn't
-log anyone out.
-
-**No browser on the server.** This speaks WhatsApp's multi-device protocol
-directly over a WebSocket, so there's no Firefox, no X server, no VNC, no video
-stream to your screen — just JSON over HTTP. One Node process handles every
-session.
-
-| | browser-based approach | wa-lite |
-| --- | --- | --- |
-| RAM | ~1 GB per session | ~25 MB per session, ~60 MB base |
-| Image size | ~1.5 GB | ~250 MB |
-| Bandwidth | continuous video stream | a few KB per message |
-| Works on mobile data | painfully | fine |
+One Node process, no browser on the server. Each person has their own
+username and a password **they** choose; you only decide who exists.
 
 ---
 
-## Read this before you deploy
+## Upgrading from the previous version — read this
 
-wa-lite talks to WhatsApp through **Baileys**, an open-source community
-implementation of the multi-device protocol. It is not built or sanctioned by
-Meta. In practice it works well and a lot of people run it, but you should know:
+**1. Push and deploy.** Nothing to delete. On first boot the new version finds
+your old `/data/session-1`, `/data/session-2`… folders and turns them into users
+(named from your old `NAMES` variable, e.g. `ali`, `budi`). Their phones stay
+linked. Your old `PASSWORD` variable keeps working as the **admin** password.
 
-- **Linked numbers carry some ban risk.** Meta detects unofficial clients. Normal
-  human-paced use of a few accounts is usually fine; anything that looks like
-  bulk or automated messaging is what gets numbers banned.
-- **Don't put business-critical numbers on it** without accepting that risk. The
-  sanctioned route for that is Meta's WhatsApp Business Platform (Cloud API),
-  which is a different product with a different shape — templates, approved
-  message types, per-message pricing.
-- **The browser-based version has no such risk**, because it is literally
-  WhatsApp Web. That's the trade you're making for the 40× drop in memory.
+**2. Give everyone a password.** Sign in at `/` with username `admin` and that
+password. Next to each person press **Setup link**, copy it, send it to them.
+They open it, pick a password, and they're in.
 
-For a hobby project running your own or your team's accounts, this is a
-reasonable trade. Just make it knowingly.
+**3. Re-link once to get history.** WhatsApp only hands over chat history at the
+moment a device is linked, and the old version was linked with settings that
+got none. Each person opens **⋮ → Re-link WhatsApp** and scans the new QR code.
+Their chats, contacts and recent history then stream in over a minute or two.
+
+After that you can delete the old `SESSIONS`, `NAMES`, `USER_n` and `PASS_n`
+variables. Optionally rename `PASSWORD` to `ADMIN_PASSWORD`.
 
 ---
 
-## Step 1 — Put this on GitHub
+## What changed and why
 
-```bash
-cd wa-lite
-git init && git add -A && git commit -m "wa-lite"
-gh repo create wa-lite --private --source=. --push
-```
+**History and names.** The previous build used Baileys 6. WhatsApp has been
+moving everyone to "LIDs" — anonymous IDs like the `244130370322560` in your
+screenshot — and version 6 can't translate those back to a phone number or
+contact name. This build uses Baileys 7, links as a desktop client (which is what
+makes WhatsApp send the proper backlog), and explicitly accepts every history
+type. Every time WhatsApp reveals that a LID belongs to a phone number, the two
+chats are merged so a person never shows up twice.
 
-## Step 2 — Deploy
+**Starting a chat.** Press ✎. Search your contacts by name or number, or type a
+full number with country code (`6591234567`) — it's checked against WhatsApp
+first, so typos get a clear "not on WhatsApp" instead of a silent failure.
 
-### A. Dashboard (about 2 minutes, no CLI)
+**Sending photos and files.** 📎, paste an image, or drag a file onto the chat.
+Photos are converted to JPEG and a small preview is made in *your* browser, so
+the server still needs no image library. Anything that isn't a JPEG/PNG/WebP
+photo (PDFs, videos, GIFs, iPhone HEIC in some browsers) goes as a file. Max
+25 MB.
 
-1. [railway.com/new](https://railway.com/new) → **Deploy from GitHub repo** → pick `wa-lite`.
-2. Service → **Variables**:
-   ```
-   SESSIONS = 3
-   NAMES    = Ali,Budi,Citra
-   PASSWORD = <pick something long>
-   ```
-   Leave `PORT` alone — Railway injects it.
-3. Service → **Data → Add Volume** → mount path **`/data`**.
-   Do this before anyone scans a QR code.
-4. Service → **Settings → Networking → Generate Domain**.
+**Older messages.** Open a chat and press **Load earlier messages** at the top.
+That asks the person's phone for 50 more; the phone has to be online.
 
-Build takes about a minute — it's just `npm install` on a slim Alpine image.
+**Accounts.** Passwords are hashed with scrypt, never stored. Changing a
+password signs out every other device. Resetting one (admin) signs the person
+out everywhere and makes them pick a new one. Ten wrong logins from one address
+locks that address out for 15 minutes.
 
-### B. CLI, with the volume declared in code
+---
+
+## Fresh deploy
+
+1. Push this folder to GitHub.
+2. [railway.com/new](https://railway.com/new) → **Deploy from GitHub repo**.
+3. **Variables:** `ADMIN_PASSWORD = <something long>`
+4. **Data → Add Volume** → mount path `/data`. Before anyone links a phone.
+5. **Settings → Networking → Generate Domain.**
+6. Open the domain, sign in as `admin`, add people, send them their links.
+
+Or with the CLI (creates the volume for you):
 
 ```bash
 npm install
-railway login
-railway init
-
-export WA_REPO="your-github-username/wa-lite"
-export WA_SESSIONS=3
-export WA_NAMES="Ali,Budi,Citra"
-
-railway config plan      # read-only preview
-railway config apply     # creates service + volume after you confirm
-
-railway variables --set "PASSWORD=<pick something long>"
+railway login && railway init
+export WA_REPO="your-github-username/railway-whatsapp"
+railway config apply --file railway.ts
+railway variables --set "ADMIN_PASSWORD=<something long>"
 railway domain
 ```
 
-This path creates the `/data` volume for you, which is the step people forget.
-Note that Railway retired `railway.json`/`railway.toml` — they stop being read on
-2026-12-01 — so this repo uses `.railway/railway.ts` instead.
+If you never set `ADMIN_PASSWORD`, one is generated on first boot and printed
+in the deploy logs (search for `admin password:`), and saved to the volume.
 
-## Step 3 — Use it
+## Managing people
 
-Open the domain. Username `wa`, password whatever you set. If you never set
-`PASSWORD`, one is generated on first boot, printed in the deploy logs, and saved
-to the volume so it stays the same — search the logs for `password:`.
+| You want to… | Do this in `/admin` |
+| --- | --- |
+| Add someone | Type a username and name → **Add** → copy the link → send it to them. |
+| Someone forgot their password | **Reset password** → send the new link. Their WhatsApp stays linked. |
+| Someone lost/changed their phone | **Unlink phone**. They scan a new QR next time they sign in. |
+| Fix a typo in a name | **Rename**. The username can't change (it's in their URL). |
+| Remove someone | **Remove** → type their username to confirm. Unlinks their phone and deletes their data here. |
 
-Click a session, and a QR code appears. On the phone for that account:
-**WhatsApp → Settings → Linked devices → Link a device → scan.**
-
-That's it. The chat list loads, messages stream in live, and you can reply.
-
----
+Setup links work once and expire after 7 days. You can't read anyone's chats
+from the admin page. (You *could* reset someone's password and use the link
+yourself — they'd notice, because it signs them out.)
 
 ## Variables
 
-| Variable | Default | Purpose |
+| Variable | Default | |
 | --- | --- | --- |
-| `SESSIONS` | `3` | How many independent accounts. |
-| `PASSWORD` | generated | Opens the portal and every session. |
-| `NAMES` | — | `Ali,Budi,Citra` — labels on the portal and chat header. |
-| `USER_n` / `PASS_n` | — | Per-session credentials, for real isolation. |
-| `USERNAME` | `wa` | Default login name when `USER_n` isn't set. |
-| `BRAND` | `WhatsApp Hub` | Portal heading. |
-| `DATA_DIR` | `/data` | Must match the volume mount path. |
+| `ADMIN_PASSWORD` | generated | Admin login. The old `PASSWORD` still works. |
+| `BRAND` | `WhatsApp Hub` | Name on the login page. |
+| `FULL_HISTORY` | `1` | `0` takes only recent history at pairing (lighter on very large accounts). |
+| `MAX_MSGS_PER_CHAT` | `150` | Messages kept per chat on the server. |
+| `MAX_CHATS` | `800` | Chats kept. |
+| `MAX_UPLOAD_MB` | `25` | Largest file you can send. |
+| `DATA_DIR` | `/data` | Must match the volume mount. |
 
-**Isolation.** By default one password opens everything — right when it's you
-running several accounts. When three different people use it, give each their own:
+## Things to know
 
-```
-USER_1=ali    PASS_1=...
-USER_2=budi   PASS_2=...
-USER_3=citra  PASS_3=...
-```
+**This is an unofficial WhatsApp client.** It's built on Baileys, a
+community-maintained implementation that Meta doesn't sanction. Normal
+human-paced use of your own accounts is generally fine. Bulk or automated
+sending is what gets numbers banned.
 
-Then Ali's credentials open `/1/` and return 401 everywhere else. This is tested.
+**Memory.** Steady state is small (tens of MB per account). The moment someone
+links, WhatsApp sends their history in large batches and memory briefly spikes —
+more with bigger accounts. If a very large account makes the service restart
+during linking, set `FULL_HISTORY=0` and re-link.
 
-## Adding a person later
+**How much history.** WhatsApp decides that, not this app. Usually the last
+few months of every chat arrives at linking, and **Load earlier messages**
+reaches further back per chat. Media in old messages downloads on demand.
 
-Raise `SESSIONS` and redeploy. The new path appears with a fresh QR code; existing
-sessions keep their logins, because their credentials sit in
-`/data/session-N/auth/` and are never touched.
+**Linked devices expire** if a phone is offline for about 14 days. That person
+just sees the QR screen again.
 
-## Making a real one-click button
-
-Railway's `[Deploy on Railway]` buttons point at a template, and templates are
-published from an account — so you mint your own once this runs:
-
-1. Deploy it (step 2).
-2. Project → **⋮ → Create Template from Project** (unlisted is fine).
-3. You get a URL like `https://railway.com/new/template/abc123`.
-4. Put this in your README:
-
-```markdown
-[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/new/template/abc123)
-```
-
-Now a second hub really is one click, volume and variables included.
-
----
-
-## What it does and doesn't do
-
-Works: QR login, chat list sorted by recency with unread badges, search,
-message history, sending text, receiving live, photos and stickers inline,
-video/audio/documents as download links, group chats with sender names, read
-receipts, auto-reconnect with backoff.
-
-Not built: sending media, voice notes, replies/quotes, reactions, starting a new
-chat with an unknown number, profile pictures, typing indicators, status/stories.
-All reachable through Baileys if you want them — `src/session.js` is where to add
-them, and it's about 250 lines.
-
-History depth: WhatsApp only hands a linked device a limited backlog on first
-sync, so old conversations will look sparse at the start and fill in as messages
-arrive. wa-lite keeps the most recent 120 messages per chat and 400 chats in a
-JSON snapshot on the volume.
-
-## Gotchas
-
-**Linked devices expire.** WhatsApp unlinks a device if the phone hasn't been
-online for about 14 days, and each account allows a limited number of linked
-devices. The session will show the QR screen again — just re-scan.
-
-**The password is the entire security boundary.** Anyone with a URL and password
-can read and send as that account. Use long unique passwords. For anything beyond
-a hobby, put Cloudflare Access or a Tailscale tailnet in front.
-
-**`markOnlineOnConnect` is off on purpose.** If it were on, WhatsApp would treat
-the session as the active device and stop pushing notifications to the person's
-phone. Leaving it off means they keep getting notified normally.
-
-**Don't run two copies against the same volume.** Two processes sharing one set
-of credentials will fight over the Signal session keys and break message
-delivery. Keep the service at one replica.
-
-## Local test
-
-```bash
-npm install
-PASSWORD=test123 SESSIONS=2 NAMES="A,B" DATA_DIR=./data npm start
-# → http://localhost:8080/
-```
+**Keep the service at one replica.** Two copies sharing a volume fight over
+the encryption keys and messages stop arriving.
 
 ## Troubleshooting
 
-| Symptom | Cause |
+Deploy logs show a line per history batch, which is the quickest way to see
+what's happening:
+
+```
+[ali] connected as +6591234567
+[ali] history batch: type=0 chats=312 contacts=540 messages=4180 progress=35%
+```
+
+| Symptom | Fix |
 | --- | --- |
-| QR screen reappears after a while | Phone offline too long, or the device was unlinked from the phone. Re-scan. |
-| Everyone logged out after a deploy | The `/data` volume isn't mounted. Check Service → Data. |
-| Chat list is empty right after linking | Initial sync is still arriving. Wait 30–60 seconds. |
-| Very little old history | Expected — WhatsApp only sends a linked device a limited backlog. |
-| `Cannot find module 'baileys'` at build | Some forks publish as `@whiskeysockets/baileys`. Swap the dependency name in `package.json`; `src/session.js` already falls back to that name at import time. |
-| Sends fail with "not connected" | Session is reconnecting. The status dot in the header turns green when it's ready. |
+| No `history batch` lines after linking | The device was linked before this upgrade. **⋮ → Re-link WhatsApp**. |
+| A chat still shows a long number instead of a name | WhatsApp hasn't revealed that LID's phone yet. It merges automatically once that person messages you. |
+| "Not sent: WhatsApp is not connected yet" | The dot next to your name is amber — wait for green. |
+| Photo sent as a file | Your browser couldn't decode it (often HEIC). Export as JPEG first. |
+| "This account has no password yet" | Ask the admin for a setup link. |
+| Everyone logged out after a deploy | The `/data` volume isn't mounted. |
+| Build fails fetching libsignal | Keep `git` in the Dockerfile's `apk add` line. |

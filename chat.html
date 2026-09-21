@@ -2,277 +2,577 @@
 <html lang="en">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>__LABEL__</title>
+<title>__LABEL__ · __BRAND__</title>
 <style>
-  :root{
-    --bg:#f0f2f5; --panel:#fff; --fg:#111b21; --muted:#667781; --line:#e9edef;
-    --accent:#128c7e; --out:#d9fdd3; --in:#fff; --thread:#efeae2;
-    box-sizing:border-box;
-  }
-  @media (prefers-color-scheme:dark){
-    :root:not([data-theme="light"]){
-      --bg:#111b21; --panel:#111b21; --fg:#e9edef; --muted:#8696a0; --line:#222e35;
-      --accent:#25d366; --out:#005c4b; --in:#202c33; --thread:#0b141a;
-    }
-  }
-  *{box-sizing:inherit}
-  html,body{height:100%}
-  body{margin:0;background:var(--bg);color:var(--fg);
-    font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-    padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
-  #app{display:flex;height:100%;overflow:hidden}
+:root{--bg:#f0f2f5;--panel:#fff;--fg:#111b21;--muted:#667781;--line:#e9edef;--accent:#128c7e;
+  --out:#d9fdd3;--in:#fff;--thread:#efeae2;--field:#f0f2f5;--hover:#f5f6f6;--danger:#d64550;box-sizing:border-box}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#111b21;--panel:#111b21;--fg:#e9edef;
+  --muted:#8696a0;--line:#222e35;--accent:#00a884;--out:#005c4b;--in:#202c33;--thread:#0b141a;--field:#202c33;
+  --hover:#202c33;--danger:#f15c6d}}
+*{box-sizing:inherit}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+button{font:inherit;color:inherit;cursor:pointer}
+#app{display:flex;height:100%;overflow:hidden;position:relative}
 
-  /* ---- sidebar ---- */
-  #side{width:340px;flex:0 0 340px;display:flex;flex-direction:column;
-    background:var(--panel);border-right:1px solid var(--line)}
-  #side header{padding:12px 14px;border-bottom:1px solid var(--line);
-    display:flex;align-items:center;gap:10px}
-  #side header b{flex:1;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .dot{width:8px;height:8px;border-radius:50%;background:#f0b232;flex:0 0 8px}
-  .dot.ok{background:#25d366}
-  .dot.bad{background:#e35d6a}
-  #search{margin:10px 14px;padding:8px 12px;border-radius:8px;border:1px solid var(--line);
-    background:var(--bg);color:inherit;font:inherit;outline:none}
-  #search:focus{border-color:var(--accent)}
-  #chats{flex:1;overflow-y:auto}
-  .chat{display:flex;gap:10px;padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--line)}
-  .chat:hover{background:var(--bg)}
-  .chat.sel{background:var(--bg)}
-  .av{flex:0 0 40px;height:40px;border-radius:50%;background:var(--accent);color:#fff;
-    display:flex;align-items:center;justify-content:center;font-weight:600;font-size:15px}
-  .ct{flex:1;min-width:0}
-  .ct .top{display:flex;justify-content:space-between;gap:8px}
-  .ct .nm{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .ct .tm{color:var(--muted);font-size:11px;white-space:nowrap}
-  .ct .pv{color:var(--muted);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .badge{background:var(--accent);color:#fff;border-radius:10px;font-size:11px;
-    padding:1px 7px;align-self:center}
+/* sidebar */
+#side{width:360px;flex:0 0 360px;display:flex;flex-direction:column;background:var(--panel);border-right:1px solid var(--line);position:relative}
+.bar{padding:10px 14px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line);min-height:60px}
+.me{flex:1;min-width:0;line-height:1.25}
+.me b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.me small{color:var(--muted);font-size:12px}
+.ib{background:none;border:0;width:36px;height:36px;border-radius:50%;font-size:18px;color:var(--muted);flex:0 0 36px}
+.ib:hover{background:var(--hover)}
+.dot{width:9px;height:9px;border-radius:50%;background:#f0b232;flex:0 0 9px}
+.dot.ok{background:#25d366}.dot.bad{background:var(--danger)}
+.search{margin:8px 12px;padding:8px 12px;border-radius:8px;border:1px solid transparent;background:var(--field);color:inherit;font:inherit;outline:none;width:calc(100% - 24px)}
+.search:focus{border-color:var(--accent)}
+.list{flex:1;overflow-y:auto}
+.row{display:flex;gap:12px;padding:10px 14px;cursor:pointer;align-items:center}
+.row:hover,.row.sel{background:var(--hover)}
+.av{flex:0 0 44px;height:44px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:15px}
+.av.g{background:#6b7c85}
+.ct{flex:1;min-width:0;border-bottom:1px solid var(--line);padding-bottom:10px;margin-bottom:-10px}
+.ct .top{display:flex;justify-content:space-between;gap:8px}
+.nm{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tm{color:var(--muted);font-size:11px;white-space:nowrap}
+.pv{color:var(--muted);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.badge{background:var(--accent);color:#fff;border-radius:10px;font-size:11px;padding:1px 7px;margin-left:6px}
+.empty{margin:auto;color:var(--muted);text-align:center;padding:24px;font-size:14px}
+#sync{display:none;padding:8px 14px;font-size:12px;color:var(--muted);background:var(--field);border-bottom:1px solid var(--line)}
+#sync.on{display:block}
 
-  /* ---- thread ---- */
-  #main{flex:1;display:flex;flex-direction:column;background:var(--thread);min-width:0}
-  #main header{padding:12px 14px;background:var(--panel);border-bottom:1px solid var(--line);
-    display:flex;align-items:center;gap:10px}
-  #back{display:none;background:none;border:0;color:inherit;font-size:20px;cursor:pointer;padding:0 4px}
-  #msgs{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:4px}
-  .m{max-width:min(75%,560px);padding:6px 10px;border-radius:8px;background:var(--in);
-    align-self:flex-start;word-wrap:break-word;white-space:pre-wrap;box-shadow:0 1px 1px rgba(0,0,0,.1)}
-  .m.me{background:var(--out);align-self:flex-end}
-  .m .who{font-size:12px;font-weight:600;color:var(--accent);margin-bottom:2px}
-  .m .t{font-size:10px;color:var(--muted);float:right;margin:6px 0 0 8px}
-  .m img{max-width:100%;border-radius:6px;display:block;margin:2px 0}
-  .m .att{color:var(--muted);font-size:13px}
-  #composer{display:flex;gap:8px;padding:10px;background:var(--panel);border-top:1px solid var(--line)}
-  #text{flex:1;resize:none;max-height:120px;padding:9px 12px;border-radius:20px;
-    border:1px solid var(--line);background:var(--bg);color:inherit;font:inherit;outline:none}
-  #text:focus{border-color:var(--accent)}
-  #send{border:0;background:var(--accent);color:#fff;border-radius:50%;width:40px;height:40px;
-    flex:0 0 40px;cursor:pointer;font-size:17px}
-  #send:disabled{opacity:.4;cursor:default}
-  .empty{margin:auto;color:var(--muted);text-align:center;padding:20px}
+/* new chat panel */
+#newchat{position:absolute;inset:0;background:var(--panel);display:none;flex-direction:column;z-index:4}
+#newchat.on{display:flex}
+.hint{color:var(--muted);font-size:12px;padding:0 14px 8px}
 
-  /* ---- QR overlay ---- */
-  #gate{position:fixed;inset:0;background:var(--bg);display:none;
-    flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;text-align:center;z-index:9}
-  #gate.on{display:flex}
-  #gate img{width:min(300px,70vw);border-radius:10px;background:#fff;padding:10px}
-  #gate h2{margin:0;font-size:19px}
-  #gate p{margin:0;color:var(--muted);font-size:14px;max-width:340px}
+/* menu */
+#menu{position:absolute;top:52px;right:10px;background:var(--panel);border:1px solid var(--line);border-radius:10px;
+  box-shadow:0 8px 24px rgba(0,0,0,.15);display:none;z-index:6;min-width:210px;overflow:hidden}
+#menu.on{display:block}
+#menu button{display:block;width:100%;text-align:left;background:none;border:0;padding:11px 16px}
+#menu button:hover{background:var(--hover)}
+#menu .danger{color:var(--danger)}
 
-  @media (max-width:760px){
-    #side{position:absolute;inset:0;width:100%;flex:none;z-index:2}
-    #main{position:absolute;inset:0;z-index:3;transform:translateX(100%);transition:transform .2s}
-    body.open #main{transform:none}
-    #back{display:block}
-  }
+/* thread */
+#main{flex:1;display:flex;flex-direction:column;background:var(--thread);min-width:0}
+#back{display:none}
+#title{flex:1;min-width:0;line-height:1.25}
+#title b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#title small{color:var(--muted);font-size:12px}
+#msgs{flex:1;overflow-y:auto;padding:14px 5%;display:flex;flex-direction:column;gap:3px}
+.more{align-self:center;margin:4px 0 10px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:5px 14px;font-size:13px;color:var(--muted)}
+.day{align-self:center;margin:10px 0 6px;background:var(--panel);color:var(--muted);font-size:12px;padding:3px 10px;border-radius:7px;box-shadow:0 1px 1px rgba(0,0,0,.06)}
+.m{max-width:min(78%,560px);padding:6px 9px 6px;border-radius:8px;background:var(--in);align-self:flex-start;
+  word-wrap:break-word;white-space:pre-wrap;box-shadow:0 1px 1px rgba(0,0,0,.08);position:relative}
+.m.me{background:var(--out);align-self:flex-end}
+.m.pending{opacity:.65}
+.m.failed{outline:1px solid var(--danger)}
+.m .who{font-size:12.5px;font-weight:600;color:var(--accent);margin-bottom:2px}
+.m .t{font-size:10.5px;color:var(--muted);float:right;margin:7px 0 -4px 10px}
+.m img{max-width:min(320px,100%);max-height:360px;border-radius:6px;display:block;margin:1px 0 3px;cursor:zoom-in;background:var(--field);min-height:60px;min-width:60px;object-fit:cover}
+.m .file{display:flex;align-items:center;gap:8px;padding:8px;border-radius:6px;background:rgba(0,0,0,.05);color:inherit;text-decoration:none;margin-bottom:2px}
+.m .note{color:var(--muted);font-size:13px}
+
+/* composer */
+#att{display:none;align-items:center;gap:10px;padding:8px 12px;background:var(--panel);border-top:1px solid var(--line)}
+#att.on{display:flex}
+#att img{width:48px;height:48px;object-fit:cover;border-radius:6px}
+#att .info{flex:1;min-width:0;font-size:13px}
+#att .info b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#att .info small{color:var(--muted)}
+#composer{display:flex;gap:6px;padding:8px 10px;background:var(--panel);border-top:1px solid var(--line);align-items:flex-end}
+#text{flex:1;resize:none;max-height:140px;padding:9px 14px;border-radius:20px;border:1px solid transparent;background:var(--field);color:inherit;font:inherit;outline:none}
+#text:focus{border-color:var(--accent)}
+#send{border:0;background:var(--accent);color:#fff;border-radius:50%;width:42px;height:42px;flex:0 0 42px;font-size:17px}
+#send:disabled,#attach:disabled{opacity:.4;cursor:default}
+#drop{position:absolute;inset:0;background:rgba(0,168,132,.12);border:3px dashed var(--accent);display:none;align-items:center;justify-content:center;font-weight:600;z-index:5;pointer-events:none}
+#drop.on{display:flex}
+
+/* overlays */
+.overlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;padding:24px;z-index:9}
+.overlay.on{display:flex}
+#gate{background:var(--bg);flex-direction:column;gap:14px;text-align:center}
+#gate img{width:min(300px,70vw);border-radius:12px;background:#fff;padding:10px}
+#gate h2{margin:0;font-size:20px}
+#gate p{margin:0;color:var(--muted);font-size:14px;max-width:380px}
+#gate .lnk{background:none;border:0;color:var(--muted);text-decoration:underline;font-size:13px}
+#pw{background:rgba(0,0,0,.45)}
+.dlg{background:var(--panel);border-radius:14px;padding:24px;width:100%;max-width:360px}
+.dlg h3{margin:0 0 12px}
+.dlg label{display:block;font-size:13px;font-weight:600;margin:12px 0 5px}
+.dlg input{width:100%;padding:9px 12px;border-radius:8px;border:1px solid var(--line);background:var(--field);color:inherit;font:inherit;outline:none}
+.dlg .acts{display:flex;gap:8px;justify-content:flex-end;margin-top:18px}
+.btn{border:0;border-radius:8px;padding:9px 16px;background:var(--accent);color:#fff;font-weight:600}
+.btn.ghost{background:transparent;color:var(--fg);border:1px solid var(--line)}
+.err{color:var(--danger);font-size:13px;min-height:18px;margin-top:10px}
+#toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:#111b21;color:#fff;padding:10px 16px;border-radius:8px;
+  font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:20;max-width:90vw;text-align:center}
+#toast.on{opacity:1}
+
+@media (max-width:760px){
+  #side{position:absolute;inset:0;width:100%;flex:none;z-index:2}
+  #main{position:absolute;inset:0;z-index:3;transform:translateX(100%);transition:transform .2s}
+  body.open #main{transform:none}
+  #back{display:block}
+  #msgs{padding:12px 10px}
+}
 </style>
 
 <div id="app">
-  <div id="side">
-    <header>
+  <aside id="side">
+    <div class="bar">
       <span class="dot" id="dot"></span>
-      <b>__LABEL__</b>
-      <a href="/" title="All sessions" style="color:var(--muted);text-decoration:none">☰</a>
-    </header>
-    <input id="search" placeholder="Search chats" autocomplete="off">
-    <div id="chats"></div>
-  </div>
-  <div id="main">
-    <header>
-      <button id="back">←</button>
-      <b id="title">Select a chat</b>
-    </header>
-    <div id="msgs"><div class="empty">Pick a conversation on the left.</div></div>
+      <div class="me"><b id="meName">__LABEL__</b><small id="mePhone">connecting…</small></div>
+      <button class="ib" id="newBtn" title="New chat">✎</button>
+      <button class="ib" id="menuBtn" title="Menu">⋮</button>
+    </div>
+    <div id="menu">
+      <button data-m="new">New chat</button>
+      <button data-m="pw">Change password</button>
+      <button data-m="relink">Re-link WhatsApp</button>
+      <button data-m="out" class="danger">Sign out</button>
+    </div>
+    <div id="sync">Syncing your chats…</div>
+    <input class="search" id="search" placeholder="Search chats" autocomplete="off">
+    <div class="list" id="chats"><div class="empty">Loading…</div></div>
+
+    <div id="newchat">
+      <div class="bar">
+        <button class="ib" id="ncBack">←</button>
+        <div class="me"><b>New chat</b></div>
+      </div>
+      <input class="search" id="ncq" placeholder="Name or number with country code" autocomplete="off" inputmode="search">
+      <div class="hint">Pick a contact, or type a full number like 6591234567.</div>
+      <div class="list" id="nclist"></div>
+    </div>
+  </aside>
+
+  <main id="main">
+    <div class="bar" style="background:var(--panel)">
+      <button class="ib" id="back">←</button>
+      <div id="title"><b>Select a chat</b><small></small></div>
+    </div>
+    <div id="msgs"><div class="empty">Pick a conversation, or start a new one with ✎.</div></div>
+    <div id="att">
+      <img id="attImg" alt="" hidden><span id="attIcon" style="font-size:28px" hidden>📄</span>
+      <div class="info"><b id="attName"></b><small id="attSize"></small></div>
+      <button class="ib" id="attX" title="Remove">✕</button>
+    </div>
     <div id="composer">
+      <button class="ib" id="attach" title="Attach photo or file" disabled>📎</button>
+      <input type="file" id="file" hidden>
       <textarea id="text" rows="1" placeholder="Type a message" disabled></textarea>
       <button id="send" disabled>➤</button>
     </div>
-  </div>
+    <div id="drop">Drop to attach</div>
+  </main>
 </div>
 
-<div id="gate">
+<div class="overlay" id="gate">
   <h2 id="gt">Connecting…</h2>
-  <img id="qr" alt="" hidden>
-  <p id="gp">Starting the session.</p>
+  <img id="qr" alt="QR code" hidden>
+  <p id="gp">Starting your session.</p>
+  <button class="lnk" id="gateOut">Sign out</button>
 </div>
+
+<div class="overlay" id="pw">
+  <form class="dlg" id="pwf">
+    <h3>Change password</h3>
+    <input type="text" autocomplete="username" value="__USER__" hidden>
+    <label>Current password</label><input type="password" id="pwc" autocomplete="current-password" required>
+    <label>New password</label><input type="password" id="pwn" autocomplete="new-password" minlength="8" required>
+    <label>Repeat new password</label><input type="password" id="pwr" autocomplete="new-password" required>
+    <div class="err" id="pwerr"></div>
+    <div class="acts"><button type="button" class="btn ghost" id="pwx">Cancel</button><button class="btn">Save</button></div>
+  </form>
+</div>
+<div id="toast"></div>
 
 <script>
-const ID = '__ID__';
-const api = (p) => '/' + ID + '/api' + p;
-let chats = [], current = null, msgs = [], status = 'starting';
-
+const USER = '__USER__';
+const api = (p) => `/u/${USER}/api${p}`;
 const $ = (s) => document.querySelector(s);
-const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c =>
-  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
-const fmtTime = (ts) => {
+let status = 'starting', me = null, chats = [], current = null, currentName = '', msgs = [], attach = null, tmpN = 0;
+
+// ------------------------------------------------------------------ utils
+function toast(t, ms = 2800) {
+  const el = $('#toast'); el.textContent = t; el.classList.add('on');
+  clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove('on'), ms);
+}
+async function call(method, path, body, headers) {
+  const opts = {method, headers: headers || {}};
+  if (body !== undefined) {
+    if (body instanceof Blob) opts.body = body;
+    else { opts.body = JSON.stringify(body); opts.headers['content-type'] = 'application/json'; }
+  }
+  const r = await fetch(api(path), opts);
+  if (r.status === 401) { location.href = '/'; throw new Error('Signed out'); }
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.error || `Request failed (${r.status})`);
+  return d;
+}
+const throttle = (fn, ms) => { let t = null, again = false;
+  return () => { if (t) { again = true; return; } fn(); t = setTimeout(() => { t = null; if (again) { again = false; fn(); } }, ms); }; };
+const fmtTime = (ts) => new Date(ts * 1000).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+function fmtWhen(ts) {
   const d = new Date(ts * 1000), now = new Date();
-  const sameDay = d.toDateString() === now.toDateString();
-  return sameDay ? d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})
-                 : d.toLocaleDateString([], {day:'2-digit', month:'short'});
-};
-const initials = (n) => (n || '?').trim().slice(0, 2).toUpperCase();
+  if (d.toDateString() === now.toDateString()) return fmtTime(ts);
+  const y = new Date(now); y.setDate(now.getDate() - 1);
+  if (d.toDateString() === y.toDateString()) return 'Yesterday';
+  return d.toLocaleDateString([], {day: '2-digit', month: 'short', year: d.getFullYear() === now.getFullYear() ? undefined : '2-digit'});
+}
+function fmtDay(ts) {
+  const d = new Date(ts * 1000), now = new Date();
+  if (d.toDateString() === now.toDateString()) return 'Today';
+  const y = new Date(now); y.setDate(now.getDate() - 1);
+  if (d.toDateString() === y.toDateString()) return 'Yesterday';
+  return d.toLocaleDateString([], {weekday: 'short', day: 'numeric', month: 'long', year: d.getFullYear() === now.getFullYear() ? undefined : 'numeric'});
+}
+const initials = (n) => (n || '?').replace(/[^\p{L}\p{N} ]/gu, '').trim().split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase() || '#';
+const fmtSize = (b) => b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB';
+const mediaUrl = (m) => api(`/media?jid=${encodeURIComponent(m.jid)}&id=${encodeURIComponent(m.id)}`);
 
-// ------------------------------------------------------------ rendering ---
+// ------------------------------------------------------------ chat list
+function row(c, extra = '') {
+  return `<div class="row ${c.jid === current ? 'sel' : ''}" data-jid="${esc(c.jid)}" data-name="${esc(c.name)}">
+    <div class="av ${c.group ? 'g' : ''}">${esc(c.group ? '👥' : initials(c.name))}</div>
+    <div class="ct">
+      <div class="top"><span class="nm">${esc(c.name)}</span><span class="tm">${c.t ? fmtWhen(c.t) : ''}</span></div>
+      <div class="pv">${extra || esc(c.preview || c.phone || '')}${c.unread ? `<span class="badge">${c.unread}</span>` : ''}</div>
+    </div></div>`;
+}
 function renderChats() {
   const q = $('#search').value.trim().toLowerCase();
-  const list = chats.filter(c => !q || c.name.toLowerCase().includes(q));
-  $('#chats').innerHTML = list.map(c => `
-    <div class="chat ${c.jid === current ? 'sel' : ''}" data-jid="${esc(c.jid)}">
-      <div class="av">${esc(initials(c.name))}</div>
-      <div class="ct">
-        <div class="top"><span class="nm">${esc(c.name)}</span><span class="tm">${c.t ? fmtTime(c.t) : ''}</span></div>
-        <div class="pv">${esc(c.preview)}</div>
-      </div>
-      ${c.unread ? `<span class="badge">${c.unread}</span>` : ''}
-    </div>`).join('') || '<div class="empty">No chats yet.</div>';
+  const list = chats.filter(c => !q || c.name.toLowerCase().includes(q) || (c.phone || '').includes(q.replace(/\D/g, '') || '§'));
+  $('#chats').innerHTML = list.map(c => row(c)).join('') ||
+    `<div class="empty">${q ? 'No chats match.' : status === 'connected' ? 'No chats yet. They appear here as history syncs, or start one with ✎.' : 'Waiting for WhatsApp…'}</div>`;
+}
+const loadChats = throttle(async () => {
+  try { chats = await call('GET', '/chats'); renderChats(); updateTitle(); } catch {}
+}, 700);
+
+function updateTitle() {
+  if (!current) return;
+  const c = chats.find(x => x.jid === current);
+  const name = c?.name || currentName || current.split('@')[0];
+  $('#title').innerHTML = `<b>${esc(name)}</b><small>${esc(c?.group ? 'Group' : (c?.phone && c.phone !== name ? c.phone : ''))}</small>`;
 }
 
+// --------------------------------------------------------------- thread
 function bubble(m) {
   const who = m.senderName ? `<div class="who">${esc(m.senderName)}</div>` : '';
   let body = '';
   if (m.type === 'image' || m.type === 'sticker') {
-    body = `<img loading="lazy" src="${api('/media?id=' + encodeURIComponent(m.id))}" alt="">`;
+    const src = m.local || (m.media ? mediaUrl(m) : '');
+    body = src ? `<img loading="lazy" src="${esc(src)}" alt="" data-full="${esc(src)}">` : '<span class="note">📷 Photo</span>';
     if (m.text) body += esc(m.text);
-  } else if (m.media) {
-    const icon = {video:'🎥 Video', audio:'🎤 Voice message', document:'📄'}[m.type] || '📎';
-    body = `<a class="att" href="${api('/media?id=' + encodeURIComponent(m.id))}" target="_blank" rel="noopener">${icon} ${esc(m.text || 'Download')}</a>`;
+  } else if (m.type === 'document' || m.type === 'video' || m.type === 'audio') {
+    const label = m.type === 'document' ? (m.fileName || 'Document') : m.type === 'video' ? 'Video' : 'Voice message';
+    const icon = {document: '📄', video: '🎥', audio: '🎤'}[m.type];
+    const inner = `<span style="font-size:22px">${icon}</span><span>${esc(label)}</span>`;
+    body = m.media ? `<a class="file" href="${esc(mediaUrl(m))}" target="_blank" rel="noopener">${inner}</a>` : `<div class="file">${inner}</div>`;
+    if (m.text) body += esc(m.text);
   } else if (m.type === 'location') {
-    body = `<span class="att">📍 ${esc(m.text)}</span>`;
+    const q = encodeURIComponent(m.text);
+    body = `<a class="file" href="https://maps.google.com/?q=${q}" target="_blank" rel="noopener">📍 ${esc(m.text)}</a>`;
   } else if (m.type === 'contact') {
-    body = `<span class="att">👤 ${esc(m.text)}</span>`;
+    body = `<span class="note">👤 ${esc(m.text)}</span>`;
   } else {
     body = esc(m.text);
   }
-  return `<div class="m ${m.fromMe ? 'me' : ''}">${who}${body}<span class="t">${fmtTime(m.ts)}</span></div>`;
+  const tick = m.failed ? ' ⚠️' : m.pending ? ' 🕓' : '';
+  return `<div class="m ${m.fromMe ? 'me' : ''} ${m.pending ? 'pending' : ''} ${m.failed ? 'failed' : ''}">${who}${body}<span class="t">${fmtTime(m.ts)}${tick}</span></div>`;
 }
-
-function renderMsgs(stick = true) {
+function renderMsgs(stick) {
   const box = $('#msgs');
-  const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 120;
-  box.innerHTML = msgs.length ? msgs.map(bubble).join('')
-                             : '<div class="empty">No messages yet.</div>';
-  if (stick || atBottom) box.scrollTop = box.scrollHeight;
+  const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 150;
+  const prevH = box.scrollHeight, prevTop = box.scrollTop;
+  let html = msgs.length && status === 'connected' ? '<button class="more" id="more">Load earlier messages</button>' : '';
+  let day = '';
+  for (const m of msgs) {
+    const d = new Date(m.ts * 1000).toDateString();
+    if (d !== day) { day = d; html += `<div class="day">${fmtDay(m.ts)}</div>`; }
+    html += bubble(m);
+  }
+  box.innerHTML = html || '<div class="empty">No messages here yet. Say hi 👋</div>';
+  if (stick === 'keep') box.scrollTop = prevTop + (box.scrollHeight - prevH);
+  else if (stick || nearBottom) box.scrollTop = box.scrollHeight;
+}
+function upsert(m) {
+  const i = msgs.findIndex(x => x.id === m.id);
+  if (i >= 0) msgs[i] = {...msgs[i], ...m}; else msgs.push(m);
+  msgs.sort((a, b) => a.ts - b.ts);
 }
 
-// ------------------------------------------------------------- actions ---
-async function loadChats() {
-  chats = await (await fetch(api('/chats'))).json();
-  renderChats();
-}
-
-async function open(jid) {
-  current = jid;
-  const c = chats.find(x => x.jid === jid);
-  $('#title').textContent = c ? c.name : jid;
-  $('#text').disabled = $('#send').disabled = status !== 'connected';
+async function openChat(jid, name) {
+  current = jid; currentName = name || '';
   document.body.classList.add('open');
-  msgs = await (await fetch(api('/messages?jid=' + encodeURIComponent(jid)))).json();
-  renderMsgs(true);
-  if (c) c.unread = 0;
-  renderChats();
+  updateTitle(); setComposer();
+  $('#msgs').innerHTML = '<div class="empty">Loading…</div>';
+  try {
+    msgs = await call('GET', `/messages?jid=${encodeURIComponent(jid)}`);
+    if (current !== jid) return;
+    renderMsgs(true);
+    const c = chats.find(x => x.jid === jid); if (c) c.unread = 0;
+    renderChats();
+  } catch (x) { toast(x.message); }
+  if (innerWidth > 760) $('#text').focus();
+}
+const reloadThread = throttle(async () => {
+  if (!current) return;
+  const jid = current;
+  try {
+    const fresh = await call('GET', `/messages?jid=${encodeURIComponent(jid)}`);
+    if (current !== jid) return;
+    const pend = msgs.filter(m => m.pending || m.failed);
+    const grew = fresh.length && msgs.length && fresh[0].ts < (msgs.find(m => !m.pending)?.ts ?? Infinity);
+    msgs = fresh; pend.forEach(upsert);
+    renderMsgs(grew ? 'keep' : false);
+  } catch {}
+}, 800);
+
+async function loadOlder(btn) {
+  btn.disabled = true; btn.textContent = 'Asking your phone…';
+  try {
+    const r = await call('POST', '/older', {jid: current});
+    if (!r.requested) { toast(r.reason ? `Can't load more: ${r.reason}` : 'Nothing older to load'); btn.textContent = 'Load earlier messages'; btn.disabled = false; return; }
+    toast('Requested older messages. Your phone needs to be online.');
+    setTimeout(() => { if (btn.isConnected) { btn.textContent = 'Load earlier messages'; btn.disabled = false; } }, 6000);
+  } catch (x) { toast(x.message); btn.textContent = 'Load earlier messages'; btn.disabled = false; }
 }
 
+// ---------------------------------------------------------------- send
+function setComposer() {
+  const ok = status === 'connected' && !!current;
+  $('#text').disabled = $('#send').disabled = $('#attach').disabled = !ok;
+}
 async function send() {
-  const t = $('#text').value.trim();
-  if (!t || !current) return;
-  $('#text').value = '';
-  $('#text').style.height = 'auto';
+  if (!current || status !== 'connected') return;
+  const text = $('#text').value.trim();
+  if (!text && !attach) return;
+  const jid = current;
+  $('#text').value = ''; $('#text').style.height = 'auto';
+  if (attach) {
+    const a = attach; clearAttach();
+    return sendFile(jid, a, text);
+  }
+  const tmp = {id: 'tmp' + (++tmpN), jid, fromMe: true, ts: Math.floor(Date.now() / 1000), type: 'text', text, pending: true};
+  upsert(tmp); renderMsgs(true);
   try {
-    await fetch(api('/send'), {
-      method: 'POST',
-      headers: {'content-type': 'application/json'},
-      body: JSON.stringify({jid: current, text: t})
-    });
-  } catch (e) {
-    alert('Send failed: ' + e.message);
+    const real = await call('POST', '/send', {jid, text});
+    if (current === jid) { msgs = msgs.filter(m => m.id !== tmp.id); if (real) upsert(real); renderMsgs(true); }
+    loadChats();
+  } catch (x) {
+    tmp.pending = false; tmp.failed = true; renderMsgs(false);
+    toast('Not sent: ' + x.message, 4000);
   }
 }
 
-function setStatus(s, qr) {
-  status = s;
-  const dot = $('#dot');
-  dot.className = 'dot' + (s === 'connected' ? ' ok' : s === 'logged-out' ? ' bad' : '');
+async function sendFile(jid, a, caption) {
+  const isImg = !!a.jpeg;
+  const tmp = {id: 'tmp' + (++tmpN), jid, fromMe: true, ts: Math.floor(Date.now() / 1000), pending: true,
+    type: isImg ? 'image' : 'document', text: caption, fileName: a.name, local: isImg ? URL.createObjectURL(a.jpeg) : undefined};
+  upsert(tmp); renderMsgs(true);
+  try {
+    const qs = `?jid=${encodeURIComponent(jid)}&name=${encodeURIComponent(a.name)}&caption=${encodeURIComponent(caption || '')}`;
+    const headers = {'content-type': isImg ? 'image/jpeg' : (a.file.type || 'application/octet-stream')};
+    if (a.thumb) headers['x-thumb'] = a.thumb;
+    const real = await call('POST', '/send-media' + qs, isImg ? a.jpeg : a.file, headers);
+    if (current === jid) {
+      msgs = msgs.filter(m => m.id !== tmp.id);
+      if (real) upsert({...real, local: tmp.local});
+      renderMsgs(true);
+    }
+    loadChats();
+  } catch (x) {
+    tmp.pending = false; tmp.failed = true; renderMsgs(false);
+    toast('Not sent: ' + x.message, 4000);
+  }
+}
+
+// ---------------------------------------------------------- attachments
+function loadImage(file) {
+  return new Promise((res, rej) => {
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onload = () => res(img); img.onerror = () => rej(new Error('unreadable image')); img.src = url;
+  });
+}
+function toJpeg(img, maxSide, quality) {
+  const s = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
+  const c = document.createElement('canvas');
+  c.width = Math.max(1, Math.round(img.naturalWidth * s)); c.height = Math.max(1, Math.round(img.naturalHeight * s));
+  const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height);
+  return c;
+}
+async function prepare(file) {
+  const a = {file, name: file.name || 'file', size: file.size};
+  // Photos get re-encoded to JPEG (what WhatsApp expects) and a tiny preview
+  // is made here, so the server needs no image library. GIFs, HEIC the
+  // browser can't decode, and everything else go as a document.
+  if (/^image\/(jpeg|png|webp|bmp)$/.test(file.type)) {
+    try {
+      const img = await loadImage(file);
+      const big = toJpeg(img, 2560, 0.85);
+      a.jpeg = await new Promise(r => big.toBlob(r, 'image/jpeg', 0.85));
+      a.thumb = toJpeg(img, 72, 0.6).toDataURL('image/jpeg', 0.6).split(',')[1];
+      a.preview = URL.createObjectURL(a.jpeg);
+      a.size = a.jpeg.size;
+      if (!a.name.toLowerCase().endsWith('.jpg')) a.name = a.name.replace(/\.[^.]+$/, '') + '.jpg';
+    } catch { delete a.jpeg; }
+  }
+  return a;
+}
+async function setAttach(file) {
+  if (!file) return;
+  if (file.size > 25 * 1048576) return toast('That file is over 25 MB');
+  attach = await prepare(file);
+  $('#attImg').hidden = !attach.preview; if (attach.preview) $('#attImg').src = attach.preview;
+  $('#attIcon').hidden = !!attach.preview;
+  $('#attName').textContent = attach.jpeg ? 'Photo' : attach.name;
+  $('#attSize').textContent = fmtSize(attach.size) + (attach.jpeg ? '' : ' · sent as a file') + ' · type a caption and press send';
+  $('#att').classList.add('on');
+  $('#text').focus();
+}
+function clearAttach() { attach = null; $('#att').classList.remove('on'); $('#file').value = ''; }
+
+// --------------------------------------------------------------- status
+function setStatus(s, qr, meInfo) {
+  const was = status; status = s;
+  if (meInfo) me = meInfo;
+  $('#dot').className = 'dot' + (s === 'connected' ? ' ok' : s === 'logged-out' ? ' bad' : '');
+  if (me?.name) $('#meName').textContent = me.name;
+  $('#mePhone').textContent = s === 'connected' ? (me?.phone || 'connected') : s === 'qr' ? 'not linked' : s + '…';
   const gate = $('#gate');
-  if (s === 'connected') {
-    gate.classList.remove('on');
-    $('#text').disabled = $('#send').disabled = !current;
-  } else {
+  if (s === 'connected') gate.classList.remove('on');
+  else {
     gate.classList.add('on');
-    $('#text').disabled = $('#send').disabled = true;
     if (qr) {
-      $('#gt').textContent = 'Link this session';
+      $('#gt').textContent = 'Link your WhatsApp';
       $('#qr').src = qr; $('#qr').hidden = false;
-      $('#gp').textContent = 'On the phone for this account: WhatsApp → Settings → Linked devices → Link a device, then scan.';
+      $('#gp').innerHTML = 'On your phone: <b>WhatsApp → Settings → Linked devices → Link a device</b>, then scan this.<br><br>Your chats and history load automatically right after.';
     } else {
       $('#qr').hidden = true;
       $('#gt').textContent = s === 'reconnecting' ? 'Reconnecting…' : 'Connecting…';
-      $('#gp').textContent = 'Hold on a moment.';
+      $('#gp').textContent = 'One moment.';
     }
   }
+  setComposer();
+  if (s === 'connected' && was !== 'connected') { loadChats(); if (current) reloadThread(); }
+}
+let syncTimer;
+function syncing(e) {
+  const el = $('#sync');
+  el.textContent = `Syncing your chats… ${e.progress != null ? Math.round(e.progress) + '%' : ''}`;
+  el.classList.add('on');
+  clearTimeout(syncTimer); syncTimer = setTimeout(() => el.classList.remove('on'), 8000);
 }
 
-// -------------------------------------------------------------- events ---
+// --------------------------------------------------------------- events
 function stream() {
   const es = new EventSource(api('/events'));
-  es.onmessage = (e) => {
-    const d = JSON.parse(e.data);
-    if (d.type === 'status') {
-      const was = status;
-      setStatus(d.status, d.qr);
-      if (d.status === 'connected' && was !== 'connected') loadChats();
-    } else if (d.type === 'chats') {
-      loadChats();
-    } else if (d.type === 'message') {
-      if (d.message.jid === current) {
-        const i = msgs.findIndex(m => m.id === d.message.id);
-        if (i >= 0) msgs[i] = d.message; else msgs.push(d.message);
-        renderMsgs(false);
+  es.onmessage = (ev) => {
+    const d = JSON.parse(ev.data);
+    if (d.type === 'status') setStatus(d.status, d.qr, d.me);
+    else if (d.type === 'chats') loadChats();
+    else if (d.type === 'history') { syncing(d); loadChats(); if (current) reloadThread(); }
+    else if (d.type === 'merged') { if (current === d.from) { current = d.to; reloadThread(); } loadChats(); }
+    else if (d.type === 'message' && d.message.jid === current) {
+      const m = d.message;
+      // our own optimistic bubble may still be pending; the real one replaces it
+      if (m.fromMe) {
+        const i = msgs.findIndex(x => x.pending && x.type === m.type && (x.text || '') === (m.text || ''));
+        if (i >= 0) { m.local = msgs[i].local; msgs.splice(i, 1); }
       }
-      loadChats();
+      upsert(m); renderMsgs(false);
     }
   };
-  es.onerror = () => {}; // EventSource retries on its own
 }
 
-// ---------------------------------------------------------------- wire ---
-$('#chats').addEventListener('click', (e) => {
-  const el = e.target.closest('.chat');
-  if (el) open(el.dataset.jid);
-});
+// ------------------------------------------------------------ new chat
+async function searchContacts() {
+  const q = $('#ncq').value.trim();
+  const digits = q.replace(/[^\d]/g, '');
+  let html = '';
+  if (digits.length >= 7 && /^[+\d\s()-]+$/.test(q)) {
+    html += `<div class="row" data-phone="${digits}"><div class="av">＋</div><div class="ct"><div class="nm">Message +${digits}</div><div class="pv">Check this number on WhatsApp</div></div></div>`;
+  }
+  try {
+    const list = await call('GET', '/contacts?q=' + encodeURIComponent(q));
+    html += list.map(c => row({...c, preview: c.phone || (c.group ? 'Group' : '')})).join('');
+  } catch {}
+  $('#nclist').innerHTML = html || '<div class="empty">No contacts found. Type a full number with country code.</div>';
+}
+let ncT;
+function openNew() { $('#menu').classList.remove('on'); $('#newchat').classList.add('on'); $('#ncq').value = ''; searchContacts(); $('#ncq').focus(); }
+function closeNew() { $('#newchat').classList.remove('on'); }
+
+// ----------------------------------------------------------------- wire
+$('#chats').addEventListener('click', e => { const r = e.target.closest('.row'); if (r) openChat(r.dataset.jid, r.dataset.name); });
 $('#search').addEventListener('input', renderChats);
 $('#back').addEventListener('click', () => document.body.classList.remove('open'));
 $('#send').addEventListener('click', send);
-$('#text').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+$('#text').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && innerWidth > 760) { e.preventDefault(); send(); } });
+$('#text').addEventListener('input', function () { this.style.height = 'auto'; this.style.height = Math.min(this.scrollHeight, 140) + 'px'; });
+$('#text').addEventListener('paste', e => {
+  const f = [...(e.clipboardData?.files || [])][0];
+  if (f && current && status === 'connected') { e.preventDefault(); setAttach(f); }
 });
-$('#text').addEventListener('input', function () {
-  this.style.height = 'auto';
-  this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+$('#attach').addEventListener('click', () => $('#file').click());
+$('#file').addEventListener('change', e => setAttach(e.target.files[0]));
+$('#attX').addEventListener('click', clearAttach);
+$('#msgs').addEventListener('click', e => {
+  if (e.target.id === 'more') return loadOlder(e.target);
+  const img = e.target.closest('img[data-full]'); if (img) window.open(img.dataset.full, '_blank', 'noopener');
+});
+const main = $('#main');
+main.addEventListener('dragover', e => { if (current && status === 'connected') { e.preventDefault(); $('#drop').classList.add('on'); } });
+main.addEventListener('dragleave', e => { if (!main.contains(e.relatedTarget)) $('#drop').classList.remove('on'); });
+main.addEventListener('drop', e => { e.preventDefault(); $('#drop').classList.remove('on'); setAttach(e.dataTransfer.files[0]); });
+
+$('#newBtn').addEventListener('click', openNew);
+$('#ncBack').addEventListener('click', closeNew);
+$('#ncq').addEventListener('input', () => { clearTimeout(ncT); ncT = setTimeout(searchContacts, 200); });
+$('#ncq').addEventListener('keydown', e => { if (e.key === 'Enter') { const r = $('#nclist .row'); if (r) r.click(); } });
+$('#nclist').addEventListener('click', async e => {
+  const r = e.target.closest('.row'); if (!r) return;
+  if (r.dataset.phone) {
+    r.querySelector('.pv').textContent = 'Checking…';
+    try { const c = await call('POST', '/resolve', {phone: r.dataset.phone}); closeNew(); openChat(c.jid, c.name); }
+    catch (x) { r.querySelector('.pv').textContent = x.message; }
+  } else { closeNew(); openChat(r.dataset.jid, r.dataset.name); }
 });
 
-fetch(api('/state')).then(r => r.json()).then(s => {
-  setStatus(s.status, s.qr);
-  if (s.status === 'connected') loadChats();
+$('#menuBtn').addEventListener('click', e => { e.stopPropagation(); $('#menu').classList.toggle('on'); });
+document.addEventListener('click', e => { if (!e.target.closest('#menu')) $('#menu').classList.remove('on'); });
+async function signOut() { await fetch('/api/logout', {method: 'POST'}); location.href = '/'; }
+$('#gateOut').addEventListener('click', signOut);
+$('#menu').addEventListener('click', async e => {
+  const b = e.target.closest('button'); if (!b) return;
+  $('#menu').classList.remove('on');
+  const m = b.dataset.m;
+  if (m === 'new') openNew();
+  if (m === 'out') signOut();
+  if (m === 'pw') { $('#pwf').reset(); $('#pwerr').textContent = ''; $('#pw').classList.add('on'); $('#pwc').focus(); }
+  if (m === 'relink') {
+    if (!confirm('Re-link WhatsApp?\n\nThis disconnects this site from your phone and shows a new QR code. Scanning it again reloads your chat history.\n\nYour saved chats here are kept.')) return;
+    try { await call('POST', '/relink', {}); toast('Unlinked. Scan the new QR code.'); } catch (x) { toast(x.message); }
+  }
 });
+$('#pwx').addEventListener('click', () => $('#pw').classList.remove('on'));
+$('#pwf').addEventListener('submit', async e => {
+  e.preventDefault();
+  if ($('#pwn').value !== $('#pwr').value) { $('#pwerr').textContent = "New passwords don't match."; return; }
+  try {
+    await call('POST', '/password', {current: $('#pwc').value, next: $('#pwn').value});
+    $('#pw').classList.remove('on'); toast('Password changed');
+  } catch (x) { $('#pwerr').textContent = x.message; }
+});
+
+call('GET', '/state').then(s => setStatus(s.status, s.qr, s.me)).catch(() => {});
 stream();
 </script>
