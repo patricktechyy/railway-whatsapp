@@ -221,6 +221,7 @@ export class Store {
   }
 
   oldest(jid) {
+    jid = this.canon(jid)
     return (this.messages.get(jid) || [])[0] || null
   }
 
@@ -255,6 +256,7 @@ export class Store {
   }
 
   messageList(jid) {
+    jid = this.canon(jid)
     const group = isGroup(jid)
     return (this.messages.get(jid) || []).map((m) => ({
       id: m.id,

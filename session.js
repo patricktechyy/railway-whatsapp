@@ -88,6 +88,10 @@ const cmpVersion = (a, b) => {
 }
 const isVersion = (v) => Array.isArray(v) && v.length === 3 && v.every((n) => Number.isInteger(n) && n >= 0)
 const timeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))])
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+const mediaAttemptsEnv = Number(process.env.MEDIA_DOWNLOAD_ATTEMPTS || 3)
+const MEDIA_DOWNLOAD_ATTEMPTS = Number.isFinite(mediaAttemptsEnv) && mediaAttemptsEnv > 0 ? Math.floor(mediaAttemptsEnv) : 3
 
 export function forgetVersion() {
   versionAt = 0 // force a re-check next time, but keep versionBest as a floor
@@ -294,6 +298,7 @@ export class Session extends EventEmitter {
       qrTimeout: 60_000, // each QR lives a minute: time to find your phone
       getMessage: async (key) => {
         const m = this.store.findMessage(key.remoteJid, key.id)
+        if (m?.rm) return fromJsonSafe(m.rm).message
         return m?.text && m.type === 'text' ? { conversation: m.text } : undefined
       },
       cachedGroupMetadata: async (jid) => this.groupCache.get(jid),
@@ -340,25 +345,54 @@ export class Session extends EventEmitter {
         this.loadGroups(sock)
         this.scheduleLidResolve()
       }
-      if (u.connection === 'close') await this.onClose(B, u, sock)
+      if (u.connection === 'close') {
+        try {
+          await this.onClose(B, u, sock)
+        } catch (e) {
+          if (live()) this.log('connection close handler failed:', e?.message || e)
+        }
+      }
     })
 
     // --- history: arrives in batches right after pairing (and on demand) ---
     sock.ev.on('messaging-history.set', (h) => {
       if (!live()) return
-      const { chats = [], contacts = [], messages = [], syncType, progress } = h
-      for (const m of h.lidPnMappings || h.lidMappings || []) this.store.link(m.lid, m.pn ?? m.phoneNumber)
-      for (const c of contacts) this.onContact(c)
-      for (const c of chats) this.onChat(c)
-      let n = 0
-      for (const m of messages) if (this.ingest(m, { bumpUnread: false })) n++
-      this.log(
-        `history batch: type=${syncType ?? '?'} chats=${chats.length} contacts=${contacts.length} messages=${n}` +
-          (progress != null ? ` progress=${progress}%` : '')
-      )
-      this.emit('event', { type: 'history', chats: chats.length, messages: n, progress })
-      this.emit('event', { type: 'chats' })
-      this.scheduleLidResolve()
+      try {
+        const { chats = [], contacts = [], messages = [], syncType, progress } = h
+        for (const m of h.lidPnMappings || h.lidMappings || []) {
+          try {
+            this.store.link(m.lid, m.pn ?? m.phoneNumber)
+          } catch (e) {
+            this.log('history LID mapping failed:', e?.message || e)
+          }
+        }
+        for (const c of contacts) {
+          try { this.onContact(c) } catch (e) { this.log('history contact failed:', e?.message || e) }
+        }
+        for (const c of chats) {
+          try { this.onChat(c) } catch (e) { this.log('history chat failed:', e?.message || e) }
+        }
+        let n = 0
+        let failed = 0
+        for (const m of messages) {
+          try {
+            if (this.ingest(m, { bumpUnread: false })) n++
+          } catch (e) {
+            failed++
+            this.log('history message failed:', m?.key?.id || '?', e?.message || e)
+          }
+        }
+        this.log(
+          `history batch: type=${syncType ?? '?'} chats=${chats.length} contacts=${contacts.length} messages=${n}` +
+            (failed ? ` failed=${failed}` : '') +
+            (progress != null ? ` progress=${progress}%` : '')
+        )
+        this.emit('event', { type: 'history', chats: chats.length, messages: n, progress })
+        this.emit('event', { type: 'chats' })
+        this.scheduleLidResolve()
+      } catch (e) {
+        this.log('history batch failed:', e?.message || e)
+      }
     })
 
     sock.ev.on('contacts.upsert', (cs) => {
@@ -402,13 +436,46 @@ export class Session extends EventEmitter {
       if (changed) this.emit('event', { type: 'chats' })
     })
 
-    sock.ev.on('messages.upsert', ({ messages, type }) => {
+    sock.ev.on('messages.upsert', ({ messages = [], type }) => {
       if (!live()) return
+      let received = 0
+      let failed = 0
+      let placeholders = 0
       for (const m of messages) {
-        const msg = this.ingest(m, { bumpUnread: type === 'notify' })
-        if (msg) this.emit('event', { type: 'message', message: this.publicMsg(msg) })
+        try {
+          // Baileys can emit a placeholder when a message could not be
+          // decrypted yet. Ask the phone to resend it instead of silently
+          // dropping it from our local message list.
+          if (!m?.message && !m?.messageStubType && m?.key?.id && typeof sock.requestPlaceholderResend === 'function') {
+            placeholders++
+            Promise.resolve(sock.requestPlaceholderResend(m.key)).catch((e) => {
+              if (live()) this.log('placeholder resend failed:', m.key.id, e?.message || e)
+            })
+            continue
+          }
+
+          const msg = this.ingest(m, { bumpUnread: type === 'notify' })
+          if (msg) {
+            received++
+            try {
+              this.emit('event', { type: 'message', message: this.publicMsg(msg) })
+            } catch (e) {
+              this.log('message event delivery failed:', e?.message || e)
+            }
+          }
+        } catch (e) {
+          failed++
+          this.log('incoming message failed:', m?.key?.id || '?', e?.message || e)
+        }
       }
-      this.emit('event', { type: 'chats' })
+      if (received || failed || placeholders) {
+        this.log(
+          `messages.upsert type=${type ?? '?'} received=${received}` +
+            (placeholders ? ` placeholders=${placeholders}` : '') +
+            (failed ? ` failed=${failed}` : '')
+        )
+      }
+      try { this.emit('event', { type: 'chats' }) } catch (e) { this.log('chat event delivery failed:', e?.message || e) }
     })
   }
 
@@ -800,13 +867,39 @@ export class Session extends EventEmitter {
     const m = this.store.findMessage(jid, id)
     if (!m?.rm) return null
     const B = await loadBaileys()
-    const raw = fromJsonSafe(m.rm)
-    const buffer = await B.downloadMediaMessage(raw, 'buffer', {}, {
-      logger: silent,
-      reuploadRequest: this.sock?.updateMediaMessage,
-    })
-    const sub = Object.values(raw.message)[0] || {}
-    return { buffer, mime: sub.mimetype || 'application/octet-stream', fileName: sub.fileName }
+    let raw = fromJsonSafe(m.rm)
+    let lastError
+
+    for (let attempt = 1; attempt <= MEDIA_DOWNLOAD_ATTEMPTS; attempt++) {
+      try {
+        const buffer = await B.downloadMediaMessage(raw, 'buffer', {}, {
+          logger: silent,
+          reuploadRequest: this.sock?.updateMediaMessage,
+        })
+        const sub = Object.values(raw.message || {})[0] || {}
+        return { buffer, mime: sub.mimetype || 'application/octet-stream', fileName: sub.fileName }
+      } catch (e) {
+        lastError = e
+        if (attempt === MEDIA_DOWNLOAD_ATTEMPTS) break
+
+        // Media URLs can fail independently of the WhatsApp websocket.
+        // Retry the request first; on the final retry before backing off,
+        // ask WhatsApp for a fresh media URL when the socket supports it.
+        if (attempt === MEDIA_DOWNLOAD_ATTEMPTS - 1 && typeof this.sock?.updateMediaMessage === 'function') {
+          try {
+            const refreshed = await this.sock.updateMediaMessage(raw)
+            if (refreshed?.message) raw = refreshed
+          } catch (refreshError) {
+            this.log('media reupload refresh failed:', refreshError?.message || refreshError)
+          }
+        }
+        await sleep(350 * 2 ** (attempt - 1))
+      }
+    }
+
+    const e = lastError instanceof Error ? lastError : new Error(String(lastError || 'Media download failed'))
+    this.log(`media download failed ${jid}/${id} after ${MEDIA_DOWNLOAD_ATTEMPTS} attempts:`, e.message)
+    throw e
   }
 
   async wipeAuth() {
