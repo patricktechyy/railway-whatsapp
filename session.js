@@ -674,9 +674,45 @@ export class Session extends EventEmitter {
     }
   }
 
+  // WhatsApp is migrating personal contacts from PN JIDs (@s.whatsapp.net)
+  // to LID JIDs (@lid). Baileys rc14 can still enter assertSessions with the
+  // PN address and WhatsApp may answer 406/not-acceptable. Resolve a PN to its
+  // LID immediately before sending so the encryption-session lookup uses the
+  // address WhatsApp expects. Groups are left untouched.
+  async sendJid(jid) {
+    const target = this.store.canon(jid)
+    if (!isPn(target) || isGroup(target)) return target
+
+    const mapping = this.sock?.signalRepository?.lidMapping
+    try {
+      if (mapping?.getLIDsForPNs) {
+        const rows = await mapping.getLIDsForPNs([target])
+        const lid = Array.isArray(rows) ? rows.find((x) => x?.pn === target)?.lid || rows.find((x) => x?.lid)?.lid : null
+        if (lid) {
+          this.store.link(lid, target)
+          this.log(`resolved send target ${target} -> ${lid}`)
+          return lid
+        }
+      }
+    } catch (e) {
+      this.log(`send target LID lookup failed for ${target}: ${e?.message || e}`)
+    }
+
+    // The local store may already know the LID from an incoming/history event
+    // even when Baileys' live mapping cache does not. Use that as a fallback.
+    for (const [lid, pn] of this.store.alias) {
+      if (pn === target && isLid(lid)) {
+        this.log(`using stored send target ${target} -> ${lid}`)
+        return lid
+      }
+    }
+    return target
+  }
+
   async send(jid, text) {
     this.ensureConnected()
-    const sent = await this.sock.sendMessage(jid, { text })
+    const target = await this.sendJid(jid)
+    const sent = await this.sock.sendMessage(target, { text })
     const msg = this.ingest(sent, { bumpUnread: false })
     if (msg) this.emit('event', { type: 'message', message: this.publicMsg(msg) })
     this.emit('event', { type: 'chats' })
@@ -685,6 +721,7 @@ export class Session extends EventEmitter {
 
   async sendMedia(jid, buffer, { mime, name, caption, thumb }) {
     this.ensureConnected()
+    const target = await this.sendJid(jid)
     let content
     if (mime === 'image/jpeg') {
       content = { image: buffer, mimetype: 'image/jpeg', caption: caption || undefined }
@@ -698,7 +735,7 @@ export class Session extends EventEmitter {
         caption: caption || undefined,
       }
     }
-    const sent = await this.sock.sendMessage(jid, content)
+    const sent = await this.sock.sendMessage(target, content)
     const msg = this.ingest(sent, { bumpUnread: false })
     if (msg) this.emit('event', { type: 'message', message: this.publicMsg(msg) })
     this.emit('event', { type: 'chats' })
