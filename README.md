@@ -93,8 +93,10 @@ in the deploy logs (search for `admin password:`), and saved to the volume.
 | Add someone | Type a username and name → **Add** → copy the link → send it to them. |
 | Someone forgot their password | **Reset password** → send the new link. Their WhatsApp stays linked. |
 | Someone lost/changed their phone | **Unlink phone**. They scan a new QR next time they sign in. |
-| Fix a typo in a name | **Rename**. The username can't change (it's in their URL). |
 | Remove someone | **Remove** → type their username to confirm. Unlinks their phone and deletes their data here. |
+
+Usernames and display names are fixed once created. If you got one wrong,
+remove and re-add the person — ideally before they link their phone.
 
 Setup links work once and expire after 7 days. You can't read anyone's chats
 from the admin page. (You *could* reset someone's password and use the link
@@ -111,6 +113,31 @@ yourself — they'd notice, because it signs them out.)
 | `MAX_CHATS` | `800` | Chats kept. |
 | `MAX_UPLOAD_MB` | `25` | Largest file you can send. |
 | `DATA_DIR` | `/data` | Must match the volume mount. |
+| `WA_VERSION` | auto | Force a WhatsApp Web version, e.g. `2.3000.1047506285`. Only if the logs show 405s that don't clear on their own. |
+
+## Many people, many devices
+
+Each person signs in on as many devices as they like — phone, laptop, tablet —
+and each stays signed in for 30 days. Everything is live on all of them: send
+from the laptop and it appears on the phone; open a chat on one and the unread
+badge clears on the others.
+
+**Linking from a phone.** You can't scan a QR code that's on your own screen.
+Anyone opening their page on the same phone that has WhatsApp gets a
+**link with a code instead** option: they type their number, get an 8-character
+code, and enter it in WhatsApp under *Linked devices → Link a device → Link with
+phone number instead*. If that ever fails with "couldn't link", open the page
+on any other screen and scan the QR there — it only has to happen once.
+
+**People who haven't set up yet cost nothing.** A person's WhatsApp connection
+only starts when they first open their page, so adding twenty people you'll
+invite later doesn't hammer WhatsApp with QR codes nobody is looking at.
+
+**After a deploy**, linked accounts reconnect about two seconds apart instead
+of all at once.
+
+**One office, one IP.** Ten wrong passwords lock *that account* from *that
+address* for 15 minutes — not everyone else sharing your office internet.
 
 ## Things to know
 
@@ -140,12 +167,15 @@ Deploy logs show a line per history batch, which is the quickest way to see
 what's happening:
 
 ```
+  using WhatsApp Web version 2.3000.1047506285 (from web.whatsapp.com)
 [ali] connected as +6591234567
 [ali] history batch: type=0 chats=312 contacts=540 messages=4180 progress=35%
 ```
 
 | Symptom | Fix |
 | --- | --- |
+| Stuck on "Reconnecting…" / never shows a QR | Fixed in this version: it was using an outdated WhatsApp Web version, which WhatsApp refuses (code 405) before showing a QR. The screen now shows the actual reason. Logs should say `using WhatsApp Web version 2.3000.… (from web.whatsapp.com)`. If you still see repeated 405s, set `WA_VERSION` to the current version. |
+| Still stuck after several attempts | A **Start over with a new QR code** button appears on the screen after 3 failed attempts. |
 | No `history batch` lines after linking | The device was linked before this upgrade. **⋮ → Re-link WhatsApp**. |
 | A chat still shows a long number instead of a name | WhatsApp hasn't revealed that LID's phone yet. It merges automatically once that person messages you. |
 | "Not sent: WhatsApp is not connected yet" | The dot next to your name is amber — wait for green. |

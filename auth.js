@@ -152,14 +152,6 @@ export class Auth {
     return u
   }
 
-  rename(username, name) {
-    const u = this.get(username)
-    if (!u) throw new HttpError(404, 'No such user')
-    u.name = String(name || '').trim().slice(0, 60) || u.username
-    this.save()
-    return u
-  }
-
   /** New one-time link. Clears the old password and signs the user out. */
   resetPassword(username) {
     const u = this.get(username)
@@ -223,38 +215,50 @@ export class Auth {
 
   // ------------------------------------------------------------------ login
   async login(ip, username, password) {
-    username = String(username || '').trim().toLowerCase()
-    this.throttle(ip)
+    username = String(username || '').trim().toLowerCase().slice(0, 40)
+    const key = `${ip}|${username}`
+    this.throttle(ip, key)
     if (username === 'admin') {
-      if (eq(password, this.adminPassword)) return this.ok(ip, { k: 'admin', u: 'admin', pv: this.adminPv })
+      if (eq(password, this.adminPassword)) return this.ok(key, { k: 'admin', u: 'admin', pv: this.adminPv })
     } else {
       const u = this.get(username)
       if (u && !u.pass) {
-        this.fail(ip)
+        this.fail(ip, key)
         throw new HttpError(403, 'This account has no password yet. Use the setup link you were sent.')
       }
-      if (await this.checkPassword(u, password)) return this.ok(ip, { k: 'user', u: u.username, pv: u.pv })
+      if (await this.checkPassword(u, password)) return this.ok(key, { k: 'user', u: u.username, pv: u.pv })
     }
-    this.fail(ip)
+    this.fail(ip, key)
     throw new HttpError(401, 'Wrong username or password')
   }
 
-  throttle(ip) {
-    const f = this.failures.get(ip)
-    if (f && f.n >= 10 && Date.now() - f.t < 15 * 60 * 1000) {
+  // 10 wrong passwords for one account from one address, or 100 wrong
+  // passwords of any kind from one address, locks that for 15 minutes.
+  // Per-account keys mean one person's typos at the office don't lock out
+  // everyone else behind the same public IP.
+  throttle(ip, key) {
+    const window = 15 * 60 * 1000
+    const hit = (k, max) => {
+      const f = this.failures.get(k)
+      return f && f.n >= max && Date.now() - f.t < window
+    }
+    if (hit(key, 10) || hit(`ip:${ip}`, 100)) {
       throw new HttpError(429, 'Too many attempts. Wait 15 minutes and try again.')
     }
   }
 
-  fail(ip) {
-    const f = this.failures.get(ip)
-    if (!f || Date.now() - f.t > 15 * 60 * 1000) this.failures.set(ip, { n: 1, t: Date.now() })
-    else f.n++
-    if (this.failures.size > 5000) this.failures.clear()
+  fail(ip, key) {
+    const window = 15 * 60 * 1000
+    for (const k of [key, `ip:${ip}`]) {
+      const f = this.failures.get(k)
+      if (!f || Date.now() - f.t > window) this.failures.set(k, { n: 1, t: Date.now() })
+      else f.n++
+    }
+    if (this.failures.size > 20000) this.failures.clear()
   }
 
-  ok(ip, claims) {
-    this.failures.delete(ip)
+  ok(key, claims) {
+    this.failures.delete(key)
     return claims
   }
 

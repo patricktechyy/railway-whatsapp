@@ -99,6 +99,14 @@ button{font:inherit;color:inherit;cursor:pointer}
 #gate h2{margin:0;font-size:20px}
 #gate p{margin:0;color:var(--muted);font-size:14px;max-width:380px}
 #gate .lnk{background:none;border:0;color:var(--muted);text-decoration:underline;font-size:13px}
+#gerr{color:var(--danger);font-size:13px}
+#pairBox{width:100%;max-width:380px;display:flex;flex-direction:column;gap:10px;align-items:center}
+#pairForm{display:flex;gap:8px;width:100%}
+#pairForm input{flex:1;padding:10px 12px;border-radius:8px;border:1px solid var(--line);background:var(--field);color:inherit;font:inherit;outline:none}
+#pairCode{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;width:100%}
+#pairCode .code{font:600 30px/1.2 ui-monospace,Menlo,Consolas,monospace;letter-spacing:4px;margin:6px 0 10px;user-select:all}
+#pairCode ol{text-align:left;margin:0;padding-left:20px;color:var(--muted);font-size:13px}
+#restart{margin-top:4px}
 #pw{background:rgba(0,0,0,.45)}
 .dlg{background:var(--panel);border-radius:14px;padding:24px;width:100%;max-width:360px}
 .dlg h3{margin:0 0 12px}
@@ -175,6 +183,25 @@ button{font:inherit;color:inherit;cursor:pointer}
   <h2 id="gt">Connecting…</h2>
   <img id="qr" alt="QR code" hidden>
   <p id="gp">Starting your session.</p>
+  <p id="gerr" hidden></p>
+  <div id="pairBox" hidden>
+    <button class="lnk" id="pairOpen" type="button">On this same phone? You can't scan your own screen — link with a code instead</button>
+    <form id="pairForm" hidden>
+      <input id="pairPhone" placeholder="Your number, e.g. 6591234567" inputmode="tel" autocomplete="tel">
+      <button class="btn">Get code</button>
+    </form>
+    <div id="pairCode" hidden>
+      <div>Your code</div>
+      <div class="code" id="pairCodeVal"></div>
+      <ol>
+        <li>Open WhatsApp on this phone → <b>Settings</b> (or ⋮) → <b>Linked devices</b></li>
+        <li>Tap <b>Link a device</b>, then <b>Link with phone number instead</b></li>
+        <li>Type the code above. Switch straight back here after.</li>
+      </ol>
+    </div>
+    <p class="err" id="pairErr" style="margin:0"></p>
+  </div>
+  <button class="btn ghost" id="restart" hidden>Still stuck? Start over with a new QR code</button>
   <button class="lnk" id="gateOut">Sign out</button>
 </div>
 
@@ -441,29 +468,50 @@ async function setAttach(file) {
 function clearAttach() { attach = null; $('#att').classList.remove('on'); $('#file').value = ''; }
 
 // --------------------------------------------------------------- status
-function setStatus(s, qr, meInfo) {
-  const was = status; status = s;
-  if (meInfo) me = meInfo;
+let pairSid = null;
+function setStatus(d) {
+  const s = d.status, was = status; status = s;
+  if (d.me) me = d.me;
   $('#dot').className = 'dot' + (s === 'connected' ? ' ok' : s === 'logged-out' ? ' bad' : '');
   if (me?.name) $('#meName').textContent = me.name;
-  $('#mePhone').textContent = s === 'connected' ? (me?.phone || 'connected') : s === 'qr' ? 'not linked' : s + '…';
+  $('#mePhone').textContent = s === 'connected' ? (me?.phone || 'connected')
+    : s === 'qr' || s === 'logged-out' ? 'not linked' : s === 'reconnecting' ? 'reconnecting…' : 'starting…';
+
   const gate = $('#gate');
-  if (s === 'connected') gate.classList.remove('on');
-  else {
+  if (s === 'connected') {
+    gate.classList.remove('on');
+    hidePairCode();
+  } else {
     gate.classList.add('on');
-    if (qr) {
+    const showQr = s === 'qr' && d.qr;
+    $('#qr').hidden = !showQr;
+    if (showQr) $('#qr').src = d.qr;
+    $('#pairBox').hidden = s !== 'qr';
+    // a pairing code belongs to one connection; when that ends, so does the code
+    if (pairSid != null && d.sid !== pairSid) { hidePairCode(); $('#pairErr').textContent = 'That code expired. Get a new one.'; }
+    if (showQr) {
       $('#gt').textContent = 'Link your WhatsApp';
-      $('#qr').src = qr; $('#qr').hidden = false;
-      $('#gp').innerHTML = 'On your phone: <b>WhatsApp → Settings → Linked devices → Link a device</b>, then scan this.<br><br>Your chats and history load automatically right after.';
+      $('#gp').innerHTML = 'On your phone: <b>WhatsApp → Settings → Linked devices → Link a device</b>, then scan this.<br>Your chats and history load right after.';
+      if (innerWidth <= 760) { $('#pairForm').hidden = false; }
+    } else if (s === 'reconnecting') {
+      $('#gt').textContent = d.linked ? 'Reconnecting to WhatsApp…' : 'Getting a QR code…';
+      $('#gp').textContent = d.failures > 1 ? `Attempt ${d.failures}. It keeps retrying on its own.` : 'One moment.';
+    } else if (s === 'logged-out') {
+      $('#gt').textContent = 'Not linked';
+      $('#gp').textContent = 'Getting a new QR code…';
     } else {
-      $('#qr').hidden = true;
-      $('#gt').textContent = s === 'reconnecting' ? 'Reconnecting…' : 'Connecting…';
+      $('#gt').textContent = 'Connecting…';
       $('#gp').textContent = 'One moment.';
     }
+    const err = d.error?.text;
+    $('#gerr').hidden = !err || showQr;
+    $('#gerr').textContent = err || '';
+    $('#restart').hidden = !(s === 'reconnecting' && d.failures >= 3);
   }
   setComposer();
   if (s === 'connected' && was !== 'connected') { loadChats(); if (current) reloadThread(); }
 }
+function hidePairCode() { pairSid = null; $('#pairCode').hidden = true; }
 let syncTimer;
 function syncing(e) {
   const el = $('#sync');
@@ -477,7 +525,7 @@ function stream() {
   const es = new EventSource(api('/events'));
   es.onmessage = (ev) => {
     const d = JSON.parse(ev.data);
-    if (d.type === 'status') setStatus(d.status, d.qr, d.me);
+    if (d.type === 'status') setStatus(d);
     else if (d.type === 'chats') loadChats();
     else if (d.type === 'history') { syncing(d); loadChats(); if (current) reloadThread(); }
     else if (d.type === 'merged') { if (current === d.from) { current = d.to; reloadThread(); } loadChats(); }
@@ -563,6 +611,23 @@ $('#menu').addEventListener('click', async e => {
     try { await call('POST', '/relink', {}); toast('Unlinked. Scan the new QR code.'); } catch (x) { toast(x.message); }
   }
 });
+$('#pairOpen').addEventListener('click', () => { $('#pairForm').hidden = false; $('#pairPhone').focus(); });
+$('#pairForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  $('#pairErr').textContent = '';
+  const btn = e.target.querySelector('button'); btn.disabled = true;
+  try {
+    const r = await call('POST', '/pair', {phone: $('#pairPhone').value});
+    pairSid = r.sid;
+    $('#pairCodeVal').textContent = r.code;
+    $('#pairCode').hidden = false;
+  } catch (x) { $('#pairErr').textContent = x.message; }
+  btn.disabled = false;
+});
+$('#restart').addEventListener('click', async () => {
+  if (!confirm('Start over?\n\nThis clears the saved WhatsApp login on this site and shows a new QR code. Your saved chats here are kept.')) return;
+  try { await call('POST', '/relink', {}); } catch (x) { toast(x.message); }
+});
 $('#pwx').addEventListener('click', () => $('#pw').classList.remove('on'));
 $('#pwf').addEventListener('submit', async e => {
   e.preventDefault();
@@ -573,6 +638,6 @@ $('#pwf').addEventListener('submit', async e => {
   } catch (x) { $('#pwerr').textContent = x.message; }
 });
 
-call('GET', '/state').then(s => setStatus(s.status, s.qr, s.me)).catch(() => {});
+call('GET', '/state').then(setStatus).catch(() => {});
 stream();
 </script>

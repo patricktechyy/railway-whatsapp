@@ -79,7 +79,8 @@ button{font:inherit;cursor:pointer}
     <div id="list"><div class="empty">Loading…</div></div>
   </div>
 
-  <p class="hint">Sign in as <b>admin</b>. You manage who exists; you can't read anyone's chats.
+  <p class="hint">The display name is set when you add someone. To change it, remove and re-add them
+  (that unlinks their phone, so do it before they link). Sign in as <b>admin</b>. You manage who exists; you can't read anyone's chats.
   Each person signs in with their own username and the password they chose.</p>
 </div>
 <div id="toast"></div>
@@ -90,7 +91,7 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&
 const STATUS = {
   connected: ['WhatsApp connected', 'ok'], qr: ['Waiting for QR scan', 'warn'],
   starting: ['Starting…', ''], reconnecting: ['Reconnecting…', 'warn'],
-  'logged-out': ['Not linked', 'warn'], stopped: ['Stopped', '']
+  'logged-out': ['Not linked', 'warn'], idle: ['Phone not linked yet', ''], stopped: ['Stopped', '']
 };
 
 function toast(t) {
@@ -134,11 +135,11 @@ async function load() {
         <b>${esc(u.name)}</b>
         <small>@${esc(u.username)}${u.phone ? ' · ' + esc(u.phone) : ''}</small>
         <div class="tags"><span class="tag ${cls}">${esc(st)}</span><span class="tag ${pw[1]}">${pw[0]}</span></div>
+        ${u.error && u.status !== 'connected' ? `<small style="display:block;margin-top:4px;color:var(--danger)">${esc(u.error)}</small>` : ''}
       </div>
       <div class="acts">
         <button class="btn ghost" data-a="link">${u.hasPassword ? 'Reset password' : 'Setup link'}</button>
-        <button class="btn ghost" data-a="rename">Rename</button>
-        <button class="btn ghost" data-a="unlink" ${u.status === 'connected' ? '' : 'disabled'}>Unlink phone</button>
+        <button class="btn ghost" data-a="unlink" ${u.linked || u.status === 'connected' ? '' : 'disabled'}>Unlink phone</button>
         <button class="btn danger" data-a="delete">Remove</button>
       </div>
     </div>`;
@@ -172,9 +173,6 @@ $('#list').addEventListener('click', async (e) => {
       if (hasPw && !confirm(`Reset ${n}'s password?\n\nThey'll be signed out and must choose a new one using the link. Their WhatsApp stays linked.`)) return;
       const d = await call('POST', url + '/reset', {});
       showLink(d.setupUrl, n, true);
-    } else if (a === 'rename') {
-      const name = prompt('Display name for @' + u, n); if (name == null) return;
-      await call('POST', url + '/rename', {name}); toast('Renamed');
     } else if (a === 'unlink') {
       if (!confirm(`Unlink ${n}'s phone?\n\nTheir WhatsApp is disconnected from this site and they'll need to scan a new QR code.`)) return;
       await call('POST', url + '/unlink', {}); toast('Unlinked');
