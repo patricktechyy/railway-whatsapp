@@ -115,6 +115,7 @@ yourself — they'd notice, because it signs them out.)
 | `DATA_DIR` | `/data` | Must match the volume mount. |
 | `WA_LOG` | `info` while linking, `warn` after | Baileys' own logging. `debug` for more detail, `silent` for none. |
 | `WA_BROWSER` | `desktop` | `chrome` links as a plain browser instead of the desktop app (less history). |
+| `WA_PLATFORM` | matches `WA_BROWSER` | What the login tells WhatsApp it runs on (`MACOS` or `WEB`). Leave unset. |
 | `WA_VERSION` | auto | Force a WhatsApp Web version, e.g. `2.3000.1047506285`. Only if the logs show 405s that don't clear on their own. |
 
 ## Many people, many devices
@@ -176,6 +177,7 @@ what's happening:
 
 | Symptom | Fix |
 | --- | --- |
+| "WhatsApp closed the connection before sending a QR code" (428) | The login said "web browser" while claiming to be the Mac desktop app, and WhatsApp hangs up on that. Fixed by `patch-baileys.mjs` during the build — the build log should show `[patch] platform is now chosen at runtime`, and the deploy log `platform MACOS`. If it still happens, set `WA_BROWSER=chrome`. |
 | Stuck on "Reconnecting…" / never shows a QR | Fixed in this version: it was using an outdated WhatsApp Web version, which WhatsApp refuses (code 405) before showing a QR. The screen now shows the actual reason. Logs should say `using WhatsApp Web version 2.3000.… (from web.whatsapp.com)`. If you still see repeated 405s, set `WA_VERSION` to the current version. |
 | Still stuck after several attempts | A **Start over with a new QR code** button appears on the screen after 3 failed attempts. |
 | No `history batch` lines after linking | The device was linked before this upgrade. **⋮ → Re-link WhatsApp**. |

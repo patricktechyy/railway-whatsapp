@@ -134,11 +134,25 @@ async function resolveVersion(B) {
 
 // WA_BROWSER=chrome links as a plain web browser instead of the desktop app.
 // Desktop is what gets full history, so it's the default.
+// The platform we report has to agree with the identity, or WhatsApp hangs up
+// during login (see patch-baileys.mjs). WA_PLATFORM=WEB|MACOS overrides.
 function browserIdentity(B) {
-  if ((process.env.WA_BROWSER || '').toLowerCase() === 'chrome') {
-    return B.Browsers?.ubuntu ? B.Browsers.ubuntu('Chrome') : ['Ubuntu', 'Chrome', '22.04.4']
-  }
+  const chrome = (process.env.WA_BROWSER || '').toLowerCase() === 'chrome'
+  globalThis.__WA_PLATFORM__ = (process.env.WA_PLATFORM || (chrome ? 'WEB' : 'MACOS')).toUpperCase()
+  if (chrome) return B.Browsers?.ubuntu ? B.Browsers.ubuntu('Chrome') : ['Ubuntu', 'Chrome', '22.04.4']
   return B.Browsers?.macOS ? B.Browsers.macOS('Desktop') : ['Mac OS', 'Desktop', '14.4.1']
+}
+
+let patchState
+function platformPatched() {
+  if (patchState === undefined) {
+    try {
+      patchState = Number(fs.readFileSync(path.resolve('node_modules/baileys/.wa-platform-patch'), 'utf8')) > 0
+    } catch {
+      patchState = false
+    }
+  }
+  return patchState
 }
 
 // Plain-language reasons for the codes WhatsApp closes connections with.
@@ -275,7 +289,8 @@ export class Session extends EventEmitter {
     // only warnings. WA_LOG=info|debug|warn|silent overrides.
     const level = process.env.WA_LOG || (this.registered ? 'warn' : 'info')
     const browser = browserIdentity(B)
-    this.log(`connecting (${this.registered ? 'linked' : 'not linked yet'}, as ${browser.slice(0, 2).join(' ')})`)
+    const platform = platformPatched() ? globalThis.__WA_PLATFORM__ : 'WEB (build patch missing)'
+    this.log(`connecting (${this.registered ? 'linked' : 'not linked yet'}, as ${browser.slice(0, 2).join(' ')}, platform ${platform})`)
     this.diag = { at: Date.now(), qr: false, ws: null, net: null }
     const sock = B.makeWASocket({
       auth: state,
