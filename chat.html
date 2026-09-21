@@ -505,7 +505,7 @@ function setStatus(d) {
     }
     const err = d.error?.text;
     $('#gerr').hidden = !err || showQr;
-    $('#gerr').textContent = err || '';
+    $('#gerr').innerHTML = err ? esc(err) + (d.error.detail ? `<br><small style="color:var(--muted)">${esc(d.error.detail)}</small>` : '') : '';
     $('#restart').hidden = !(s === 'reconnecting' && d.failures >= 3);
   }
   setComposer();

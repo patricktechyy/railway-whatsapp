@@ -203,7 +203,7 @@ async function route(req, res) {
             ...auth.publicUser(u),
             status: s?.status || 'stopped',
             phone: s?.me?.phone || '',
-            error: info.error?.text || '',
+            error: info.error ? [info.error.text, info.error.detail].filter(Boolean).join(' — ') : '',
             linked: !!info.linked,
           }
         })
