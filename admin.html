@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Admin · __BRAND__</title>
+<style>:root{--bg:#f0f2f5;--panel:#fff;--fg:#111b21;--muted:#667781;--line:#e3e6e8;--accent:#128c7e;--accent-fg:#fff;--danger:#d64550;--field:#f5f6f7;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0b141a;--panel:#111b21;--fg:#e9edef;--muted:#8696a0;--line:#2a3942;--accent:#00a884;--accent-fg:#fff;--danger:#f15c6d;--field:#202c33}}
+*{box-sizing:inherit}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+.center{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+.box{width:100%;max-width:380px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:28px}
+h1{font-size:21px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:14px;margin:0 0 22px}
+label{display:block;font-size:13px;font-weight:600;margin:14px 0 6px}
+input{width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--line);background:var(--field);color:inherit;font:inherit;outline:none}
+input:focus{border-color:var(--accent)}
+button{font:inherit;cursor:pointer}
+.btn{border:0;border-radius:8px;padding:10px 16px;background:var(--accent);color:var(--accent-fg);font-weight:600}
+.btn:disabled{opacity:.5;cursor:default}
+.btn.full{width:100%;margin-top:20px}
+.btn.ghost{background:transparent;color:var(--fg);border:1px solid var(--line)}
+.btn.danger{background:transparent;color:var(--danger);border:1px solid var(--line)}
+.err{color:var(--danger);font-size:13px;min-height:20px;margin-top:12px}
+.hint{color:var(--muted);font-size:12px;margin-top:6px}
+.wrap{max-width:760px;margin:0 auto;padding:24px 16px 60px}
+.top{display:flex;align-items:center;gap:12px;margin-bottom:20px}
+.top h1{flex:1}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:16px}
+.card h2{font-size:15px;margin:0 0 12px}
+.add{display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end}
+.add label{margin:0 0 6px}
+@media (max-width:600px){.add{grid-template-columns:1fr}}
+.link{display:none;margin-top:14px;padding:14px;border-radius:10px;background:var(--field);border:1px dashed var(--accent)}
+.link.on{display:block}
+.link .row{display:flex;gap:8px;margin-top:8px}
+.link input{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px}
+.user{display:flex;gap:14px;align-items:center;padding:14px 0;border-top:1px solid var(--line);flex-wrap:wrap}
+.user:first-child{border-top:0;padding-top:0}
+.av{flex:0 0 40px;height:40px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600}
+.who{flex:1;min-width:180px}
+.who b{display:block}
+.who small{color:var(--muted)}
+.tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+.tag{font-size:11px;padding:2px 8px;border-radius:10px;background:var(--field);color:var(--muted);border:1px solid var(--line)}
+.tag.ok{color:#fff;background:#1f9d55;border-color:#1f9d55}
+.tag.warn{color:#7a4d00;background:#ffe5a8;border-color:#ffe5a8}
+.acts{display:flex;gap:6px;flex-wrap:wrap}
+.acts .btn{padding:6px 10px;font-size:13px;font-weight:500}
+.empty{color:var(--muted);text-align:center;padding:20px}
+#toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#111b21;color:#fff;padding:10px 16px;border-radius:8px;font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none;max-width:90vw}
+#toast.on{opacity:1}
+</style>
+<div class="wrap">
+  <div class="top">
+    <h1>__BRAND__ · Admin</h1>
+    <button class="btn ghost" id="logout">Sign out</button>
+  </div>
+
+  <div class="card">
+    <h2>Add a person</h2>
+    <form class="add" id="addf">
+      <div><label for="un">Username</label><input id="un" placeholder="ali" autocapitalize="none" spellcheck="false" required></div>
+      <div><label for="nm">Display name</label><input id="nm" placeholder="Ali Rahman"></div>
+      <button class="btn" id="addb">Add</button>
+    </form>
+    <div class="err" id="adderr"></div>
+    <div class="link" id="linkbox">
+      <b id="linktitle">Send this link</b>
+      <div class="hint" id="linkhint"></div>
+      <div class="row">
+        <input id="linkurl" readonly>
+        <button class="btn" id="copy">Copy</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>People</h2>
+    <div id="list"><div class="empty">Loading…</div></div>
+  </div>
+
+  <p class="hint">Sign in as <b>admin</b>. You manage who exists; you can't read anyone's chats.
+  Each person signs in with their own username and the password they chose.</p>
+</div>
+<div id="toast"></div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const STATUS = {
+  connected: ['WhatsApp connected', 'ok'], qr: ['Waiting for QR scan', 'warn'],
+  starting: ['Starting…', ''], reconnecting: ['Reconnecting…', 'warn'],
+  'logged-out': ['Not linked', 'warn'], stopped: ['Stopped', '']
+};
+
+function toast(t) {
+  const el = $('#toast'); el.textContent = t; el.classList.add('on');
+  clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove('on'), 2600);
+}
+
+async function call(method, url, body) {
+  const r = await fetch(url, {
+    method, headers: body !== undefined ? {'content-type': 'application/json'} : {},
+    body: body !== undefined ? JSON.stringify(body) : undefined
+  });
+  if (r.status === 401) { location.href = '/'; throw new Error('signed out'); }
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.error || 'Request failed');
+  return d;
+}
+
+function showLink(url, name, reset) {
+  $('#linktitle').textContent = reset ? `New setup link for ${name}` : `Send this link to ${name}`;
+  $('#linkhint').textContent = 'It works once and expires in 7 days. They choose their own password, then scan the QR code with their phone.';
+  $('#linkurl').value = url;
+  $('#linkbox').classList.add('on');
+  $('#linkbox').scrollIntoView({behavior: 'smooth', block: 'center'});
+  $('#linkurl').select();
+}
+
+async function load() {
+  let users;
+  try { users = await call('GET', '/admin/api/users'); } catch { return; }
+  if (!users.length) {
+    $('#list').innerHTML = '<div class="empty">Nobody yet. Add the first person above.</div>';
+    return;
+  }
+  $('#list').innerHTML = users.map(u => {
+    const [st, cls] = STATUS[u.status] || [u.status, ''];
+    const pw = u.hasPassword ? ['Password set', ''] : u.setupPending ? ['Setup link sent', 'warn'] : ['No password', 'warn'];
+    return `<div class="user" data-u="${esc(u.username)}" data-n="${esc(u.name)}">
+      <div class="av">${esc((u.name || u.username).slice(0, 2).toUpperCase())}</div>
+      <div class="who">
+        <b>${esc(u.name)}</b>
+        <small>@${esc(u.username)}${u.phone ? ' · ' + esc(u.phone) : ''}</small>
+        <div class="tags"><span class="tag ${cls}">${esc(st)}</span><span class="tag ${pw[1]}">${pw[0]}</span></div>
+      </div>
+      <div class="acts">
+        <button class="btn ghost" data-a="link">${u.hasPassword ? 'Reset password' : 'Setup link'}</button>
+        <button class="btn ghost" data-a="rename">Rename</button>
+        <button class="btn ghost" data-a="unlink" ${u.status === 'connected' ? '' : 'disabled'}>Unlink phone</button>
+        <button class="btn danger" data-a="delete">Remove</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+$('#addf').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  $('#adderr').textContent = ''; $('#addb').disabled = true;
+  try {
+    const username = $('#un').value.trim().toLowerCase();
+    const name = $('#nm').value.trim() || username;
+    const d = await call('POST', '/admin/api/users', {username, name});
+    $('#un').value = ''; $('#nm').value = '';
+    showLink(d.setupUrl, name, false);
+    load();
+  } catch (x) { $('#adderr').textContent = x.message; }
+  $('#addb').disabled = false;
+});
+$('#un').addEventListener('input', function () {
+  this.value = this.value.toLowerCase().replace(/[^a-z0-9_.-]/g, '');
+});
+
+$('#list').addEventListener('click', async (e) => {
+  const b = e.target.closest('button[data-a]'); if (!b) return;
+  const row = b.closest('.user'), u = row.dataset.u, n = row.dataset.n, a = b.dataset.a;
+  const url = '/admin/api/users/' + encodeURIComponent(u);
+  try {
+    if (a === 'link') {
+      const hasPw = b.textContent.startsWith('Reset');
+      if (hasPw && !confirm(`Reset ${n}'s password?\n\nThey'll be signed out and must choose a new one using the link. Their WhatsApp stays linked.`)) return;
+      const d = await call('POST', url + '/reset', {});
+      showLink(d.setupUrl, n, true);
+    } else if (a === 'rename') {
+      const name = prompt('Display name for @' + u, n); if (name == null) return;
+      await call('POST', url + '/rename', {name}); toast('Renamed');
+    } else if (a === 'unlink') {
+      if (!confirm(`Unlink ${n}'s phone?\n\nTheir WhatsApp is disconnected from this site and they'll need to scan a new QR code.`)) return;
+      await call('POST', url + '/unlink', {}); toast('Unlinked');
+    } else if (a === 'delete') {
+      const typed = prompt(`Remove ${n} permanently?\n\nThis unlinks their phone and deletes their saved chats here. Type the username "${u}" to confirm.`);
+      if (typed !== u) { if (typed != null) toast('Username did not match — nothing removed'); return; }
+      await call('DELETE', url); toast(`${n} removed`);
+    }
+    load();
+  } catch (x) { toast(x.message); }
+});
+
+$('#copy').addEventListener('click', async () => {
+  try { await navigator.clipboard.writeText($('#linkurl').value); toast('Link copied'); }
+  catch { $('#linkurl').select(); document.execCommand('copy'); toast('Link copied'); }
+});
+$('#logout').addEventListener('click', async () => {
+  await fetch('/api/logout', {method: 'POST'}); location.href = '/';
+});
+
+load(); setInterval(load, 5000);
+</script>

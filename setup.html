@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Set your password · __BRAND__</title>
+<style>:root{--bg:#f0f2f5;--panel:#fff;--fg:#111b21;--muted:#667781;--line:#e3e6e8;--accent:#128c7e;--accent-fg:#fff;--danger:#d64550;--field:#f5f6f7;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0b141a;--panel:#111b21;--fg:#e9edef;--muted:#8696a0;--line:#2a3942;--accent:#00a884;--accent-fg:#fff;--danger:#f15c6d;--field:#202c33}}
+*{box-sizing:inherit}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+.center{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+.box{width:100%;max-width:380px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:28px}
+h1{font-size:21px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:14px;margin:0 0 22px}
+label{display:block;font-size:13px;font-weight:600;margin:14px 0 6px}
+input{width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--line);background:var(--field);color:inherit;font:inherit;outline:none}
+input:focus{border-color:var(--accent)}
+button{font:inherit;cursor:pointer}
+.btn{border:0;border-radius:8px;padding:10px 16px;background:var(--accent);color:var(--accent-fg);font-weight:600}
+.btn:disabled{opacity:.5;cursor:default}
+.btn.full{width:100%;margin-top:20px}
+.btn.ghost{background:transparent;color:var(--fg);border:1px solid var(--line)}
+.btn.danger{background:transparent;color:var(--danger);border:1px solid var(--line)}
+.err{color:var(--danger);font-size:13px;min-height:20px;margin-top:12px}
+.hint{color:var(--muted);font-size:12px;margin-top:6px}</style>
+<div class="center">
+  <div class="box" data-state="__STATE__" id="box">
+    <div id="ok">
+      <h1>Hi __NAME__</h1>
+      <p class="sub">Choose a password for <b>__USERNAME__</b>. Only you will know it.</p>
+      <form id="f">
+        <input type="text" autocomplete="username" value="__USERNAME__" hidden>
+        <label for="p1">New password</label>
+        <input id="p1" type="password" autocomplete="new-password" minlength="__MIN__" required autofocus>
+        <div class="hint">At least __MIN__ characters.</div>
+        <label for="p2">Repeat it</label>
+        <input id="p2" type="password" autocomplete="new-password" required>
+        <button class="btn full" id="go">Save and continue</button>
+        <div class="err" id="err"></div>
+      </form>
+    </div>
+    <div id="bad">
+      <h1>Link expired</h1>
+      <p class="sub">This setup link has already been used or is more than 7 days old.
+      Ask whoever runs __BRAND__ to send you a new one.</p>
+      <a class="btn" href="/" style="display:inline-block;text-decoration:none">Go to sign in</a>
+    </div>
+  </div>
+</div>
+<style>#box[data-state="ok"] #bad,#box[data-state="invalid"] #ok{display:none}</style>
+<script>
+const f = document.getElementById('f');
+f && f.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const go = document.getElementById('go'), err = document.getElementById('err');
+  if (p1.value !== p2.value) { err.textContent = "The two passwords don't match."; return; }
+  go.disabled = true; err.textContent = '';
+  try {
+    const token = location.pathname.split('/').pop();
+    const r = await fetch('/api/setup', {
+      method: 'POST', headers: {'content-type': 'application/json'},
+      body: JSON.stringify({token, password: p1.value})
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Could not save');
+    location.href = d.redirect;
+  } catch (x) { err.textContent = x.message; go.disabled = false; }
+});
+</script>

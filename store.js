@@ -1,35 +1,59 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-const MAX_CHATS = 400
-const MAX_MSGS_PER_CHAT = 120
+const MAX_CHATS = Number(process.env.MAX_CHATS || 800)
+const MAX_MSGS = Number(process.env.MAX_MSGS_PER_CHAT || 150)
+const HARD_MSG_CAP = 1000
+
+export const isLid = (j) => typeof j === 'string' && j.endsWith('@lid')
+export const isPn = (j) => typeof j === 'string' && j.endsWith('@s.whatsapp.net')
+export const isGroup = (j) => typeof j === 'string' && j.endsWith('@g.us')
+
+/** "123:4@s.whatsapp.net" -> "123@s.whatsapp.net" (strip the device suffix) */
+export const bare = (j) => (typeof j === 'string' ? j.replace(/:\d+(?=@)/, '') : j)
+
+/** Accept a JID or a bare phone number and return a phone JID, or null. */
+export function toPn(v) {
+  if (!v) return null
+  if (isPn(v)) return bare(v)
+  const digits = String(v).replace(/\D/g, '')
+  return /^\d{6,16}$/.test(digits) && !String(v).includes('@') ? `${digits}@s.whatsapp.net` : null
+}
+
+export const phoneOf = (jid) => (isPn(jid) ? '+' + jid.split('@')[0] : '')
 
 /**
- * Tiny store: everything lives in Maps, and a compact JSON snapshot is written
- * to the volume so recent history survives a restart. No database, no ORM.
+ * Everything lives in Maps; a compact JSON snapshot goes to the volume every
+ * few seconds. Chats are keyed by a *canonical* JID: the phone JID when we know
+ * it, otherwise the LID. When a LID→phone mapping turns up later, the LID chat
+ * is merged into the phone chat so one person never shows up twice.
  */
 export class Store {
   constructor(file) {
     this.file = file
-    this.chats = new Map()     // jid -> { jid, name, t, unread, preview }
-    this.messages = new Map()  // jid -> [ msg ]
-    this.contacts = new Map()  // jid -> name
+    this.chats = new Map() //    jid -> { jid, subject?, t, unread, preview, cap? }
+    this.messages = new Map() // jid -> [msg]
+    this.contacts = new Map() // jid -> { name?, notify?, verified? }
+    this.alias = new Map() //    lid -> phone jid
     this.dirty = false
     this.load()
     this.timer = setInterval(() => this.flush(), 5000)
     this.timer.unref?.()
   }
 
+  // ------------------------------------------------------------ persistence
   load() {
     try {
       const raw = JSON.parse(fs.readFileSync(this.file, 'utf8'))
       for (const c of raw.chats || []) this.chats.set(c.jid, c)
-      for (const [jid, name] of raw.contacts || []) this.contacts.set(jid, name)
-      for (const [jid, list] of Object.entries(raw.messages || {})) {
-        this.messages.set(jid, list)
+      for (const [jid, c] of raw.contacts || []) {
+        // older snapshots stored a plain string name
+        this.contacts.set(jid, typeof c === 'string' ? { notify: c } : c)
       }
+      for (const [lid, pn] of raw.alias || []) this.alias.set(lid, pn)
+      for (const [jid, list] of Object.entries(raw.messages || {})) this.messages.set(jid, list)
     } catch {
-      /* first run, or a corrupt snapshot — start empty */
+      /* first run or unreadable snapshot: start empty */
     }
   }
 
@@ -37,20 +61,19 @@ export class Store {
     if (!this.dirty) return
     this.dirty = false
     try {
-      // keep only the most recent chats so the snapshot stays small
       const chats = [...this.chats.values()]
         .sort((a, b) => (b.t || 0) - (a.t || 0))
         .slice(0, MAX_CHATS)
       const keep = new Set(chats.map((c) => c.jid))
       const messages = {}
       for (const [jid, list] of this.messages) {
-        if (keep.has(jid)) messages[jid] = list.slice(-MAX_MSGS_PER_CHAT)
+        if (keep.has(jid)) messages[jid] = list.slice(-(this.chats.get(jid)?.cap || MAX_MSGS))
       }
-      const tmp = this.file + '.tmp'
       fs.mkdirSync(path.dirname(this.file), { recursive: true })
+      const tmp = this.file + '.tmp'
       fs.writeFileSync(
         tmp,
-        JSON.stringify({ chats, contacts: [...this.contacts], messages })
+        JSON.stringify({ chats, contacts: [...this.contacts], alias: [...this.alias], messages })
       )
       fs.renameSync(tmp, this.file)
     } catch (e) {
@@ -58,35 +81,110 @@ export class Store {
     }
   }
 
-  setContact(jid, name) {
-    if (!jid || !name) return
-    if (this.contacts.get(jid) === name) return
-    this.contacts.set(jid, name)
+  close() {
+    clearInterval(this.timer)
+    this.flush()
+  }
+
+  // ----------------------------------------------------------- identities
+  canon(jid) {
+    const b = bare(jid)
+    return this.alias.get(b) || b
+  }
+
+  /** Record lid <-> phone. Returns true if anything changed. */
+  link(lid, pn) {
+    lid = bare(lid)
+    pn = toPn(pn)
+    if (!isLid(lid) || !pn || this.alias.get(lid) === pn) return false
+    this.alias.set(lid, pn)
+    this.merge(lid, pn)
+    this.dirty = true
+    return true
+  }
+
+  /** Link two JIDs where we don't know which one is the LID. */
+  linkPair(a, b) {
+    if (!a || !b) return false
+    if (isLid(a) && (isPn(b) || toPn(b))) return this.link(a, b)
+    if (isLid(b) && (isPn(a) || toPn(a))) return this.link(b, a)
+    return false
+  }
+
+  merge(from, to) {
+    const fc = this.contacts.get(from)
+    if (fc) {
+      this.contacts.set(to, { ...fc, ...pickDefined(this.contacts.get(to)) })
+      this.contacts.delete(from)
+    }
+    const fchat = this.chats.get(from)
+    if (fchat) {
+      const tchat = this.chats.get(to)
+      if (tchat) {
+        tchat.unread = (tchat.unread || 0) + (fchat.unread || 0)
+        if ((fchat.t || 0) > (tchat.t || 0)) {
+          tchat.t = fchat.t
+          tchat.preview = fchat.preview
+        }
+        tchat.cap = Math.max(tchat.cap || 0, fchat.cap || 0) || undefined
+      } else {
+        this.chats.set(to, { ...fchat, jid: to })
+      }
+      this.chats.delete(from)
+    }
+    const fm = this.messages.get(from)
+    if (fm) {
+      const tm = this.messages.get(to) || []
+      const seen = new Set(tm.map((m) => m.id))
+      for (const m of fm) if (!seen.has(m.id)) tm.push({ ...m, jid: to })
+      tm.sort((a, b) => a.ts - b.ts)
+      this.messages.set(to, tm)
+      this.messages.delete(from)
+    }
+  }
+
+  setContact(jid, info = {}) {
+    if (!jid) return
+    jid = this.canon(jid)
+    if (isGroup(jid)) return
+    const cur = this.contacts.get(jid) || {}
+    const next = { ...cur, ...pickDefined(info) }
+    if (JSON.stringify(cur) === JSON.stringify(next)) return
+    this.contacts.set(jid, next)
+    this.dirty = true
+  }
+
+  setGroup(jid, subject) {
+    if (!isGroup(jid) || !subject) return
     const chat = this.chats.get(jid)
-    if (chat && !chat.nameLocked) {
-      chat.name = name
+    if (chat) {
+      if (chat.subject !== subject) {
+        chat.subject = subject
+        this.dirty = true
+      }
+    } else {
+      this.chats.set(jid, { jid, subject, t: 0, unread: 0, preview: '' })
       this.dirty = true
     }
-    this.dirty = true
   }
 
   displayName(jid) {
     if (!jid) return ''
-    return (
-      this.contacts.get(jid) ||
-      this.chats.get(jid)?.name ||
-      jid.split('@')[0].split(':')[0]
-    )
+    jid = this.canon(jid)
+    if (isGroup(jid)) return this.chats.get(jid)?.subject || 'Group'
+    const c = this.contacts.get(jid) || {}
+    return c.name || c.verified || c.notify || phoneOf(jid) || 'Unknown contact'
   }
 
+  // ------------------------------------------------------------ chats/msgs
   touchChat(jid, patch = {}) {
     let chat = this.chats.get(jid)
     if (!chat) {
-      chat = { jid, name: this.displayName(jid), t: 0, unread: 0, preview: '' }
+      chat = { jid, t: 0, unread: 0, preview: '' }
       this.chats.set(jid, chat)
     }
-    Object.assign(chat, patch)
-    if (!chat.name) chat.name = this.displayName(jid)
+    if (patch.t != null && patch.t > (chat.t || 0)) chat.t = patch.t
+    if (patch.unread != null) chat.unread = patch.unread
     this.dirty = true
     return chat
   }
@@ -98,22 +196,48 @@ export class Store {
       this.messages.set(msg.jid, list)
     }
     const i = list.findIndex((m) => m.id === msg.id)
-    if (i >= 0) list[i] = { ...list[i], ...msg }
-    else list.push(msg)
-
-    list.sort((a, b) => a.ts - b.ts)
-    if (list.length > MAX_MSGS_PER_CHAT) list.splice(0, list.length - MAX_MSGS_PER_CHAT)
+    const isNew = i < 0
+    if (isNew) list.push(msg)
+    else list[i] = { ...list[i], ...msg }
+    if (isNew && list.length > 1 && list[list.length - 2].ts > msg.ts) {
+      list.sort((a, b) => a.ts - b.ts)
+    }
 
     const chat = this.touchChat(msg.jid)
+    const cap = chat.cap || MAX_MSGS
+    if (list.length > cap) list.splice(0, list.length - cap)
+
     if (msg.ts >= (chat.t || 0)) {
       chat.t = msg.ts
-      chat.preview = previewOf(msg)
+      chat.preview = previewOf(msg, this)
     }
-    if (bumpUnread && !msg.fromMe) chat.unread = (chat.unread || 0) + 1
+    if (bumpUnread && isNew && !msg.fromMe) chat.unread = (chat.unread || 0) + 1
     this.dirty = true
     return msg
   }
 
+  findMessage(jid, id) {
+    return (this.messages.get(this.canon(jid)) || []).find((m) => m.id === id) || null
+  }
+
+  oldest(jid) {
+    return (this.messages.get(jid) || [])[0] || null
+  }
+
+  raiseCap(jid, by = 60) {
+    const chat = this.touchChat(jid)
+    chat.cap = Math.min(HARD_MSG_CAP, (chat.cap || MAX_MSGS) + by)
+  }
+
+  markRead(jid) {
+    const chat = this.chats.get(jid)
+    if (chat?.unread) {
+      chat.unread = 0
+      this.dirty = true
+    }
+  }
+
+  // ------------------------------------------------------------- views
   chatList() {
     return [...this.chats.values()]
       .filter((c) => c.t)
@@ -121,31 +245,87 @@ export class Store {
       .slice(0, MAX_CHATS)
       .map((c) => ({
         jid: c.jid,
-        name: c.name || this.displayName(c.jid),
+        name: this.displayName(c.jid),
+        phone: phoneOf(c.jid),
         t: c.t,
         unread: c.unread || 0,
         preview: c.preview || '',
-        group: c.jid.endsWith('@g.us'),
+        group: isGroup(c.jid),
       }))
   }
 
   messageList(jid) {
-    return this.messages.get(jid) || []
+    const group = isGroup(jid)
+    return (this.messages.get(jid) || []).map((m) => ({
+      id: m.id,
+      jid: m.jid,
+      fromMe: m.fromMe,
+      ts: m.ts,
+      type: m.type,
+      text: m.text,
+      media: !!m.rm,
+      fileName: m.fileName,
+      senderName: group && !m.fromMe && m.sender ? this.displayName(m.sender) : '',
+    }))
   }
 
-  markRead(jid) {
-    const chat = this.chats.get(jid)
-    if (chat && chat.unread) {
-      chat.unread = 0
-      this.dirty = true
+  /** People you can start a chat with: contacts + existing chats. */
+  contactList(q = '', limit = 60) {
+    const needle = q.trim().toLowerCase()
+    const digits = needle.replace(/\D/g, '')
+    const seen = new Set()
+    const out = []
+    const consider = (jid) => {
+      jid = this.canon(jid)
+      if (seen.has(jid) || jid.endsWith('@broadcast') || jid.endsWith('@newsletter')) return
+      seen.add(jid)
+      const name = this.displayName(jid)
+      const phone = phoneOf(jid)
+      if (isLid(jid) && name === 'Unknown contact') return
+      if (needle) {
+        const hit =
+          name.toLowerCase().includes(needle) || (digits.length >= 3 && phone.replace(/\D/g, '').includes(digits))
+        if (!hit) return
+      }
+      out.push({ jid, name, phone, group: isGroup(jid), t: this.chats.get(jid)?.t || 0 })
     }
+    for (const jid of this.chats.keys()) consider(jid)
+    for (const jid of this.contacts.keys()) consider(jid)
+    out.sort((a, b) => (b.t || 0) - (a.t || 0) || a.name.localeCompare(b.name))
+    return out.slice(0, limit)
+  }
+
+  pendingLids() {
+    const s = new Set()
+    for (const jid of this.chats.keys()) if (isLid(jid)) s.add(jid)
+    for (const jid of this.contacts.keys()) if (isLid(jid)) s.add(jid)
+    return [...s]
   }
 }
 
-export function previewOf(msg) {
+function pickDefined(o = {}) {
+  const r = {}
+  for (const [k, v] of Object.entries(o || {})) if (v != null && v !== '') r[k] = v
+  return r
+}
+
+export function previewOf(msg, store) {
   const body =
-    msg.text ||
-    { image: '📷 Photo', video: '🎥 Video', audio: '🎤 Voice message', document: '📄 Document', sticker: 'Sticker', location: '📍 Location', contact: '👤 Contact' }[msg.type] ||
-    ''
-  return (msg.fromMe ? 'You: ' : msg.senderName ? `${msg.senderName}: ` : '') + body
+    msg.text && msg.type !== 'document'
+      ? msg.text
+      : {
+          image: '📷 Photo',
+          video: '🎥 Video',
+          audio: '🎤 Voice message',
+          document: '📄 ' + (msg.fileName || msg.text || 'Document'),
+          sticker: 'Sticker',
+          location: '📍 Location',
+          contact: '👤 Contact',
+        }[msg.type] || ''
+  const who = msg.fromMe
+    ? 'You: '
+    : isGroup(msg.jid) && msg.sender && store
+      ? store.displayName(msg.sender) + ': '
+      : ''
+  return who + body
 }
