@@ -32,9 +32,84 @@ async function loadBaileys() {
     DisconnectReason: pick('DisconnectReason') || {},
     downloadMediaMessage: pick('downloadMediaMessage'),
     fetchLatestBaileysVersion: pick('fetchLatestBaileysVersion'),
+    fetchLatestWaWebVersion: pick('fetchLatestWaWebVersion'),
     Browsers: pick('Browsers'),
   }
   return cached
+}
+
+// ------------------------------------------------------------------------
+// WhatsApp Web version. WhatsApp rejects connections from client versions
+// it considers too old (close code 405, *before* any QR is shown), and
+// fetchLatestBaileysVersion() has been returning a stale version while
+// claiming it's current. So: ask web.whatsapp.com directly, fall back to
+// Baileys' list, never go backwards, and share one answer across sessions.
+// WA_VERSION=2.3000.xxxxxxxxxx overrides everything if you ever need it.
+// ------------------------------------------------------------------------
+const VERSION_TTL = 6 * 3600 * 1000
+let versionBest = null // [a, b, c]
+let versionAt = 0
+let versionInflight = null
+
+const cmpVersion = (a, b) => {
+  for (let i = 0; i < 3; i++) if ((a[i] || 0) !== (b[i] || 0)) return (a[i] || 0) - (b[i] || 0)
+  return 0
+}
+const isVersion = (v) => Array.isArray(v) && v.length === 3 && v.every((n) => Number.isInteger(n) && n >= 0)
+const timeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))])
+
+export function forgetVersion() {
+  versionAt = 0 // force a re-check next time, but keep versionBest as a floor
+}
+
+async function resolveVersion(B) {
+  const manual = String(process.env.WA_VERSION || '').split('.').map(Number)
+  if (isVersion(manual)) return manual
+  if (versionBest && Date.now() - versionAt < VERSION_TTL) return versionBest
+  if (versionInflight) return versionInflight
+  versionInflight = (async () => {
+    const found = []
+    const attempt = async (src, fn) => {
+      if (typeof fn !== 'function') return
+      try {
+        const r = await timeout(fn({ timeout: 10000 }), 12000)
+        if (isVersion(r?.version)) found.push({ src, v: r.version })
+      } catch {}
+    }
+    await Promise.all([
+      attempt('web.whatsapp.com', B.fetchLatestWaWebVersion),
+      attempt('baileys', B.fetchLatestBaileysVersion),
+    ])
+    if (versionBest) found.push({ src: 'previous', v: versionBest })
+    found.sort((a, b) => cmpVersion(b.v, a.v))
+    const pick = found[0]
+    if (pick) {
+      if (!versionBest || cmpVersion(pick.v, versionBest) !== 0) {
+        console.log(`  using WhatsApp Web version ${pick.v.join('.')} (from ${pick.src})`)
+      }
+      versionBest = pick.v
+      versionAt = Date.now()
+    } else {
+      console.log('  could not look up the WhatsApp Web version; using the one bundled with Baileys')
+    }
+    return versionBest || undefined
+  })()
+  try {
+    return await versionInflight
+  } finally {
+    versionInflight = null
+  }
+}
+
+// Plain-language reasons for the codes WhatsApp closes connections with.
+const REASONS = {
+  405: 'WhatsApp refused this client version — fetching a newer one and retrying',
+  408: 'The connection timed out',
+  428: 'The connection was closed',
+  440: 'This WhatsApp session was opened by another copy of this server',
+  403: 'WhatsApp refused this account (403)',
+  500: "WhatsApp didn't accept the saved login",
+  503: 'WhatsApp is temporarily unavailable',
 }
 
 // Buffers <-> JSON, so media keys survive in the JSON snapshot on disk.
@@ -60,7 +135,7 @@ const num = (t) => (t == null ? 0 : typeof t === 'object' && t.toNumber ? t.toNu
 export class Session extends EventEmitter {
   constructor({ key, label, dir }) {
     super()
-    this.setMaxListeners(50)
+    this.setMaxListeners(0) // one listener per open browser tab
     this.key = key
     this.label = label
     this.dir = dir
@@ -72,6 +147,9 @@ export class Session extends EventEmitter {
     this.qr = null
     this.me = null
     this.attempts = 0
+    this.failures = 0 // consecutive failed connects, reset when we get online
+    this.lastError = null
+    this.registered = false
     this.gen = 0
     this.stopped = false
     fs.mkdirSync(this.authDir, { recursive: true })
@@ -83,26 +161,60 @@ export class Session extends EventEmitter {
 
   setStatus(status) {
     this.status = status
-    this.emit('event', { type: 'status', status, me: this.me, qr: this.qr })
+    this.emit('event', { type: 'status', ...this.info() })
   }
 
   info() {
-    return { status: this.status, qr: this.qr, me: this.me, label: this.label }
+    return {
+      status: this.status,
+      qr: this.qr,
+      me: this.me,
+      label: this.label,
+      error: this.status === 'connected' ? null : this.lastError,
+      failures: this.failures,
+      linked: this.registered,
+      sid: this.gen, // changes whenever a new connection starts (pairing codes die with it)
+    }
+  }
+
+  viewers() {
+    return this.listenerCount('event')
+  }
+
+  /** Someone opened the page: start an idle (never-linked) session. */
+  wake() {
+    if (!this.stopped && this.status === 'idle') this.start(true).catch((e) => this.log('start failed:', e.message))
+  }
+
+  schedule(ms, force = false) {
+    clearTimeout(this.retryTimer)
+    this.retryTimer = setTimeout(() => this.start(force).catch((e) => this.log('start failed:', e.message)), ms)
   }
 
   // ------------------------------------------------------------ lifecycle
-  async start() {
+  async start(force = false) {
     if (this.stopped) return
+    clearTimeout(this.retryTimer)
     const gen = ++this.gen
+    // never leave an old socket running next to the new one
+    try { this.sock?.end?.(undefined) } catch {}
+    this.sock = null
+
     const B = await loadBaileys()
     const { state, saveCreds } = await B.useMultiFileAuthState(this.authDir)
+    if (this.stopped || gen !== this.gen) return
+    this.registered = !!state.creds?.registered
 
-    let version
-    try {
-      ;({ version } = await B.fetchLatestBaileysVersion())
-    } catch {
-      /* fall back to the version bundled with Baileys */
+    // Not linked and nobody looking at the page: don't sit on WhatsApp's
+    // servers generating QR codes for no one. Opening the page wakes it.
+    if (!this.registered && !force && this.viewers() === 0) {
+      this.qr = null
+      this.setStatus('idle')
+      return
     }
+
+    if (this.status !== 'reconnecting') this.setStatus('starting')
+    const version = await resolveVersion(B)
     if (this.stopped || gen !== this.gen) return
 
     const sock = B.makeWASocket({
@@ -117,6 +229,7 @@ export class Session extends EventEmitter {
       shouldSyncHistoryMessage: () => true,
       markOnlineOnConnect: false, // keeps notifications on the phone working
       generateHighQualityLinkPreview: false,
+      qrTimeout: 60_000, // each QR lives a minute: time to find your phone
       getMessage: async (key) => {
         const m = this.store.findMessage(key.remoteJid, key.id)
         return m?.text && m.type === 'text' ? { conversation: m.text } : undefined
@@ -132,11 +245,16 @@ export class Session extends EventEmitter {
       if (!live()) return
       if (u.qr) {
         this.qr = await QRCode.toDataURL(u.qr, { margin: 1, width: 320 })
+        if (!live()) return
+        this.lastError = null
         this.setStatus('qr')
       }
       if (u.connection === 'open') {
         this.qr = null
         this.attempts = 0
+        this.failures = 0
+        this.lastError = null
+        this.registered = true
         const uid = sock.user?.id
         const pn = uid ? bare(uid) : null
         if (sock.user?.lid && pn) this.store.link(sock.user.lid, pn)
@@ -150,24 +268,7 @@ export class Session extends EventEmitter {
         this.loadGroups(sock)
         this.scheduleLidResolve()
       }
-      if (u.connection === 'close') {
-        const code = u.lastDisconnect?.error?.output?.statusCode
-        const loggedOut = code === (B.DisconnectReason.loggedOut ?? 401)
-        if (loggedOut) {
-          this.log('logged out: clearing credentials')
-          await this.wipeAuth()
-          this.me = null
-          this.setStatus('logged-out')
-          if (!this.stopped) setTimeout(() => this.start().catch(console.error), 1500)
-          return
-        }
-        const restart = code === (B.DisconnectReason.restartRequired ?? 515)
-        this.attempts = restart ? 0 : this.attempts + 1
-        const wait = restart ? 200 : Math.min(30000, 1000 * 2 ** Math.min(this.attempts, 5))
-        this.setStatus('reconnecting')
-        this.log(`connection closed (${code}), retrying in ${wait}ms`)
-        setTimeout(() => this.start().catch(console.error), wait)
-      }
+      if (u.connection === 'close') await this.onClose(B, u, sock)
     })
 
     // --- history: arrives in batches right after pairing (and on demand) ---
@@ -237,6 +338,78 @@ export class Session extends EventEmitter {
       }
       this.emit('event', { type: 'chats' })
     })
+  }
+
+  async onClose(B, u, sock) {
+    const DR = B.DisconnectReason || {}
+    const err = u.lastDisconnect?.error
+    const code = err?.output?.statusCode
+    const text = REASONS[code] || `Disconnected (${code ?? err?.message ?? 'unknown'})`
+    this.lastError = { code: code ?? null, text }
+    this.qr = null
+
+    if (code === (DR.loggedOut ?? 401)) {
+      this.log('logged out from the phone: clearing credentials')
+      await this.wipeAuth()
+      this.me = null
+      this.registered = false
+      this.failures = 0
+      this.lastError = { code, text: 'This device was unlinked. Scan a new QR code to link again.' }
+      this.setStatus('logged-out')
+      return this.schedule(1500)
+    }
+    if (code === (DR.restartRequired ?? 515)) {
+      // normal right after scanning a QR: WhatsApp asks for a fresh connection
+      this.lastError = null
+      this.setStatus('reconnecting')
+      return this.schedule(200, true)
+    }
+
+    this.failures++
+    this.attempts++
+    if (code === 405) forgetVersion()
+
+    // A saved login WhatsApp won't take (or one that never finished pairing)
+    // can't recover by retrying. Start over with a fresh QR.
+    const unusable = code === (DR.badSession ?? 500) || code === (DR.multideviceMismatch ?? 411)
+    if (unusable && this.failures >= 2) {
+      this.log(`saved login rejected (${code}); clearing it so a new QR can be shown`)
+      await this.wipeAuth()
+      this.registered = false
+      this.me = null
+    }
+
+    // Not linked and nobody watching: stop until someone opens the page.
+    if (!this.registered && this.viewers() === 0) {
+      this.log(`connection closed (${code}); idle until someone opens the page`)
+      this.setStatus('idle')
+      return
+    }
+
+    let wait = Math.min(60000, 1000 * 2 ** Math.min(this.attempts, 6))
+    if (code === 440) wait = Math.max(wait, 30000) // let the other copy finish shutting down
+    this.setStatus('reconnecting')
+    this.log(`connection closed (${code}): ${text}; retry ${this.failures} in ${Math.round(wait / 1000)}s`)
+    this.schedule(wait, true)
+  }
+
+  /** For people using this page on the same phone that has WhatsApp. */
+  async pairingCode(phone) {
+    if (this.status !== 'qr' || !this.sock?.requestPairingCode) {
+      const e = new Error('Wait until the QR code is showing, then try again')
+      e.status = 409
+      throw e
+    }
+    const digits = String(phone || '').replace(/\D/g, '')
+    if (digits.length < 7 || digits.length > 15) {
+      const e = new Error('Enter your full number with country code, e.g. 6591234567')
+      e.status = 400
+      throw e
+    }
+    const raw = await this.sock.requestPairingCode(digits)
+    const code = String(raw || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase()
+    this.log('pairing code issued')
+    return { code: code.length === 8 ? `${code.slice(0, 4)}-${code.slice(4)}` : code, sid: this.gen }
   }
 
   // ---------------------------------------------------------- ingestion
@@ -488,7 +661,9 @@ export class Session extends EventEmitter {
   }
 
   async markRead(jid) {
+    const had = this.store.chats.get(jid)?.unread
     this.store.markRead(jid)
+    if (had) this.emit('event', { type: 'chats' })
     try {
       const last = [...(this.store.messages.get(jid) || [])].reverse().find((m) => !m.fromMe)
       if (last && this.sock && this.status === 'connected') {
@@ -523,16 +698,20 @@ export class Session extends EventEmitter {
 
   /** Unlink from the phone and show a fresh QR. Chat snapshot is kept. */
   async relink() {
-    try {
-      await this.sock?.logout()
-    } catch {
-      this.gen++
-      try { this.sock?.end?.(undefined) } catch {}
-      await this.wipeAuth()
-      this.me = null
-      this.setStatus('logged-out')
-      setTimeout(() => this.start().catch(console.error), 500)
-    }
+    const sock = this.sock
+    this.gen++ // ignore whatever the old socket does from here on
+    clearTimeout(this.retryTimer)
+    try { await timeout(sock?.logout?.() ?? Promise.resolve(), 5000) } catch {}
+    try { sock?.end?.(undefined) } catch {}
+    this.sock = null
+    await this.wipeAuth()
+    this.me = null
+    this.qr = null
+    this.registered = false
+    this.failures = 0
+    this.lastError = null
+    this.setStatus('logged-out')
+    this.schedule(500) // shows a QR if someone is on the page, otherwise idles
   }
 
   /** Permanently remove: unlink from the phone and delete everything. */
@@ -540,7 +719,8 @@ export class Session extends EventEmitter {
     this.stopped = true
     this.gen++
     clearTimeout(this.lidTimer)
-    try { await this.sock?.logout() } catch {}
+    clearTimeout(this.retryTimer)
+    try { await timeout(this.sock?.logout?.() ?? Promise.resolve(), 5000) } catch {}
     try { this.sock?.end?.(undefined) } catch {}
     this.store.close()
     fs.rmSync(this.dir, { recursive: true, force: true })
@@ -548,6 +728,7 @@ export class Session extends EventEmitter {
   }
 
   shutdown() {
+    clearTimeout(this.retryTimer)
     this.store.close()
   }
 }

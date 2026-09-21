@@ -22,13 +22,15 @@ const auth = new Auth(DATA_DIR)
 // ------------------------------------------------------------- sessions ---
 const sessions = new Map()
 
-function startSession(user) {
+function startSession(user, delay = 0) {
   const s = new Session({ key: user.username, label: user.name, dir: path.join(DATA_DIR, user.dir) })
   sessions.set(user.username, s)
-  s.start().catch((e) => console.error(`[${user.username}] start failed:`, e))
+  s.schedule(delay)
   return s
 }
-for (const u of auth.users) startSession(u)
+// Stagger boot: every account reconnecting in the same instant from one IP
+// is exactly what WhatsApp's rate limiting looks for.
+auth.users.forEach((u, i) => startSession(u, i * 2000))
 
 // --------------------------------------------------------------- helpers ---
 const esc = (s) =>
@@ -54,7 +56,10 @@ const page = (res, html) =>
 const redirect = (res, to) => send(res, 302, '', { location: to })
 
 const clientIp = (req) =>
-  String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket.remoteAddress || '?'
+  String(req.headers['x-real-ip'] || '').trim() ||
+  String(req.headers['x-forwarded-for'] || '').split(',').pop().trim() ||
+  req.socket.remoteAddress ||
+  '?'
 const isHttps = (req) => String(req.headers['x-forwarded-proto'] || '').startsWith('https')
 const origin = (req) => `${isHttps(req) ? 'https' : 'http'}://${req.headers['x-forwarded-host'] || req.headers.host}`
 
@@ -132,6 +137,7 @@ function sse(req, res, s) {
     s.off('event', push)
   })
   push({ type: 'status', ...s.info() })
+  s.wake()
 }
 
 // ---------------------------------------------------------------- routes ---
@@ -192,7 +198,14 @@ async function route(req, res) {
         res,
         auth.users.map((u) => {
           const s = sessions.get(u.username)
-          return { ...auth.publicUser(u), status: s?.status || 'stopped', phone: s?.me?.phone || '' }
+          const info = s?.info() || {}
+          return {
+            ...auth.publicUser(u),
+            status: s?.status || 'stopped',
+            phone: s?.me?.phone || '',
+            error: info.error?.text || '',
+            linked: !!info.linked,
+          }
         })
       )
     }
@@ -200,11 +213,11 @@ async function route(req, res) {
       requireJson(req)
       const { username, name } = await readJson(req)
       const { user, token } = auth.create(username, name)
-      startSession(user)
+      startSession(user) // stays idle (no QR traffic) until they open their page
       console.log(`[admin] created user ${user.username}`)
       return json(res, { user: auth.publicUser(user), setupUrl: `${origin(req)}/setup/${token}` }, 201)
     }
-    m = p.match(/^\/admin\/api\/users\/([^/]+)(?:\/(reset|unlink|rename))?$/)
+    m = p.match(/^\/admin\/api\/users\/([^/]+)(?:\/(reset|unlink))?$/)
     if (m) {
       const username = decodeURIComponent(m[1])
       const action = m[2]
@@ -226,13 +239,6 @@ async function route(req, res) {
         await sessions.get(username)?.relink()
         return json(res, { ok: true })
       }
-      if (action === 'rename' && M === 'POST') {
-        const { name } = await readJson(req)
-        const u = auth.rename(username, name)
-        const s = sessions.get(username)
-        if (s) s.label = u.name
-        return json(res, { ok: true })
-      }
     }
     throw new HttpError(404, 'Not found')
   }
@@ -249,6 +255,7 @@ async function route(req, res) {
     if (!allowed) return redirect(res, '/')
     if (rest === '') return redirect(res, `/u/${username}/`)
     const u = auth.get(username)
+    sessions.get(username)?.wake()
     return page(res, render('chat.html', { USER: username, LABEL: u.name }))
   }
   if (!allowed) throw new HttpError(401, 'Please sign in again')
@@ -257,7 +264,10 @@ async function route(req, res) {
   const api = rest.replace(/^\/api/, '')
   const jid = url.searchParams.get('jid')
 
-  if (api === '/state') return json(res, s.info())
+  if (api === '/state') {
+    s.wake()
+    return json(res, s.info())
+  }
   if (api === '/chats') return json(res, s.store.chatList())
   if (api === '/contacts') return json(res, s.store.contactList(url.searchParams.get('q') || ''))
   if (api === '/events') return sse(req, res, s)
@@ -302,6 +312,7 @@ async function route(req, res) {
     return json(res, await s.send(body.jid, text))
   }
   if (api === '/resolve') return json(res, await s.resolveNumber(body.phone))
+  if (api === '/pair') return json(res, await s.pairingCode(body.phone))
   if (api === '/older') {
     if (!body.jid) throw new HttpError(400, 'jid required')
     return json(res, await s.fetchOlder(body.jid))
