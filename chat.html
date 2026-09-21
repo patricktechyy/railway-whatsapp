@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>__LABEL__</title>
+<style>
+  :root{
+    --bg:#f0f2f5; --panel:#fff; --fg:#111b21; --muted:#667781; --line:#e9edef;
+    --accent:#128c7e; --out:#d9fdd3; --in:#fff; --thread:#efeae2;
+    box-sizing:border-box;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --bg:#111b21; --panel:#111b21; --fg:#e9edef; --muted:#8696a0; --line:#222e35;
+      --accent:#25d366; --out:#005c4b; --in:#202c33; --thread:#0b141a;
+    }
+  }
+  *{box-sizing:inherit}
+  html,body{height:100%}
+  body{margin:0;background:var(--bg);color:var(--fg);
+    font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+  #app{display:flex;height:100%;overflow:hidden}
+
+  /* ---- sidebar ---- */
+  #side{width:340px;flex:0 0 340px;display:flex;flex-direction:column;
+    background:var(--panel);border-right:1px solid var(--line)}
+  #side header{padding:12px 14px;border-bottom:1px solid var(--line);
+    display:flex;align-items:center;gap:10px}
+  #side header b{flex:1;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .dot{width:8px;height:8px;border-radius:50%;background:#f0b232;flex:0 0 8px}
+  .dot.ok{background:#25d366}
+  .dot.bad{background:#e35d6a}
+  #search{margin:10px 14px;padding:8px 12px;border-radius:8px;border:1px solid var(--line);
+    background:var(--bg);color:inherit;font:inherit;outline:none}
+  #search:focus{border-color:var(--accent)}
+  #chats{flex:1;overflow-y:auto}
+  .chat{display:flex;gap:10px;padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--line)}
+  .chat:hover{background:var(--bg)}
+  .chat.sel{background:var(--bg)}
+  .av{flex:0 0 40px;height:40px;border-radius:50%;background:var(--accent);color:#fff;
+    display:flex;align-items:center;justify-content:center;font-weight:600;font-size:15px}
+  .ct{flex:1;min-width:0}
+  .ct .top{display:flex;justify-content:space-between;gap:8px}
+  .ct .nm{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ct .tm{color:var(--muted);font-size:11px;white-space:nowrap}
+  .ct .pv{color:var(--muted);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .badge{background:var(--accent);color:#fff;border-radius:10px;font-size:11px;
+    padding:1px 7px;align-self:center}
+
+  /* ---- thread ---- */
+  #main{flex:1;display:flex;flex-direction:column;background:var(--thread);min-width:0}
+  #main header{padding:12px 14px;background:var(--panel);border-bottom:1px solid var(--line);
+    display:flex;align-items:center;gap:10px}
+  #back{display:none;background:none;border:0;color:inherit;font-size:20px;cursor:pointer;padding:0 4px}
+  #msgs{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:4px}
+  .m{max-width:min(75%,560px);padding:6px 10px;border-radius:8px;background:var(--in);
+    align-self:flex-start;word-wrap:break-word;white-space:pre-wrap;box-shadow:0 1px 1px rgba(0,0,0,.1)}
+  .m.me{background:var(--out);align-self:flex-end}
+  .m .who{font-size:12px;font-weight:600;color:var(--accent);margin-bottom:2px}
+  .m .t{font-size:10px;color:var(--muted);float:right;margin:6px 0 0 8px}
+  .m img{max-width:100%;border-radius:6px;display:block;margin:2px 0}
+  .m .att{color:var(--muted);font-size:13px}
+  #composer{display:flex;gap:8px;padding:10px;background:var(--panel);border-top:1px solid var(--line)}
+  #text{flex:1;resize:none;max-height:120px;padding:9px 12px;border-radius:20px;
+    border:1px solid var(--line);background:var(--bg);color:inherit;font:inherit;outline:none}
+  #text:focus{border-color:var(--accent)}
+  #send{border:0;background:var(--accent);color:#fff;border-radius:50%;width:40px;height:40px;
+    flex:0 0 40px;cursor:pointer;font-size:17px}
+  #send:disabled{opacity:.4;cursor:default}
+  .empty{margin:auto;color:var(--muted);text-align:center;padding:20px}
+
+  /* ---- QR overlay ---- */
+  #gate{position:fixed;inset:0;background:var(--bg);display:none;
+    flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;text-align:center;z-index:9}
+  #gate.on{display:flex}
+  #gate img{width:min(300px,70vw);border-radius:10px;background:#fff;padding:10px}
+  #gate h2{margin:0;font-size:19px}
+  #gate p{margin:0;color:var(--muted);font-size:14px;max-width:340px}
+
+  @media (max-width:760px){
+    #side{position:absolute;inset:0;width:100%;flex:none;z-index:2}
+    #main{position:absolute;inset:0;z-index:3;transform:translateX(100%);transition:transform .2s}
+    body.open #main{transform:none}
+    #back{display:block}
+  }
+</style>
+
+<div id="app">
+  <div id="side">
+    <header>
+      <span class="dot" id="dot"></span>
+      <b>__LABEL__</b>
+      <a href="/" title="All sessions" style="color:var(--muted);text-decoration:none">☰</a>
+    </header>
+    <input id="search" placeholder="Search chats" autocomplete="off">
+    <div id="chats"></div>
+  </div>
+  <div id="main">
+    <header>
+      <button id="back">←</button>
+      <b id="title">Select a chat</b>
+    </header>
+    <div id="msgs"><div class="empty">Pick a conversation on the left.</div></div>
+    <div id="composer">
+      <textarea id="text" rows="1" placeholder="Type a message" disabled></textarea>
+      <button id="send" disabled>➤</button>
+    </div>
+  </div>
+</div>
+
+<div id="gate">
+  <h2 id="gt">Connecting…</h2>
+  <img id="qr" alt="" hidden>
+  <p id="gp">Starting the session.</p>
+</div>
+
+<script>
+const ID = '__ID__';
+const api = (p) => '/' + ID + '/api' + p;
+let chats = [], current = null, msgs = [], status = 'starting';
+
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c =>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+const fmtTime = (ts) => {
+  const d = new Date(ts * 1000), now = new Date();
+  const sameDay = d.toDateString() === now.toDateString();
+  return sameDay ? d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})
+                 : d.toLocaleDateString([], {day:'2-digit', month:'short'});
+};
+const initials = (n) => (n || '?').trim().slice(0, 2).toUpperCase();
+
+// ------------------------------------------------------------ rendering ---
+function renderChats() {
+  const q = $('#search').value.trim().toLowerCase();
+  const list = chats.filter(c => !q || c.name.toLowerCase().includes(q));
+  $('#chats').innerHTML = list.map(c => `
+    <div class="chat ${c.jid === current ? 'sel' : ''}" data-jid="${esc(c.jid)}">
+      <div class="av">${esc(initials(c.name))}</div>
+      <div class="ct">
+        <div class="top"><span class="nm">${esc(c.name)}</span><span class="tm">${c.t ? fmtTime(c.t) : ''}</span></div>
+        <div class="pv">${esc(c.preview)}</div>
+      </div>
+      ${c.unread ? `<span class="badge">${c.unread}</span>` : ''}
+    </div>`).join('') || '<div class="empty">No chats yet.</div>';
+}
+
+function bubble(m) {
+  const who = m.senderName ? `<div class="who">${esc(m.senderName)}</div>` : '';
+  let body = '';
+  if (m.type === 'image' || m.type === 'sticker') {
+    body = `<img loading="lazy" src="${api('/media?id=' + encodeURIComponent(m.id))}" alt="">`;
+    if (m.text) body += esc(m.text);
+  } else if (m.media) {
+    const icon = {video:'🎥 Video', audio:'🎤 Voice message', document:'📄'}[m.type] || '📎';
+    body = `<a class="att" href="${api('/media?id=' + encodeURIComponent(m.id))}" target="_blank" rel="noopener">${icon} ${esc(m.text || 'Download')}</a>`;
+  } else if (m.type === 'location') {
+    body = `<span class="att">📍 ${esc(m.text)}</span>`;
+  } else if (m.type === 'contact') {
+    body = `<span class="att">👤 ${esc(m.text)}</span>`;
+  } else {
+    body = esc(m.text);
+  }
+  return `<div class="m ${m.fromMe ? 'me' : ''}">${who}${body}<span class="t">${fmtTime(m.ts)}</span></div>`;
+}
+
+function renderMsgs(stick = true) {
+  const box = $('#msgs');
+  const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 120;
+  box.innerHTML = msgs.length ? msgs.map(bubble).join('')
+                             : '<div class="empty">No messages yet.</div>';
+  if (stick || atBottom) box.scrollTop = box.scrollHeight;
+}
+
+// ------------------------------------------------------------- actions ---
+async function loadChats() {
+  chats = await (await fetch(api('/chats'))).json();
+  renderChats();
+}
+
+async function open(jid) {
+  current = jid;
+  const c = chats.find(x => x.jid === jid);
+  $('#title').textContent = c ? c.name : jid;
+  $('#text').disabled = $('#send').disabled = status !== 'connected';
+  document.body.classList.add('open');
+  msgs = await (await fetch(api('/messages?jid=' + encodeURIComponent(jid)))).json();
+  renderMsgs(true);
+  if (c) c.unread = 0;
+  renderChats();
+}
+
+async function send() {
+  const t = $('#text').value.trim();
+  if (!t || !current) return;
+  $('#text').value = '';
+  $('#text').style.height = 'auto';
+  try {
+    await fetch(api('/send'), {
+      method: 'POST',
+      headers: {'content-type': 'application/json'},
+      body: JSON.stringify({jid: current, text: t})
+    });
+  } catch (e) {
+    alert('Send failed: ' + e.message);
+  }
+}
+
+function setStatus(s, qr) {
+  status = s;
+  const dot = $('#dot');
+  dot.className = 'dot' + (s === 'connected' ? ' ok' : s === 'logged-out' ? ' bad' : '');
+  const gate = $('#gate');
+  if (s === 'connected') {
+    gate.classList.remove('on');
+    $('#text').disabled = $('#send').disabled = !current;
+  } else {
+    gate.classList.add('on');
+    $('#text').disabled = $('#send').disabled = true;
+    if (qr) {
+      $('#gt').textContent = 'Link this session';
+      $('#qr').src = qr; $('#qr').hidden = false;
+      $('#gp').textContent = 'On the phone for this account: WhatsApp → Settings → Linked devices → Link a device, then scan.';
+    } else {
+      $('#qr').hidden = true;
+      $('#gt').textContent = s === 'reconnecting' ? 'Reconnecting…' : 'Connecting…';
+      $('#gp').textContent = 'Hold on a moment.';
+    }
+  }
+}
+
+// -------------------------------------------------------------- events ---
+function stream() {
+  const es = new EventSource(api('/events'));
+  es.onmessage = (e) => {
+    const d = JSON.parse(e.data);
+    if (d.type === 'status') {
+      const was = status;
+      setStatus(d.status, d.qr);
+      if (d.status === 'connected' && was !== 'connected') loadChats();
+    } else if (d.type === 'chats') {
+      loadChats();
+    } else if (d.type === 'message') {
+      if (d.message.jid === current) {
+        const i = msgs.findIndex(m => m.id === d.message.id);
+        if (i >= 0) msgs[i] = d.message; else msgs.push(d.message);
+        renderMsgs(false);
+      }
+      loadChats();
+    }
+  };
+  es.onerror = () => {}; // EventSource retries on its own
+}
+
+// ---------------------------------------------------------------- wire ---
+$('#chats').addEventListener('click', (e) => {
+  const el = e.target.closest('.chat');
+  if (el) open(el.dataset.jid);
+});
+$('#search').addEventListener('input', renderChats);
+$('#back').addEventListener('click', () => document.body.classList.remove('open'));
+$('#send').addEventListener('click', send);
+$('#text').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+});
+$('#text').addEventListener('input', function () {
+  this.style.height = 'auto';
+  this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+});
+
+fetch(api('/state')).then(r => r.json()).then(s => {
+  setStatus(s.status, s.qr);
+  if (s.status === 'connected') loadChats();
+});
+stream();
+</script>

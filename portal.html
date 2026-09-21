@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>__BRAND__</title>
+<style>
+  :root{
+    --bg:#f5f6f7; --fg:#111b21; --muted:#667781; --card:#fff;
+    --line:#e3e6e8; --accent:#128c7e;
+    box-sizing:border-box;
+    padding-top:env(safe-area-inset-top,0px);
+    padding-bottom:env(safe-area-inset-bottom,0px);
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --bg:#0b141a; --fg:#e9edef; --muted:#8696a0; --card:#202c33;
+      --line:#2a3942; --accent:#25d366;
+    }
+  }
+  *{box-sizing:inherit}
+  body{margin:0;background:var(--bg);color:var(--fg);
+    font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px}
+  .wrap{width:100%;max-width:460px}
+  h1{font-size:22px;margin:0 0 4px}
+  p.sub{margin:0 0 20px;color:var(--muted);font-size:14px}
+  .card{display:flex;align-items:center;gap:14px;text-decoration:none;color:inherit;
+    background:var(--card);border:1px solid var(--line);border-radius:12px;
+    padding:14px 16px;margin-bottom:10px;transition:border-color .15s,transform .15s}
+  .card:hover{border-color:var(--accent);transform:translateY(-1px)}
+  .num{flex:0 0 38px;height:38px;border-radius:50%;background:var(--accent);color:#fff;
+    display:flex;align-items:center;justify-content:center;font-weight:600}
+  .meta{display:flex;flex-direction:column;flex:1;min-width:0}
+  .meta strong{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .meta small{color:var(--muted);font-size:12px}
+  .go{color:var(--accent);font-size:14px;font-weight:600;white-space:nowrap}
+  footer{margin-top:18px;color:var(--muted);font-size:12px}
+</style>
+<div class="wrap">
+  <h1>__BRAND__</h1>
+  <p class="sub">Each session is a separate WhatsApp account.</p>
+__CARDS__
+  <footer>Scan the QR code once from the matching phone. The login is stored on the
+  server volume and survives restarts and redeploys.</footer>
+</div>
+<script>
+  const LABEL = {
+    connected:'connected', qr:'waiting for QR scan', starting:'starting…',
+    reconnecting:'reconnecting…', 'logged-out':'logged out — needs QR scan'
+  };
+  async function poll(){
+    try{
+      const r = await fetch('/api/status');
+      if(!r.ok) return;
+      for(const s of await r.json()){
+        const el = document.getElementById('st'+s.id);
+        if(el) el.textContent = LABEL[s.status] || s.status;
+      }
+    }catch(e){}
+  }
+  poll(); setInterval(poll, 5000);
+</script>

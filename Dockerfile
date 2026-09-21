@@ -1,44 +1,19 @@
-# Caddy is pulled in only for its static binary (reverse proxy + basic auth).
-FROM caddy:2 AS caddybin
+FROM node:22-alpine
 
-FROM debian:bookworm-slim
+WORKDIR /app
+ENV NODE_ENV=production
 
-ENV DEBIAN_FRONTEND=noninteractive \
-    LANG=C.UTF-8
+# deps first so the layer caches
+COPY package.json ./
+RUN npm install --omit=dev --no-audit --no-fund
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-      ca-certificates \
-      curl \
-      dbus-x11 \
-      firefox-esr \
-      fonts-liberation \
-      fonts-noto-color-emoji \
-      novnc \
-      openbox \
-      procps \
-      python3 \
-      supervisor \
-      websockify \
-      x11-utils \
-      x11vnc \
-      xauth \
-      xvfb \
- && rm -rf /var/lib/apt/lists/*
+COPY src ./src
+COPY public ./public
 
-COPY --from=caddybin /usr/bin/caddy /usr/bin/caddy
-
-COPY entrypoint.sh   /usr/local/bin/entrypoint.sh
-COPY run-firefox.sh  /usr/local/bin/run-firefox.sh
-RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/run-firefox.sh
-
-ENV SESSIONS=3 \
-    PORT=8080 \
+ENV PORT=8080 \
     DATA_DIR=/data \
-    SCREEN=1440x900x24 \
-    KIOSK=1 \
-    START_URL=https://web.whatsapp.com \
+    SESSIONS=3 \
     BRAND="WhatsApp Hub"
 
 EXPOSE 8080
-
-CMD ["/usr/local/bin/entrypoint.sh"]
+CMD ["node", "src/server.js"]
