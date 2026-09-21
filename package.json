@@ -1,12 +1,19 @@
 {
-  "name": "wa-hub",
+  "name": "wa-lite",
   "version": "1.0.0",
   "private": true,
-  "description": "Many independent WhatsApp Web sessions behind one URL, on Railway",
+  "type": "module",
+  "description": "Several independent WhatsApp accounts, one per URL. No browser, no VNC.",
+  "engines": { "node": ">=20" },
   "scripts": {
+    "start": "node src/server.js",
     "plan": "railway config plan",
     "apply": "railway config apply",
     "deploy": "railway up"
+  },
+  "dependencies": {
+    "baileys": "^6.7.0",
+    "qrcode": "^1.5.4"
   },
   "devDependencies": {
     "railway": "latest"
