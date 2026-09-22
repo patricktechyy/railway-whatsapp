@@ -81,6 +81,28 @@ button{font:inherit;color:inherit;cursor:pointer}
 #aboutDlg .logo{font-size:46px;line-height:1;margin:4px 0 10px}
 #aboutDlg h3{margin:0 0 6px;font-size:20px}
 #aboutDlg p{margin:0 0 18px;color:var(--muted)}
+#tour{position:fixed;inset:0;z-index:50;display:flex;align-items:flex-end;justify-content:center;padding:20px;background:rgba(0,0,0,.35);pointer-events:none}
+#tour .card{pointer-events:auto;background:var(--panel);color:var(--fg);border-radius:16px;width:100%;max-width:420px;padding:22px 22px 16px;
+  box-shadow:0 18px 50px rgba(0,0,0,.35);animation:tourIn .25s ease-out;margin-bottom:max(12px,env(safe-area-inset-bottom))}
+#tour .ico{font-size:34px;line-height:1}
+#tour h3{margin:8px 0 6px;font-size:18px}
+#tour .body{font-size:14px;line-height:1.55;color:var(--fg)}
+#tour .body ul{margin:6px 0 0;padding-left:18px}
+#tour .body li{margin:4px 0}
+#tour .body kbd{font:12px ui-monospace,Menlo,Consolas,monospace;background:var(--field);border:1px solid var(--line);border-radius:4px;padding:0 5px}
+#tour .muted{color:var(--muted)}
+#tour .foot{display:flex;align-items:center;gap:8px;margin-top:16px}
+#tour .dots{flex:1;display:flex;gap:5px}
+#tour .dots i{width:7px;height:7px;border-radius:50%;background:var(--line)}
+#tour .dots i.on{background:var(--accent);width:18px;border-radius:4px}
+#tour button{border:0;border-radius:8px;padding:8px 14px;font-weight:600}
+#tour .skip{background:none;color:var(--muted);font-weight:500}
+#tour .back{background:var(--field)}
+#tour .next{background:var(--accent);color:#fff}
+.tour-hl{position:relative;z-index:51;box-shadow:0 0 0 3px var(--accent),0 0 0 8px color-mix(in srgb,var(--accent) 30%,transparent)!important;border-radius:10px;animation:tourPulse 1.4s ease-in-out infinite}
+@keyframes tourIn{from{transform:translateY(16px);opacity:0}}
+@keyframes tourPulse{50%{box-shadow:0 0 0 3px var(--accent),0 0 0 12px color-mix(in srgb,var(--accent) 12%,transparent)}}
+@media (prefers-reduced-motion:reduce){#tour .card,.tour-hl{animation:none}}
 #chips{display:flex;flex-wrap:wrap;gap:6px;padding:0 12px 8px}
 #chips button{border:0;border-radius:14px;padding:4px 12px;background:var(--field);color:var(--muted);font-size:13px}
 #chips button.on{background:color-mix(in srgb,var(--accent) 18%,var(--field));color:var(--accent);font-weight:600}
@@ -216,6 +238,7 @@ button{font:inherit;color:inherit;cursor:pointer}
       <button data-m="name">Change display name</button>
       <button data-m="pw">Change password</button>
       <button data-m="relink">Re-link WhatsApp</button>
+      <button data-m="tour">Tutorial</button>
       <button data-m="about">About</button>
       <button data-m="out" class="danger">Sign out</button>
     </div>
@@ -714,7 +737,7 @@ function setStatus(d) {
     $('#restart').hidden = !(s === 'reconnecting' && d.failures >= 3);
   }
   setComposer();
-  if (s === 'connected' && was !== 'connected') { loadChats(); if (current) reloadThread(); }
+  if (s === 'connected' && was !== 'connected') { loadChats(); if (current) reloadThread(); maybeStartTour(); }
 }
 function hidePairCode() { pairSid = null; $('#pairCode').hidden = true; }
 let syncTimer;
@@ -931,6 +954,96 @@ $('#suggest').addEventListener('mousedown', e => {
 $('#text').addEventListener('input', checkShortcode);
 $('#text').addEventListener('click', checkShortcode);
 
+
+// ---------------------------------------------------------------- tutorial
+// Shown once per device the first time you reach your chats; reopen it from ⋮ → Tutorial.
+const TOUR = [
+  {ico: '👋', title: 'Welcome to __BRAND__',
+   body: `This is your WhatsApp, in the browser. Your phone stays the main device; this site is linked to it, like WhatsApp Web.<p class="muted">A quick tour, about a minute. Use the arrow keys or the buttons.</p>`},
+  {ico: '🗂️', title: 'Finding chats', target: '#chips',
+   body: `<ul><li><b>All · Unread · Groups · 📦 Archived</b> filter the list.</li>
+     <li>Search names or numbers. Press <kbd>/</kbd> to jump to search.</li>
+     <li>The tab title shows your unread count, e.g. <b>(3)</b>.</li></ul>`},
+  {ico: '💬', title: 'Sending messages', target: '#composer',
+   body: `<ul><li><kbd>Enter</kbd> sends, <kbd>Shift</kbd>+<kbd>Enter</kbd> adds a new line.</li>
+     <li>😊 opens emoji. Or type <b>:cool</b> and pick 😎. <b>:cool:</b> converts by itself.</li>
+     <li>📎 sends photos and files. You can also paste or drag them in.</li>
+     <li>Hover a message (or tap ↩ on phones) to <b>reply</b>.</li>
+     <li>Unsent text is kept as a <b>Draft</b> when you switch chats.</li></ul>`},
+  {ico: '✏️', title: 'Nicknames', target: '#nickBtn',
+   body: `Open a chat and press <b>✏️ Nickname</b> to name it however you like.
+     <ul><li>Only <b>you</b> see it, only on this site. It's never sent to WhatsApp.</li>
+     <li>A name shown as <b>~Budi</b> is the name that person set on their own WhatsApp.</li></ul>`},
+  {ico: '📦', title: 'Archive (this site only)', target: '#archBtn',
+   body: `<b>📦 Archive</b> tucks a chat into the <b>Archived</b> filter.
+     <ul><li>It's <b>local to this site</b>. Your phone isn't affected, and archiving on your phone doesn't archive here.</li>
+     <li>Archived chats don't count towards the unread number.</li></ul>`},
+  {ico: '🎨', title: 'Make it yours', target: '#menuBtn',
+   body: `<b>⋮ → Appearance &amp; settings</b>: light or dark theme, accent colour, chat background, text size, and what <kbd>Enter</kbd> does.
+     <p class="muted">Saved per device, so your phone and laptop can look different. You can also change your display name from the ⋮ menu.</p>`},
+  {ico: '⚠️', title: 'Good to know',
+   body: `<ul>
+     <li><b>History:</b> only the last <b>12 days</b> are kept. <b>Load earlier messages</b> asks your phone for more, and it must be online.</li>
+     <li><b>Names:</b> some contacts show just a number until they message you. WhatsApp only shares names that way. Use a nickname meanwhile.</li>
+     <li><b>Late messages:</b> a message can occasionally take a little while to appear while it's being decrypted.</li>
+     <li><b>Media:</b> videos and voice notes are sent as files. Some stickers, polls and other special messages may not show.</li>
+     <li><b>No alerts</b> when this tab is closed. Your phone still notifies you as normal.</li>
+     <li><b>Stuck on "Reconnecting…"</b>? Give it a minute. If it lasts, use <b>⋮ → Re-link WhatsApp</b>.</li>
+     <li>If your phone is <b>offline for ~14 days</b>, WhatsApp unlinks this site and you'll scan the QR again.</li></ul>`},
+  {ico: '🎉', title: "You're all set",
+   body: `Open this again any time from <b>⋮ → Tutorial</b>. Selamat ngobrol!`},
+];
+let tourStep = -1, tourHl = null;
+function tourDone() { try { localStorage.setItem('wah-tour', '1'); } catch {} }
+function endTour() {
+  tourDone();
+  tourHl?.classList.remove('tour-hl'); tourHl = null;
+  document.getElementById('tour')?.remove();
+  tourStep = -1;
+}
+function showTourStep(i) {
+  tourStep = Math.max(0, Math.min(TOUR.length - 1, i));
+  const st = TOUR[tourStep];
+  tourHl?.classList.remove('tour-hl'); tourHl = null;
+  const t = st.target && document.querySelector(st.target);
+  if (t && !t.hidden && t.offsetParent !== null) { t.classList.add('tour-hl'); tourHl = t; }
+  let el = document.getElementById('tour');
+  if (!el) { el = document.createElement('div'); el.id = 'tour'; document.body.appendChild(el); }
+  const last = tourStep === TOUR.length - 1;
+  el.innerHTML = `<div class="card" role="dialog" aria-label="Tutorial">
+    <div class="ico">${st.ico}</div><h3>${st.title}</h3><div class="body">${st.body}</div>
+    <div class="foot">
+      <div class="dots">${TOUR.map((_, k) => `<i class="${k === tourStep ? 'on' : ''}"></i>`).join('')}</div>
+      ${last ? '' : '<button class="skip" data-t="skip">Skip</button>'}
+      ${tourStep ? '<button class="back" data-t="back">Back</button>' : ''}
+      <button class="next" data-t="next">${last ? 'Done' : 'Next'}</button>
+    </div></div>`;
+}
+function startTour() {
+  $('#menu').classList.remove('on'); closeNew?.();
+  document.body.classList.remove('open');   // phones: show the chat list, where most things live
+  showTourStep(0);
+}
+document.addEventListener('click', e => {
+  if (tourStep < 0) return;
+  const b = e.target.closest('#tour [data-t]'); if (!b) return;
+  const a = b.dataset.t;
+  if (a === 'skip' || (a === 'next' && tourStep === TOUR.length - 1)) endTour();
+  else showTourStep(tourStep + (a === 'next' ? 1 : -1));
+});
+document.addEventListener('keydown', e => {
+  if (tourStep < 0) return;
+  if (e.key === 'Escape') endTour();
+  else if (e.key === 'ArrowRight') { tourStep === TOUR.length - 1 ? endTour() : showTourStep(tourStep + 1); }
+  else if (e.key === 'ArrowLeft') showTourStep(tourStep - 1);
+});
+// first time this device reaches the chat screen
+function maybeStartTour() {
+  let seen = false;
+  try { seen = localStorage.getItem('wah-tour') === '1'; } catch {}
+  if (!seen && tourStep < 0) setTimeout(() => { if (status === 'connected' && tourStep < 0) startTour(); }, 900);
+}
+
 applyPrefs();
 $('#text').addEventListener('input', function () { this.style.height = 'auto'; this.style.height = Math.min(this.scrollHeight, 140) + 'px'; });
 $('#text').addEventListener('paste', e => {
@@ -997,6 +1110,7 @@ $('#menu').addEventListener('click', async e => {
   if (m === 'new') openNew();
   if (m === 'prefs') { applyPrefs(); $('#prefs').classList.add('on'); }
   if (m === 'about') $('#about').classList.add('on');
+  if (m === 'tour') startTour();
   if (m === 'name') {
     const cur = $('#meName').textContent;
     const name = prompt('Your display name on this site (your username stays the same):', cur);
