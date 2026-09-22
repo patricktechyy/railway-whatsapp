@@ -43,6 +43,10 @@ export class Auth {
   constructor(dataDir) {
     this.dataDir = dataDir
     this.file = path.join(dataDir, 'users.json')
+    // Keep credentials in their own durable file so metadata saves (rename,
+    // changelog acknowledgement, etc.) can never accidentally overwrite a
+    // password that was just set through a setup/reset link.
+    this.passwordFile = path.join(dataDir, 'passwords.json')
     this.secret = readOrCreate(path.join(dataDir, '.secret'), () => crypto.randomBytes(32).toString('hex'))
 
     // ADMIN_PASSWORD wins; the old PASSWORD variable still works so an
@@ -55,8 +59,10 @@ export class Auth {
     this.adminPv = sha(this.adminPassword).slice(0, 12)
 
     this.users = []
+    this.passwords = Object.create(null)
     this.failures = new Map()
     this.load()
+    this.loadPasswords()
   }
 
   // ---------------------------------------------------------------- storage
@@ -70,9 +76,52 @@ export class Auth {
   }
 
   save() {
-    const tmp = this.file + '.tmp'
-    fs.writeFileSync(tmp, JSON.stringify({ users: this.users }, null, 2), { mode: 0o600 })
+    const tmp = `${this.file}.${process.pid}.tmp`
+    const fd = fs.openSync(tmp, 'w', 0o600)
+    try {
+      fs.writeFileSync(fd, JSON.stringify({ users: this.users }, null, 2))
+      fs.fsyncSync(fd)
+    } finally {
+      fs.closeSync(fd)
+    }
     fs.renameSync(tmp, this.file)
+  }
+
+  loadPasswords() {
+    try {
+      const data = JSON.parse(fs.readFileSync(this.passwordFile, 'utf8'))
+      this.passwords = data && typeof data.passwords === 'object' && data.passwords ? data.passwords : Object.create(null)
+    } catch {
+      this.passwords = Object.create(null)
+    }
+
+    // One-time migration from users.json. Passwords are immediately copied
+    // to their dedicated file, after which that file is the credential source.
+    let migrated = false
+    for (const u of this.users) {
+      if (u.pass && typeof this.passwords[u.username] !== 'string') {
+        this.passwords[u.username] = u.pass
+        migrated = true
+      }
+    }
+    if (migrated || !fs.existsSync(this.passwordFile)) this.savePasswords()
+    for (const u of this.users) u.pass = this.passwords[u.username] || null
+  }
+
+  savePasswords() {
+    const tmp = `${this.passwordFile}.${process.pid}.tmp`
+    const fd = fs.openSync(tmp, 'w', 0o600)
+    try {
+      fs.writeFileSync(fd, JSON.stringify({ passwords: this.passwords }, null, 2))
+      fs.fsyncSync(fd)
+    } finally {
+      fs.closeSync(fd)
+    }
+    fs.renameSync(tmp, this.passwordFile)
+  }
+
+  storedPassword(u) {
+    return u ? (this.passwords[u.username] || u.pass || null) : null
   }
 
   /**
@@ -115,7 +164,7 @@ export class Auth {
     return {
       username: u.username,
       name: u.name,
-      hasPassword: !!u.pass,
+      hasPassword: !!this.storedPassword(u),
       setupPending: !!(u.setup && u.setup.exp > Date.now()),
       createdAt: u.createdAt,
     }
@@ -148,6 +197,8 @@ export class Auth {
     const i = this.users.findIndex((u) => u.username === username)
     if (i < 0) throw new HttpError(404, 'No such user')
     const [u] = this.users.splice(i, 1)
+    delete this.passwords[u.username]
+    this.savePasswords()
     this.save()
     return u
   }
@@ -174,8 +225,10 @@ export class Auth {
     const u = this.get(username)
     if (!u) throw new HttpError(404, 'No such user')
     u.pass = null
+    delete this.passwords[u.username]
     u.pv = (u.pv || 1) + 1
     const token = this.issueSetup(u)
+    this.savePasswords()
     this.save()
     return token
   }
@@ -208,18 +261,24 @@ export class Auth {
     if (password.length > 200) throw new HttpError(400, 'Password is too long')
     const salt = crypto.randomBytes(16)
     const hash = await scrypt(password, salt, 64)
-    u.pass = `scrypt$${b64u(salt)}$${b64u(hash)}`
+    const encoded = `scrypt$${b64u(salt)}$${b64u(hash)}`
+    u.pass = encoded
+    this.passwords[u.username] = encoded
     u.pv = (u.pv || 1) + 1
+    // Persist the credential separately first. The normal user metadata file
+    // is updated afterwards, so even if another metadata write happens later
+    // the password itself remains durable.
+    this.savePasswords()
     this.save()
   }
 
   async checkPassword(u, password) {
     // hash even for unknown users so response time doesn't reveal who exists
-    const stored = u?.pass || 'scrypt$AAAAAAAAAAAAAAAAAAAAAA$AAAA'
+    const stored = this.storedPassword(u) || 'scrypt$AAAAAAAAAAAAAAAAAAAAAA$AAAA'
     const [, s, h] = stored.split('$')
     const got = await scrypt(String(password ?? ''), Buffer.from(s, 'base64url'), 64)
     const want = Buffer.from(h, 'base64url')
-    return !!u?.pass && want.length === got.length && crypto.timingSafeEqual(want, got)
+    return !!this.storedPassword(u) && want.length === got.length && crypto.timingSafeEqual(want, got)
   }
 
   async changePassword(username, current, next) {
@@ -239,7 +298,7 @@ export class Auth {
       if (eq(password, this.adminPassword)) return this.ok(key, { k: 'admin', u: 'admin', pv: this.adminPv })
     } else {
       const u = this.get(username)
-      if (u && !u.pass) {
+      if (u && !this.storedPassword(u)) {
         this.fail(ip, key)
         throw new HttpError(403, 'This account has no password yet. Use the setup link you were sent.')
       }
@@ -304,7 +363,7 @@ export class Auth {
     if (c.k === 'user') {
       const u = this.get(c.u)
       // password change / reset bumps pv, which signs out old cookies
-      return u && u.pass && u.pv === c.pv ? c : null
+      return u && this.storedPassword(u) && u.pv === c.pv ? c : null
     }
     return null
   }
