@@ -34,6 +34,17 @@ function eggMessages() {
   return { messages: EGG_DEFAULTS, custom: false }
 }
 
+// Version: MAJOR.MINOR.PATCH from package.json (bump it when you release),
+// plus the commit Railway deployed, which Railway provides automatically.
+const VERSION = (() => {
+  let v = '?'
+  for (const p of [path.join(__dirname, '..', 'package.json'), path.join(__dirname, 'package.json')]) {
+    try { v = JSON.parse(fs.readFileSync(p, 'utf8')).version || v; break } catch {}
+  }
+  const sha = (process.env.RAILWAY_GIT_COMMIT_SHA || '').slice(0, 7)
+  return sha ? `${v} · build ${sha}` : v
+})()
+
 const MAX_UPLOAD = Number(process.env.MAX_UPLOAD_MB || 25) * 1024 * 1024
 
 fs.mkdirSync(DATA_DIR, { recursive: true })
@@ -59,7 +70,7 @@ const esc = (s) =>
 const templates = {}
 const tpl = (f) => (templates[f] ??= fs.readFileSync(path.join(PUBLIC, f), 'utf8'))
 const render = (f, vars) =>
-  Object.entries({ BRAND, ...vars }).reduce((s, [k, v]) => s.replaceAll(`__${k}__`, esc(v)), tpl(f))
+  Object.entries({ BRAND, VERSION, ...vars }).reduce((s, [k, v]) => s.replaceAll(`__${k}__`, esc(v)), tpl(f))
 
 function send(res, code, body, headers = {}) {
   res.writeHead(code, {
@@ -410,7 +421,7 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, () => {
   console.log('')
-  console.log(`  ${BRAND} on port ${PORT} — ${auth.users.length} user(s)`)
+  console.log(`  ${BRAND} v${VERSION} on port ${PORT} — ${auth.users.length} user(s)`)
   for (const u of auth.users) console.log(`    /u/${u.username}/  ${u.name}${u.pass ? '' : '  (no password yet)'}`)
   console.log('    admin login: username "admin"')
   if (!auth.adminFromEnv) console.log(`    admin password: ${auth.adminPassword}   (set ADMIN_PASSWORD to choose your own)`)
