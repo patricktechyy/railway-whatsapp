@@ -14,7 +14,7 @@ COPY chat.html login.html setup.html admin.html ./public/
 
 ENV PORT=8080 \
     DATA_DIR=/data \
-    BRAND="WhatsApp Hub"
+    BRAND="Apa yang Diatas (Whats Up)"
 
 EXPOSE 8080
 CMD ["node", "src/server.js"]
