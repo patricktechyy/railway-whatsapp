@@ -39,7 +39,7 @@ const esc = (s) =>
 const templates = {}
 const tpl = (f) => (templates[f] ??= fs.readFileSync(path.join(PUBLIC, f), 'utf8'))
 const render = (f, vars) =>
-  Object.entries({ BRAND, ADMIN_VIEW: '', ...vars }).reduce((s, [k, v]) => s.replaceAll(`__${k}__`, esc(v)), tpl(f))
+  Object.entries({ BRAND, ...vars }).reduce((s, [k, v]) => s.replaceAll(`__${k}__`, esc(v)), tpl(f))
 
 function send(res, code, body, headers = {}) {
   res.writeHead(code, {
@@ -202,7 +202,6 @@ async function route(req, res) {
           return {
             ...auth.publicUser(u),
             status: s?.status || 'stopped',
-            phone: s?.me?.phone || '',
             error: info.error ? [info.error.text, info.error.detail].filter(Boolean).join(' — ') : '',
             linked: !!info.linked,
           }
@@ -239,12 +238,6 @@ async function route(req, res) {
         await sessions.get(username)?.relink()
         return json(res, { ok: true })
       }
-      if (action === 'open' && M === 'POST') {
-        // hand back a scoped cookie that opens just this user's chats
-        setCookie(req, res, auth.signImpersonation(username), 2 * 3600)
-        console.log(`[admin] opened ${username}'s WhatsApp`)
-        return json(res, { redirect: `/u/${username}/` })
-      }
     }
     throw new HttpError(404, 'Not found')
   }
@@ -255,15 +248,14 @@ async function route(req, res) {
   const username = m[1]
   const rest = m[2] || ''
   const c = whoami(req)
-  const asAdmin = c?.k === 'admin-as' && c.u === username
-  const allowed = (c?.k === 'user' && c.u === username) || asAdmin
+  const allowed = c?.k === 'user' && c.u === username
 
   if (rest === '' || rest === '/') {
     if (!allowed) return redirect(res, '/')
     if (rest === '') return redirect(res, `/u/${username}/`)
     const u = auth.get(username)
     sessions.get(username)?.wake()
-    return page(res, render('chat.html', { USER: username, LABEL: u.name, ADMIN_VIEW: asAdmin ? '1' : '' }))
+    return page(res, render('chat.html', { USER: username, LABEL: u.name }))
   }
   if (!allowed) throw new HttpError(401, 'Please sign in again')
   const s = sessions.get(username)
@@ -342,7 +334,6 @@ async function route(req, res) {
     return json(res, { ok: true })
   }
   if (api === '/password') {
-    if (asAdmin) throw new HttpError(403, 'Open as the user is view-only for account settings')
     const u = await auth.changePassword(username, body.current, body.next)
     setCookie(req, res, auth.sign({ k: 'user', u: u.username, pv: u.pv }), 30 * 24 * 3600)
     return json(res, { ok: true })

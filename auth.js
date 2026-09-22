@@ -264,12 +264,13 @@ export class Auth {
 
   // ---------------------------------------------------------------- cookies
   sign(claims) {
-    const body = b64u(JSON.stringify({ ...claims, exp: Date.now() + COOKIE_TTL }))
+    const body = b64u(JSON.stringify({ exp: Date.now() + COOKIE_TTL, ...claims }))
     const mac = crypto.createHmac('sha256', this.secret).update(body).digest('base64url')
     return `${body}.${mac}`
   }
 
   /** Returns {k, u} for a valid, current cookie, else null. */
+
   verify(cookie) {
     if (!cookie || !cookie.includes('.')) return null
     const [body, mac] = cookie.split('.')

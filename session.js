@@ -11,6 +11,12 @@ const FULL_HISTORY = process.env.FULL_HISTORY !== '0'
 
 // Baileys wants a pino-shaped logger. This one prints compact lines to the
 // Railway logs without pulling pino into the image.
+// Logs are readable by whoever runs the server, so they must never say who
+// anyone talks to: no names, message text, or WhatsApp addresses.
+const PRIVATE_KEYS = new Set(['pushName', 'notify', 'verifiedName', 'verifiedBizName', 'name', 'subject', 'text',
+  'conversation', 'caption', 'body', 'message', 'quotedMessage', 'participant', 'remoteJid', 'remoteJidAlt',
+  'participantAlt', 'jid', 'lid', 'pn', 'phoneNumber', 'from', 'to', 'author', 'recipient'])
+const redact = (s) => String(s).replace(/\+?\d{5,}(:\d+)?@(s\.whatsapp\.net|lid|g\.us|c\.us|broadcast)/g, '<contact>')
 const LEVELS = { trace: 10, debug: 20, info: 30, warn: 40, error: 50, fatal: 60, silent: 99 }
 function makeLogger(prefix, level) {
   const min = LEVELS[level] ?? LEVELS.warn
@@ -31,6 +37,7 @@ function makeLogger(prefix, level) {
           delete o.err
         }
         const j = JSON.stringify(o, (k, v) =>
+          PRIVATE_KEYS.has(k) ? '<private>' :
           v && v.type === 'Buffer' ? '<bytes>' : typeof v === 'string' && v.length > 160 ? v.slice(0, 160) + '…' : v
         )
         if (j && j !== '{}') extra += ' ' + j.slice(0, 500)
@@ -38,7 +45,7 @@ function makeLogger(prefix, level) {
         extra += ' [unprintable]'
       }
     }
-    console.log(`${prefix} wa.${lvl}: ${msg}${extra}`)
+    console.log(redact(`${prefix} wa.${lvl}: ${msg}${extra}`))
   }
   const l = { level }
   for (const k of ['trace', 'debug', 'info', 'warn', 'error', 'fatal']) l[k] = emit(k)
@@ -342,7 +349,7 @@ export class Session extends EventEmitter {
           name: sock.user?.name || sock.user?.verifiedName || sock.user?.notify || '',
         }
         this.setStatus('connected')
-        this.log('connected as', this.me.phone || pn)
+        this.log('connected')
         this.loadGroups(sock)
         this.scheduleLidResolve()
       }
@@ -716,7 +723,6 @@ export class Session extends EventEmitter {
     }
     const had = this.store.profileName(who)
     this.store.setContact(who, info)
-    if (!had && info.notify) this.log(`WhatsApp name for ${phoneOf(this.store.canon(who)) || this.store.canon(who)}: ${info.notify}`)
   }
 
   /** Log once per contact when their messages arrive without a WhatsApp name. */
@@ -725,7 +731,7 @@ export class Session extends EventEmitter {
     this.nameless ??= new Set()
     if (this.nameless.has(jid) || this.store.profileName(jid) || this.nameless.size > 500) return
     this.nameless.add(jid)
-    this.log(`no WhatsApp name included in messages from ${phoneOf(jid) || jid}`)
+    this.log('a contact\'s messages arrived without a WhatsApp name')
   }
 
   publicMsg(m) {
@@ -810,19 +816,17 @@ export class Session extends EventEmitter {
         const lid = Array.isArray(rows) ? rows.find((x) => x?.pn === target)?.lid || rows.find((x) => x?.lid)?.lid : null
         if (lid) {
           this.store.link(lid, target)
-          this.log(`resolved send target ${target} -> ${lid}`)
           return lid
         }
       }
     } catch (e) {
-      this.log(`send target LID lookup failed for ${target}: ${e?.message || e}`)
+      this.log(`send address lookup failed: ${e?.message || e}`)
     }
 
     // The local store may already know the LID from an incoming/history event
     // even when Baileys' live mapping cache does not. Use that as a fallback.
     for (const [lid, pn] of this.store.alias) {
       if (pn === target && isLid(lid)) {
-        this.log(`using stored send target ${target} -> ${lid}`)
         return lid
       }
     }
@@ -1031,7 +1035,7 @@ export class Session extends EventEmitter {
     }
 
     const e = lastError instanceof Error ? lastError : new Error(String(lastError || 'Media download failed'))
-    this.log(`media download failed ${jid}/${id} after ${MEDIA_DOWNLOAD_ATTEMPTS} attempts:`, e.message)
+    this.log(`media download failed after ${MEDIA_DOWNLOAD_ATTEMPTS} attempts:`, e.message)
     throw e
   }
 

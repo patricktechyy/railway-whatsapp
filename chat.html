@@ -3,12 +3,26 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>__LABEL__ · __BRAND__</title>
+<script>try{var p=JSON.parse(localStorage.getItem('wah-prefs')||'{}'),r=document.documentElement;if(p.theme&&p.theme!=='auto')r.dataset.theme=p.theme;if(p.accent&&p.accent!=='green')r.dataset.accent=p.accent;r.dataset.wall=p.wall||'plain';r.dataset.size=p.size||'normal'}catch(e){}</script>
 <style>
 :root{--bg:#f0f2f5;--panel:#fff;--fg:#111b21;--muted:#667781;--line:#e9edef;--accent:#128c7e;
   --out:#d9fdd3;--in:#fff;--thread:#efeae2;--field:#f0f2f5;--hover:#f5f6f6;--danger:#d64550;box-sizing:border-box}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#111b21;--panel:#111b21;--fg:#e9edef;
   --muted:#8696a0;--line:#222e35;--accent:#00a884;--out:#005c4b;--in:#202c33;--thread:#0b141a;--field:#202c33;
   --hover:#202c33;--danger:#f15c6d}}
+:root{color-scheme:light dark}
+:root[data-theme="light"]{color-scheme:light}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#111b21;--panel:#111b21;--fg:#e9edef;--muted:#8696a0;--line:#222e35;--accent:#00a884;--out:#005c4b;--in:#202c33;--thread:#0b141a;--field:#202c33;--hover:#202c33;--danger:#f15c6d}
+:root[data-accent="blue"]{--accent:#2f80ed}
+:root[data-accent="purple"]{--accent:#8b5cf6}
+:root[data-accent="pink"]{--accent:#e0457b}
+:root[data-accent="orange"]{--accent:#e8870e}
+:root[data-accent]{--out:color-mix(in srgb,var(--accent) 20%,var(--panel))}
+:root[data-wall="dots"] #msgs{background-image:radial-gradient(color-mix(in srgb,var(--fg) 10%,transparent) 1.2px,transparent 1.7px);background-size:20px 20px}
+:root[data-wall="none"] #main{background:var(--panel)}
+:root[data-size="small"] .m,:root[data-size="small"] #text{font-size:13.5px}
+:root[data-size="large"] .m,:root[data-size="large"] #text{font-size:17.5px}
+:root[data-size="large"] .nm{font-size:16.5px}
 *{box-sizing:inherit}
 [hidden]{display:none!important}
 html,body{height:100%}
@@ -60,7 +74,23 @@ button{font:inherit;color:inherit;cursor:pointer}
 #menu .danger{color:var(--danger)}
 
 /* thread */
-#main{flex:1;display:flex;flex-direction:column;background:var(--thread);min-width:0}
+#main{flex:1;display:flex;flex-direction:column;background:var(--thread);min-width:0;position:relative}
+#chips{display:flex;gap:6px;padding:0 12px 8px}
+#chips button{border:0;border-radius:14px;padding:4px 12px;background:var(--field);color:var(--muted);font-size:13px}
+#chips button.on{background:color-mix(in srgb,var(--accent) 18%,var(--field));color:var(--accent);font-weight:600}
+#jump{position:absolute;right:18px;bottom:82px;width:42px;height:42px;border-radius:50%;border:0;background:var(--panel);color:var(--muted);
+  box-shadow:0 2px 8px rgba(0,0,0,.2);font-size:18px;z-index:2}
+#jump span{position:absolute;top:-6px;right:-4px;background:var(--accent);color:#fff;border-radius:10px;font-size:11px;padding:1px 6px}
+#jump span:empty{display:none}
+.m a.lnk{color:var(--accent);word-break:break-all}
+.seg{display:flex;gap:6px;flex-wrap:wrap}
+.seg button{border:1px solid var(--line);background:var(--field);border-radius:8px;padding:6px 12px;font-size:14px}
+.seg button.on{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 15%,var(--field));font-weight:600}
+.seg.sw button{width:30px;height:30px;padding:0;border-radius:50%;background:var(--c);border:0}
+.seg.sw button.on{outline:2px solid var(--fg);outline-offset:2px}
+#prefs{background:rgba(0,0,0,.45)}
+#prefs .dlg{max-height:90vh;overflow-y:auto}
+.pv .draft{color:var(--danger)}
 #back{display:none}
 #title{flex:1;min-width:0;line-height:1.25}
 #title b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -147,9 +177,6 @@ button{font:inherit;color:inherit;cursor:pointer}
 }
 </style>
 
-<div id="adminbar" style="display:none;background:#8a6d00;color:#fff;font-size:13px;padding:6px 12px;text-align:center">
-  Admin view — you're using <b>__LABEL__</b>'s WhatsApp. <a href="/admin" style="color:#fff;text-decoration:underline">Back to admin</a>
-</div>
 <div id="app">
   <aside id="side">
     <div class="bar">
@@ -161,12 +188,14 @@ button{font:inherit;color:inherit;cursor:pointer}
     </div>
     <div id="menu">
       <button data-m="new">New chat</button>
+      <button data-m="prefs">Appearance &amp; settings</button>
       <button data-m="pw">Change password</button>
       <button data-m="relink">Re-link WhatsApp</button>
       <button data-m="out" class="danger">Sign out</button>
     </div>
     <div id="sync">Syncing your chats…</div>
-    <input class="search" id="search" placeholder="Search chats" autocomplete="off">
+    <input class="search" id="search" placeholder="Search chats  ( / )" autocomplete="off">
+    <div id="chips"><button data-f="all" class="on">All</button><button data-f="unread">Unread</button><button data-f="groups">Groups</button></div>
     <div class="list" id="chats"><div class="empty">Loading…</div></div>
 
     <div id="newchat">
@@ -188,6 +217,7 @@ button{font:inherit;color:inherit;cursor:pointer}
       <button class="ib" id="nickBtn" title="Set a nickname" hidden>✎</button>
     </div>
     <div id="msgs"><div class="empty">Pick a conversation, or start a new one with ✎.</div></div>
+    <button id="jump" title="Jump to latest" hidden>↓<span></span></button>
     <div id="reply">
       <div class="q"><b id="replyName"></b><span id="replyText"></span></div>
       <button class="ib" id="replyX" title="Cancel reply">✕</button>
@@ -233,6 +263,25 @@ button{font:inherit;color:inherit;cursor:pointer}
   <button class="lnk" id="gateOut">Sign out</button>
 </div>
 
+<div class="overlay" id="prefs">
+  <div class="dlg">
+    <h3>Appearance &amp; settings</h3>
+    <label>Theme</label>
+    <div class="seg" data-p="theme"><button data-v="auto">Auto</button><button data-v="light">Light</button><button data-v="dark">Dark</button></div>
+    <label>Accent colour</label>
+    <div class="seg sw" data-p="accent">
+      <button data-v="green" style="--c:#00a884" title="Green"></button><button data-v="blue" style="--c:#2f80ed" title="Blue"></button><button data-v="purple" style="--c:#8b5cf6" title="Purple"></button><button data-v="pink" style="--c:#e0457b" title="Pink"></button><button data-v="orange" style="--c:#e8870e" title="Orange"></button>
+    </div>
+    <label>Chat background</label>
+    <div class="seg" data-p="wall"><button data-v="plain">Plain</button><button data-v="dots">Dots</button><button data-v="none">None</button></div>
+    <label>Text size</label>
+    <div class="seg" data-p="size"><button data-v="small">Small</button><button data-v="normal">Normal</button><button data-v="large">Large</button></div>
+    <label>Enter key</label>
+    <div class="seg" data-p="enter"><button data-v="auto">Auto</button><button data-v="send">Sends</button><button data-v="newline">New line</button></div>
+    <p style="color:var(--muted);font-size:12px;margin:14px 0 0">Auto sends on computers and adds a new line on phones. Saved on this device only.</p>
+    <div class="acts"><button type="button" class="btn" id="prefsX">Done</button></div>
+  </div>
+</div>
 <div class="overlay" id="pw">
   <form class="dlg" id="pwf">
     <h3>Change password</h3>
@@ -253,6 +302,29 @@ const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 let replyTo = null;
+const PREF_DEFAULTS = {theme: 'auto', accent: 'green', wall: 'plain', size: 'normal', enter: 'auto'};
+let prefs = {...PREF_DEFAULTS};
+try { Object.assign(prefs, JSON.parse(localStorage.getItem('wah-prefs') || '{}')); } catch {}
+function applyPrefs() {
+  const r = document.documentElement;
+  if (prefs.theme === 'auto') delete r.dataset.theme; else r.dataset.theme = prefs.theme;
+  if (prefs.accent === 'green') delete r.dataset.accent; else r.dataset.accent = prefs.accent;
+  r.dataset.wall = prefs.wall; r.dataset.size = prefs.size;
+  document.querySelectorAll('#prefs .seg').forEach(g =>
+    g.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === prefs[g.dataset.p])));
+}
+function setPref(k, v) {
+  prefs[k] = v;
+  try { localStorage.setItem('wah-prefs', JSON.stringify(prefs)); } catch {}
+  applyPrefs();
+}
+const enterSends = () => prefs.enter === 'send' || (prefs.enter === 'auto' && innerWidth > 760);
+const BASE_TITLE = document.title;
+let filter = 'all', unseen = 0;
+const drafts = new Map();
+// URLs in messages become links (runs on already-escaped text)
+const linkify = (html) => html.replace(/\bhttps?:\/\/[^\s<]+[^\s<.,;:!?)\]'"]/g, u => `<a class="lnk" href="${u}" target="_blank" rel="noopener noreferrer">${u}</a>`);
+const rich = (t) => linkify(esc(t));
 let status = 'starting', me = null, chats = [], current = null, currentName = '', msgs = [], attach = null, tmpN = 0;
 
 // ------------------------------------------------------------------ utils
@@ -305,9 +377,16 @@ function row(c, extra = '') {
 }
 function renderChats() {
   const q = $('#search').value.trim().toLowerCase();
-  const list = chats.filter(c => !q || c.name.toLowerCase().includes(q) || (c.phone || '').includes(q.replace(/\D/g, '') || '§'));
-  $('#chats').innerHTML = list.map(c => row(c)).join('') ||
-    `<div class="empty">${q ? 'No chats match.' : status === 'connected' ? 'No chats yet. They appear here as history syncs, or start one with ✎.' : 'Waiting for WhatsApp…'}</div>`;
+  const list = chats
+    .filter(c => filter === 'all' || (filter === 'unread' ? c.unread > 0 : c.group))
+    .filter(c => !q || c.name.toLowerCase().includes(q) || (c.phone || '').includes(q.replace(/\D/g, '') || '§'));
+  $('#chats').innerHTML = list.map(c => {
+    const d = c.jid !== current && drafts.get(c.jid);
+    return row(c, d ? `<span class="draft">Draft:</span> ${esc(d)}` : '');
+  }).join('') ||
+    `<div class="empty">${q ? 'No chats match.' : filter === 'unread' ? 'No unread chats 🎉' : filter === 'groups' ? 'No groups yet.' : status === 'connected' ? 'No chats yet. They appear here as history syncs, or start one with ✎.' : 'Waiting for WhatsApp…'}</div>`;
+  const n = chats.filter(c => c.unread > 0).length;
+  document.title = (n ? `(${n}) ` : '') + BASE_TITLE;
 }
 const loadChats = throttle(async () => {
   try { chats = await call('GET', '/chats'); renderChats(); updateTitle(); } catch {}
@@ -348,20 +427,20 @@ function bubble(m) {
   if (m.type === 'image' || m.type === 'sticker') {
     const src = m.local || (m.media ? mediaUrl(m) : '');
     body = src ? `<img loading="lazy" src="${esc(src)}" alt="" data-full="${esc(src)}">` : '<span class="note">📷 Photo</span>';
-    if (m.text) body += esc(m.text);
+    if (m.text) body += rich(m.text);
   } else if (m.type === 'document' || m.type === 'video' || m.type === 'audio') {
     const label = m.type === 'document' ? (m.fileName || 'Document') : m.type === 'video' ? 'Video' : 'Voice message';
     const icon = {document: '📄', video: '🎥', audio: '🎤'}[m.type];
     const inner = `<span style="font-size:22px">${icon}</span><span>${esc(label)}</span>`;
     body = m.media ? `<a class="file" href="${esc(mediaUrl(m))}" target="_blank" rel="noopener">${inner}</a>` : `<div class="file">${inner}</div>`;
-    if (m.text) body += esc(m.text);
+    if (m.text) body += rich(m.text);
   } else if (m.type === 'location') {
     const q = encodeURIComponent(m.text);
     body = `<a class="file" href="https://maps.google.com/?q=${q}" target="_blank" rel="noopener">📍 ${esc(m.text)}</a>`;
   } else if (m.type === 'contact') {
     body = `<span class="note">👤 ${esc(m.text)}</span>`;
   } else {
-    body = esc(m.text);
+    body = rich(m.text);
   }
   const tick = m.failed ? ' ⚠️' : m.pending ? ' 🕓' : '';
   const q = m.quote ? `<span class="q" data-qid="${esc(m.quote.id)}"><b>${esc(m.quote.name || '')}</b>${esc(m.quote.text || '')}</span>` : '';
@@ -405,7 +484,10 @@ function cancelReply() { replyTo = null; $('#reply').classList.remove('on'); }
 
 async function openChat(jid, name) {
   cancelReply();
+  if (current) { const t = $('#text').value; if (t.trim()) drafts.set(current, t); else drafts.delete(current); }
   current = jid; currentName = name || '';
+  $('#text').value = drafts.get(jid) || ''; $('#text').style.height = 'auto';
+  unseen = 0; showJump(false);
   document.body.classList.add('open');
   updateTitle(); setComposer();
   $('#msgs').innerHTML = '<div class="empty">Loading…</div>';
@@ -452,6 +534,7 @@ async function send() {
   if (!text && !attach) return;
   const jid = current;
   $('#text').value = ''; $('#text').style.height = 'auto';
+  drafts.delete(jid);
   if (attach) {
     const a = attach; clearAttach();
     return sendFile(jid, a, text);
@@ -611,7 +694,10 @@ function stream() {
         const i = msgs.findIndex(x => x.pending && x.type === m.type && (x.text || '') === (m.text || ''));
         if (i >= 0) { m.local = msgs[i].local; msgs.splice(i, 1); }
       }
+      const box = $('#msgs');
+      const away = box.scrollHeight - box.scrollTop - box.clientHeight > 150;
       upsert(m); renderMsgs(false);
+      if (away && !m.fromMe) { unseen++; showJump(true); }
     }
   };
 }
@@ -639,7 +725,36 @@ $('#chats').addEventListener('click', e => { const r = e.target.closest('.row');
 $('#search').addEventListener('input', renderChats);
 $('#back').addEventListener('click', () => document.body.classList.remove('open'));
 $('#send').addEventListener('click', send);
-$('#text').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && innerWidth > 760) { e.preventDefault(); send(); } });
+$('#text').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && enterSends()) { e.preventDefault(); send(); } });
+$('#text').addEventListener('input', () => { if (current) drafts.set(current, $('#text').value); });
+function showJump(on) { $('#jump').hidden = !on; $('#jump span').textContent = unseen ? String(unseen) : ''; }
+$('#jump').addEventListener('click', () => { const b = $('#msgs'); b.scrollTo({top: b.scrollHeight, behavior: 'smooth'}); unseen = 0; showJump(false); });
+$('#msgs').addEventListener('scroll', () => {
+  const b = $('#msgs'), away = b.scrollHeight - b.scrollTop - b.clientHeight > 300;
+  if (!away) unseen = 0;
+  showJump(away);
+}, {passive: true});
+$('#chips').addEventListener('click', e => {
+  const b = e.target.closest('button[data-f]'); if (!b) return;
+  filter = b.dataset.f;
+  $('#chips').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+  renderChats();
+});
+$('#prefs').addEventListener('click', e => {
+  const b = e.target.closest('.seg button'); if (b) setPref(b.closest('.seg').dataset.p, b.dataset.v);
+  if (e.target.id === 'prefsX' || e.target.id === 'prefs') $('#prefs').classList.remove('on');
+});
+document.addEventListener('keydown', e => {
+  const typing = /^(INPUT|TEXTAREA)$/.test(document.activeElement?.tagName);
+  if ((e.key === '/' && !typing) || (e.key.toLowerCase() === 'k' && (e.ctrlKey || e.metaKey))) {
+    e.preventDefault(); $('#newchat').classList.remove('on'); document.body.classList.remove('open'); $('#search').focus(); $('#search').select();
+  } else if (e.key === 'Escape') {
+    if ($('#prefs').classList.contains('on')) $('#prefs').classList.remove('on');
+    else if ($('#newchat').classList.contains('on')) closeNew();
+    else if (!replyTo && document.body.classList.contains('open') && innerWidth <= 760) document.body.classList.remove('open');
+  }
+});
+applyPrefs();
 $('#text').addEventListener('input', function () { this.style.height = 'auto'; this.style.height = Math.min(this.scrollHeight, 140) + 'px'; });
 $('#text').addEventListener('paste', e => {
   const f = [...(e.clipboardData?.files || [])][0];
@@ -690,6 +805,7 @@ $('#menu').addEventListener('click', async e => {
   $('#menu').classList.remove('on');
   const m = b.dataset.m;
   if (m === 'new') openNew();
+  if (m === 'prefs') { applyPrefs(); $('#prefs').classList.add('on'); }
   if (m === 'out') signOut();
   if (m === 'pw') { $('#pwf').reset(); $('#pwerr').textContent = ''; $('#pw').classList.add('on'); $('#pwc').focus(); }
   if (m === 'relink') {
@@ -724,11 +840,6 @@ $('#pwf').addEventListener('submit', async e => {
   } catch (x) { $('#pwerr').textContent = x.message; }
 });
 
-const ADMIN_VIEW = '__ADMIN_VIEW__' === '1';
-if (ADMIN_VIEW) {
-  $('#adminbar').style.display = 'block';
-  document.querySelectorAll('#menu [data-m="pw"], #menu [data-m="out"]').forEach(el => el.remove());
-}
 call('GET', '/state').then(setStatus).catch(() => {});
 stream();
 </script>
