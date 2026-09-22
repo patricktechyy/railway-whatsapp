@@ -104,19 +104,31 @@ export class Auth {
       this.passwords = Object.create(null)
     }
 
-    // One-time migration from users.json. Passwords are immediately copied
-    // to their dedicated file, after which that file is the credential source.
-    let migrated = false
-    if (migrateLegacy && !exists) {
-      for (const u of this.users) {
-        if (u.pass && typeof this.passwords[u.username] !== 'string') {
-          this.passwords[u.username] = u.pass
-          migrated = true
+    // users.json remains the canonical credential source. passwords.json is
+    // only a compatibility copy/fallback from the previous update.
+    // A stale passwords.json entry must never overwrite a newer users.json hash.
+    let repaired = false
+    for (const u of this.users) {
+      const fromUsers = typeof u.pass === 'string' && u.pass.startsWith('scrypt$') ? u.pass : null
+      const fromPasswords = typeof this.passwords[u.username] === 'string' && this.passwords[u.username].startsWith('scrypt$')
+        ? this.passwords[u.username]
+        : null
+
+      if (fromUsers) {
+        if (this.passwords[u.username] !== fromUsers) {
+          this.passwords[u.username] = fromUsers
+          repaired = true
         }
+      } else if (fromPasswords) {
+        // Legacy account: restore the hash into users.json once.
+        u.pass = fromPasswords
+        repaired = true
+      } else {
+        u.pass = null
       }
     }
-    if (migrated || !exists) this.savePasswords()
-    for (const u of this.users) u.pass = typeof this.passwords[u.username] === 'string' ? this.passwords[u.username] : null
+    if (!exists || repaired) this.savePasswords()
+    if (repaired) this.save()
     this.passwordsMtime = this.statMtime(this.passwordFile)
   }
 
@@ -144,7 +156,12 @@ export class Auth {
   }
 
   storedPassword(u) {
-    return u ? (this.passwords[u.username] || u.pass || null) : null
+    if (!u) return null
+    // users.json is canonical. Only use passwords.json for an old account
+    // whose canonical record does not yet contain a usable password hash.
+    if (typeof u.pass === 'string' && u.pass.startsWith('scrypt$')) return u.pass
+    const legacy = this.passwords[u.username]
+    return typeof legacy === 'string' && legacy.startsWith('scrypt$') ? legacy : null
   }
 
   /**
