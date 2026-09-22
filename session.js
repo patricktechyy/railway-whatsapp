@@ -985,9 +985,18 @@ export class Session extends EventEmitter {
   /** Archive / unarchive on this site only. WhatsApp is never told. */
   async setArchived(jid, archived) {
     jid = this.store.canon(jid)
-    this.store.touchChat(jid, { localArchived: !!archived })
+    // like WhatsApp: an archived chat can't stay pinned
+    this.store.touchChat(jid, archived ? { localArchived: true, localPinned: false } : { localArchived: false })
     this.emit('event', { type: 'chats' })
     return { archived: !!archived }
+  }
+
+  /** Pin / unpin on this site only. Pinning brings a chat out of the archive. */
+  async setPinned(jid, pinned) {
+    jid = this.store.canon(jid)
+    this.store.touchChat(jid, pinned ? { localPinned: true, localArchived: false } : { localPinned: false })
+    this.emit('event', { type: 'chats' })
+    return { pinned: !!pinned }
   }
 
   async markRead(jid) {

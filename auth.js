@@ -153,6 +153,13 @@ export class Auth {
   }
 
   /** New one-time link. Clears the old password and signs the user out. */
+  markSeen(username, version) {
+    const u = this.get(username)
+    if (!u || u.seenVersion === version) return
+    u.seenVersion = version
+    this.save()
+  }
+
   rename(username, name) {
     const u = this.get(username)
     if (!u) throw new HttpError(404, 'No such user')

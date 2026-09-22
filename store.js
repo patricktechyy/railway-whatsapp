@@ -218,6 +218,7 @@ export class Store {
     if (patch.t != null && patch.t > (chat.t || 0)) chat.t = patch.t
     if (patch.unread != null) chat.unread = patch.unread
     if (patch.localArchived != null) chat.localArchived = !!patch.localArchived
+    if (patch.localPinned != null) chat.localPinned = !!patch.localPinned
     this.dirty = true
     return chat
   }
@@ -292,6 +293,7 @@ export class Store {
         preview: c.preview || '',
         group: isGroup(c.jid),
         archived: !!c.localArchived,
+        pinned: !!c.localPinned,
       }))
   }
 

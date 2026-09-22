@@ -36,14 +36,32 @@ function eggMessages() {
 
 // Version: MAJOR.MINOR.PATCH from package.json (bump it when you release),
 // plus the commit Railway deployed, which Railway provides automatically.
-const VERSION = (() => {
-  let v = '?'
+const APP_VERSION = (() => {
   for (const p of [path.join(__dirname, '..', 'package.json'), path.join(__dirname, 'package.json')]) {
-    try { v = JSON.parse(fs.readFileSync(p, 'utf8')).version || v; break } catch {}
+    try { return JSON.parse(fs.readFileSync(p, 'utf8')).version || '?' } catch {}
   }
-  const sha = (process.env.RAILWAY_GIT_COMMIT_SHA || '').slice(0, 7)
-  return sha ? `${v} · build ${sha}` : v
+  return '?'
 })()
+const VERSION = (() => {
+  const sha = (process.env.RAILWAY_GIT_COMMIT_SHA || '').slice(0, 7)
+  return sha ? `${APP_VERSION} · build ${sha}` : APP_VERSION
+})()
+
+// Changelog: notes per version, written by the admin, saved on the volume.
+// Each person sees the current version's notes once.
+const CHANGELOG_FILE = path.join(DATA_DIR, 'changelog.json')
+const semverCmp = (a, b) => {
+  const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number)
+  for (let i = 0; i < 3; i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) - (y[i] || 0)
+  return 0
+}
+function readChangelog() {
+  try { return JSON.parse(fs.readFileSync(CHANGELOG_FILE, 'utf8')).entries || {} } catch { return {} }
+}
+function changelogHistory() {
+  const e = readChangelog()
+  return Object.keys(e).sort((a, b) => semverCmp(b, a)).map((version) => ({ version, notes: e[version] }))
+}
 
 const MAX_UPLOAD = Number(process.env.MAX_UPLOAD_MB || 25) * 1024 * 1024
 
@@ -245,9 +263,25 @@ async function route(req, res) {
       requireJson(req)
       const { username, name } = await readJson(req)
       const { user, token } = auth.create(username, name)
+      auth.markSeen(user.username, APP_VERSION)
       startSession(user) // stays idle (no QR traffic) until they open their page
       console.log(`[admin] created user ${user.username}`)
       return json(res, { user: auth.publicUser(user), setupUrl: `${origin(req)}/setup/${token}` }, 201)
+    }
+    if (p === '/admin/api/changelog') {
+      if (M === 'GET') return json(res, { version: APP_VERSION, history: changelogHistory() })
+      if (M === 'POST') {
+        requireJson(req)
+        const body = await readJson(req)
+        const version = String(body.version || APP_VERSION).trim()
+        if (!/^\d+\.\d+\.\d+$/.test(version)) throw new HttpError(400, 'Version must look like 2.13.0')
+        const notes = String(body.notes || '').trim().slice(0, 5000)
+        const entries = readChangelog()
+        if (notes) entries[version] = notes
+        else delete entries[version]
+        fs.writeFileSync(CHANGELOG_FILE, JSON.stringify({ entries }, null, 2))
+        return json(res, { version: APP_VERSION, history: changelogHistory() })
+      }
     }
     if (p === '/admin/api/easter-egg') {
       if (M === 'GET') return json(res, eggMessages())
@@ -321,6 +355,12 @@ async function route(req, res) {
   const api = rest.replace(/^\/api/, '')
   const jid = url.searchParams.get('jid')
 
+  if (api === '/changelog') {
+    const u = auth.get(username)
+    const history = changelogHistory()
+    const cur = history.find((h) => h.version === APP_VERSION)
+    return json(res, { version: APP_VERSION, notes: cur?.notes || '', seen: u?.seenVersion === APP_VERSION, history: history.slice(0, 10) })
+  }
   if (api === '/state') {
     s.wake()
     return json(res, s.info())
@@ -376,6 +416,14 @@ async function route(req, res) {
     return json(res, await s.send(body.jid, text, body.replyTo))
   }
   if (api === '/resolve') return json(res, await s.resolveNumber(body.phone))
+  if (api === '/changelog/seen') {
+    auth.markSeen(username, APP_VERSION)
+    return json(res, { ok: true })
+  }
+  if (api === '/pin') {
+    if (!body.jid) throw new HttpError(400, 'jid required')
+    return json(res, await s.setPinned(body.jid, !!body.pinned))
+  }
   if (api === '/archive') {
     if (!body.jid) throw new HttpError(400, 'jid required')
     return json(res, await s.setArchived(body.jid, !!body.archived))
