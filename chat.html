@@ -3,6 +3,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>__LABEL__ · __BRAND__</title>
+<script>try{if(sessionStorage.getItem('wah-panic')==='1')document.documentElement.dataset.panic='1'}catch(e){}</script>
 <script>try{var p=JSON.parse(localStorage.getItem('wah-prefs')||'{}'),r=document.documentElement;if(p.theme&&p.theme!=='auto')r.dataset.theme=p.theme;if(p.accent&&p.accent!=='green')r.dataset.accent=p.accent;r.dataset.wall=p.wall||'plain';r.dataset.size=p.size||'normal'}catch(e){}</script>
 <style>
 :root{--bg:#f0f2f5;--panel:#fff;--fg:#111b21;--muted:#667781;--line:#e9edef;--accent:#128c7e;
@@ -81,6 +82,17 @@ button{font:inherit;color:inherit;cursor:pointer}
 #aboutDlg .logo{font-size:46px;line-height:1;margin:4px 0 10px}
 #aboutDlg h3{margin:0 0 6px;font-size:20px}
 #aboutDlg p{margin:0 0 18px;color:var(--muted)}
+html[data-panic] #app,html[data-panic] .overlay,html[data-panic] #toast,html[data-panic] #tour{visibility:hidden!important}
+#panic{position:fixed;inset:0;z-index:2147483647;background:#fff;color:#5f6368;overflow:auto;cursor:default;
+  font:15px/1.55 system-ui,"Segoe UI",Roboto,Ubuntu,"Helvetica Neue",Arial,sans-serif;-webkit-user-select:none;user-select:none}
+#panic .wrap{max-width:600px;margin:14vh auto 0;padding:0 24px;box-sizing:border-box}
+#panic svg{display:block;margin-bottom:40px}
+#panic h1{color:#202124;font-size:1.6em;font-weight:500;line-height:1.25;margin:0 0 15px}
+#panic p{margin:0 0 6px}
+#panic ul{margin:0;padding-left:22px}
+#panic li{margin:0 0 2px}
+#panic .code{margin-top:16px;font-size:.86em;text-transform:uppercase;color:#5f6368}
+@media (prefers-color-scheme:dark){#panic{background:#202124;color:#9aa0a6}#panic h1{color:#e8eaed}#panic .code{color:#9aa0a6}#panic svg{filter:invert(.72)}}
 #tour{position:fixed;inset:0;z-index:50;display:flex;align-items:flex-end;justify-content:center;padding:20px;background:rgba(0,0,0,.35);pointer-events:none}
 #tour .card{pointer-events:auto;background:var(--panel);color:var(--fg);border-radius:16px;width:100%;max-width:420px;padding:22px 22px 16px;
   box-shadow:0 18px 50px rgba(0,0,0,.35);animation:tourIn .25s ease-out;margin-bottom:max(12px,env(safe-area-inset-bottom))}
@@ -368,6 +380,7 @@ const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 let replyTo = null;
+let panicOn = false, panicSaved = null;
 const PREF_DEFAULTS = {theme: 'auto', accent: 'green', wall: 'plain', size: 'normal', enter: 'auto'};
 let prefs = {...PREF_DEFAULTS};
 try { Object.assign(prefs, JSON.parse(localStorage.getItem('wah-prefs') || '{}')); } catch {}
@@ -452,7 +465,7 @@ function renderChats() {
   }).join('') ||
     `<div class="empty">${q ? 'No chats match.' : filter === 'unread' ? 'No unread chats 🎉' : filter === 'groups' ? 'No groups yet.' : filter === 'archived' ? 'No archived chats.' : status === 'connected' ? 'No chats yet. They appear here as history syncs, or start one with ✎.' : 'Waiting for WhatsApp…'}</div>`;
   const n = chats.filter(c => c.unread > 0 && !c.archived).length;
-  document.title = (n ? `(${n}) ` : '') + BASE_TITLE;
+  if (!panicOn) document.title = (n ? `(${n}) ` : '') + BASE_TITLE;
   const na = chats.filter(c => c.archived).length;
   $('#archChip').textContent = na ? `📦 Archived (${na})` : '📦 Archived';
 }
@@ -1043,6 +1056,69 @@ function maybeStartTour() {
   try { seen = localStorage.getItem('wah-tour') === '1'; } catch {}
   if (!seen && tourStep < 0) setTimeout(() => { if (status === 'connected' && tourStep < 0) startTour(); }, 900);
 }
+
+
+// ------------------------------------------------------------- panic mode
+// Press P outside a text box: a believable Chrome "No internet" page covers
+// everything. Press P again to come back. Survives a refresh in this tab.
+const DINO = [
+  '          ########', '         ## #######', '         ##########', '         ##########', '         ##########',
+  '         #####     ', '         ########  ', '#       #####      ', '#      ######      ', '##    ########     ',
+  '###  ######## #    ', '#############      ', '#############      ', ' ###########       ', '  #########        ',
+  '   #######         ', '    ### ##         ', '    ##   #         ', '    #    #         ', '    ##   ##        ',
+];
+function dinoSvg() {
+  let r = '';
+  DINO.forEach((row, y) => [...row].forEach((c, x) => { if (c === '#') r += `<rect x="${x}" y="${y}" width="1" height="1"/>`; }));
+  return `<svg width="60" height="60" viewBox="0 0 20 20" fill="#535353" shape-rendering="crispEdges" aria-hidden="true">${r}</svg>`;
+}
+function panicPage() {
+  const id = /^id\b/i.test(navigator.language || '');
+  const win = /Windows/i.test(navigator.userAgent || '');
+  const t = id
+    ? {h: 'Tidak ada internet', tr: 'Coba:', a: 'Memeriksa kabel jaringan, modem, dan router', b: 'Menyambungkan kembali ke Wi-Fi', c: 'Menjalankan Diagnostik Jaringan Windows'}
+    : {h: 'No internet', tr: 'Try:', a: 'Checking the network cables, modem, and router', b: 'Reconnecting to Wi-Fi', c: 'Running Windows Network Diagnostics'};
+  return `<div class="wrap">${dinoSvg()}<h1>${t.h}</h1><p>${t.tr}</p>
+    <ul><li>${t.a}</li><li>${t.b}</li>${win ? `<li>${t.c}</li>` : ''}</ul>
+    <div class="code">ERR_INTERNET_DISCONNECTED</div></div>`;
+}
+function setFavicon(href) {
+  let l = document.querySelector('link[rel~="icon"]');
+  if (!l) { l = document.createElement('link'); l.rel = 'icon'; document.head?.appendChild(l); }
+  l.href = href;
+}
+function panic(on) {
+  panicOn = on;
+  try { on ? sessionStorage.setItem('wah-panic', '1') : sessionStorage.removeItem('wah-panic'); } catch {}
+  if (on) {
+    document.activeElement?.blur?.();
+    const link = document.querySelector('link[rel~="icon"]');
+    panicSaved = panicSaved || {title: document.title, icon: link?.href || ''};
+    document.documentElement.dataset.panic = '1';
+    let el = document.getElementById('panic');
+    if (!el) { el = document.createElement('div'); el.id = 'panic'; document.body.appendChild(el); }
+    el.innerHTML = panicPage();
+    document.title = location.host;   // Chrome titles error pages with the address
+    setFavicon('data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.5" fill="none" stroke="#888" stroke-width="1.4"/></svg>'));
+  } else {
+    delete document.documentElement.dataset.panic;
+    document.getElementById('panic')?.remove();
+    if (panicSaved) { setFavicon(panicSaved.icon || 'data:,'); panicSaved = null; }
+    document.title = BASE_TITLE; renderChats();
+  }
+}
+document.addEventListener('keydown', e => {
+  const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName) || document.activeElement?.isContentEditable;
+  const isP = (e.key === 'p' || e.key === 'P') && !e.ctrlKey && !e.metaKey && !e.altKey;
+  if (panicOn) {
+    // while hidden, swallow every key so nothing behind the page reacts
+    e.preventDefault(); e.stopImmediatePropagation();
+    if (isP) panic(false);
+    return;
+  }
+  if (isP && !typing) { e.preventDefault(); e.stopImmediatePropagation(); panic(true); }
+}, true);
+if (document.documentElement.dataset.panic === '1') panic(true);   // refreshed while hidden
 
 applyPrefs();
 $('#text').addEventListener('input', function () { this.style.height = 'auto'; this.style.height = Math.min(this.scrollHeight, 140) + 'px'; });
