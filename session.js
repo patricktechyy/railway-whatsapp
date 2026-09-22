@@ -709,8 +709,22 @@ export class Session extends EventEmitter {
     const info = {}
     if (m.pushName && m.pushName.trim()) info.notify = m.pushName.trim()
     if (m.verifiedBizName) info.verified = m.verifiedBizName
-    if (!info.notify && !info.verified) return
+    if (!info.notify && !info.verified) {
+      this.noteMissingName(who)
+      return
+    }
+    const had = this.store.profileName(who)
     this.store.setContact(who, info)
+    if (!had && info.notify) this.log(`WhatsApp name for ${phoneOf(this.store.canon(who)) || this.store.canon(who)}: ${info.notify}`)
+  }
+
+  /** Log once per contact when their messages arrive without a WhatsApp name. */
+  noteMissingName(who) {
+    const jid = this.store.canon(who)
+    this.nameless ??= new Set()
+    if (this.nameless.has(jid) || this.store.profileName(jid) || this.nameless.size > 500) return
+    this.nameless.add(jid)
+    this.log(`no WhatsApp name included in messages from ${phoneOf(jid) || jid}`)
   }
 
   publicMsg(m) {

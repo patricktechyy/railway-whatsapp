@@ -23,6 +23,9 @@ export function toPn(v) {
   return /^\d{6,16}$/.test(digits) && !String(v).includes('@') ? `${digits}@s.whatsapp.net` : null
 }
 
+/** "+62 812-3456-7890" and the like: a number dressed up as a name. */
+export const looksLikePhone = (s) => typeof s === 'string' && /^[+\d\s().-]{6,}$/.test(s.trim())
+
 export const phoneOf = (jid) => (isPn(jid) ? '+' + jid.split('@')[0] : '')
 
 /**
@@ -155,6 +158,8 @@ export class Store {
     jid = this.canon(jid)
     if (isGroup(jid)) return
     const cur = this.contacts.get(jid) || {}
+    info = { ...info }
+    for (const k of ['name', 'verified', 'notify']) if (looksLikePhone(info[k])) delete info[k]
     const next = { ...cur, ...pickDefined(info) }
     if (JSON.stringify(cur) === JSON.stringify(next)) return
     this.contacts.set(jid, next)
@@ -181,7 +186,14 @@ export class Store {
     const c = this.contacts.get(jid) || {}
     if (c.nick) return c.nick // local nickname beats everything
     if (isGroup(jid)) return this.chats.get(jid)?.subject || 'Group'
-    return c.name || c.verified || c.notify || phoneOf(jid) || 'Unknown contact'
+    const ok = (v) => v && !looksLikePhone(v)
+    return (ok(c.name) && c.name) || (ok(c.verified) && c.verified) || (ok(c.notify) && c.notify) || phoneOf(jid) || 'Unknown contact'
+  }
+
+  /** The name the person set on their own WhatsApp profile, if we've seen it. */
+  profileName(jid) {
+    const c = this.contacts.get(this.canon(jid)) || {}
+    return c.notify && !looksLikePhone(c.notify) ? c.notify : ''
   }
 
   /** Nickname only this site shows. Empty clears it. Never sent to WhatsApp. */
@@ -273,6 +285,7 @@ export class Store {
         jid: c.jid,
         name: this.displayName(c.jid),
         phone: phoneOf(c.jid),
+        profile: this.profileName(c.jid),
         t: c.t,
         unread: c.unread || 0,
         preview: c.preview || '',
