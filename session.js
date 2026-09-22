@@ -214,6 +214,8 @@ export class Session extends EventEmitter {
     this.lastError = null
     this.registered = false
     this.gen = 0
+    this.presence = new Map() // chat jid -> { lastKnownPresence, lastSeen, at }
+    this.metrics = { messagesIn: 0, messagesOut: 0, reactionsIn: 0, reactionsOut: 0, lastInboundAt: 0, lastOutboundAt: 0, lastPresenceAt: 0, lastEventAt: Date.now(), lastMediaError: null, historyProgress: null }
     this.stopped = false
     fs.mkdirSync(this.authDir, { recursive: true })
   }
@@ -224,6 +226,7 @@ export class Session extends EventEmitter {
 
   setStatus(status) {
     this.status = status
+    this.metrics.lastEventAt = Date.now()
     this.emit('event', { type: 'status', ...this.info() })
   }
 
@@ -238,6 +241,54 @@ export class Session extends EventEmitter {
       linked: this.registered,
       sid: this.gen, // changes whenever a new connection starts (pairing codes die with it)
     }
+  }
+
+  health() {
+    let storeBytes = 0
+    try { storeBytes = fs.statSync(this.store.file).size } catch {}
+    const mem = process.memoryUsage()
+    const ws = this.diag?.ws || null
+    return {
+      key: this.key,
+      label: this.label,
+      status: this.status,
+      linked: this.registered,
+      failures: this.failures,
+      error: this.status === 'connected' ? null : this.lastError,
+      me: this.me,
+      viewers: this.viewers(),
+      generation: this.gen,
+      sessionStartedAt: this.diag?.at || null,
+      socket: {
+        active: !!this.sock && this.status !== 'idle' && this.status !== 'logged-out',
+        lastClose: ws,
+        lastNetworkError: this.diag?.net || null,
+      },
+      metrics: { ...this.metrics },
+      presence: this.presence.size,
+      store: {
+        bytes: storeBytes,
+        chats: this.store.chats.size,
+        messages: [...this.store.messages.values()].reduce((n, rows) => n + rows.length, 0),
+        dirty: !!this.store.dirty,
+      },
+      runtime: {
+        uptimeSec: Math.round(process.uptime()),
+        node: process.version,
+        rss: mem.rss,
+        heapUsed: mem.heapUsed,
+        heapTotal: mem.heapTotal,
+      },
+    }
+  }
+
+  publicPresence(jid) {
+    jid = this.store.canon(jid)
+    const p = this.presence.get(jid)
+    if (!p) return { jid, state: 'unknown', online: false, typing: false, lastSeen: null, at: null }
+    const typing = p.lastKnownPresence === 'composing' || p.lastKnownPresence === 'recording'
+    const online = typing || p.lastKnownPresence === 'available'
+    return { jid, state: p.lastKnownPresence || 'unknown', online, typing, recording: p.lastKnownPresence === 'recording', lastSeen: p.lastSeen || null, at: p.at || null }
   }
 
   viewers() {
@@ -396,6 +447,8 @@ export class Session extends EventEmitter {
             (failed ? ` failed=${failed}` : '') +
             (progress != null ? ` progress=${progress}%` : '')
         )
+        this.metrics.historyProgress = progress == null ? this.metrics.historyProgress : Number(progress)
+        this.metrics.lastEventAt = Date.now()
         this.emit('event', { type: 'history', chats: chats.length, messages: n, progress })
         this.emit('event', { type: 'chats' })
         this.scheduleLidResolve()
@@ -445,6 +498,40 @@ export class Session extends EventEmitter {
       if (changed) this.emit('event', { type: 'chats' })
     })
 
+    // Contact/group online state and typing. Baileys sends these through
+    // presence.update after we subscribe to a chat's presence feed.
+    sock.ev.on('presence.update', ({ id, presences = {} } = {}) => {
+      if (!live() || !id) return
+      const group = isGroup(this.store.canon(id))
+      for (const [participant, raw] of Object.entries(presences)) {
+        const chatJid = this.store.canon(id)
+        const participantJid = this.store.canon(participant || id)
+        const state = {
+          lastKnownPresence: raw?.lastKnownPresence || 'unknown',
+          lastSeen: raw?.lastSeen ? Number(raw.lastSeen) : null,
+          at: Date.now(),
+        }
+        this.presence.set(group ? participantJid : chatJid, state)
+        this.metrics.lastPresenceAt = state.at
+        this.metrics.lastEventAt = state.at
+        this.emit('event', {
+          type: 'presence',
+          jid: chatJid,
+          participant: participantJid,
+          ...state,
+        })
+      }
+    })
+
+    // Dedicated reaction events are emitted by Baileys for reactionMessage
+    // updates. Keep support for history/upsert too via applyReaction().
+    sock.ev.on('messages.reaction', (updates = []) => {
+      if (!live()) return
+      for (const entry of updates) {
+        try { this.applyReactionEvent(entry) } catch (e) { this.log('reaction event failed:', e?.message || e) }
+      }
+    })
+
     sock.ev.on('messages.upsert', ({ messages = [], type }) => {
       if (!live()) return
       let received = 0
@@ -467,6 +554,9 @@ export class Session extends EventEmitter {
           const msg = this.ingest(m, { bumpUnread: type === 'notify' })
           if (msg) {
             received++
+            this.metrics.messagesIn++
+            this.metrics.lastInboundAt = Date.now()
+            this.metrics.lastEventAt = Date.now()
             try {
               this.emit('event', { type: 'message', message: this.publicMsg(msg) })
             } catch (e) {
@@ -683,7 +773,15 @@ export class Session extends EventEmitter {
     const c = inner(m.message)
     if (!c) return null
     if (num(m.messageTimestamp) && num(m.messageTimestamp) < historyCutoff()) return null // outside the history window
-    if (c.protocolMessage || c.senderKeyDistributionMessage || c.reactionMessage) {
+    if (c.reactionMessage) {
+      this.applyReactionEvent({
+        key: c.reactionMessage.key || k,
+        reaction: c.reactionMessage,
+        reactorKey: k,
+      })
+      return null
+    }
+    if (c.protocolMessage || c.senderKeyDistributionMessage) {
       if (!c.conversation && !c.extendedTextMessage) return null
     }
 
@@ -804,7 +902,66 @@ export class Session extends EventEmitter {
       fileName: m.fileName,
       quote: this.store.quoteView(m.quote),
       senderName: isGroup(m.jid) && !m.fromMe && m.sender ? this.store.displayName(m.sender) : '',
+      reactions: this.store.reactionView(m, this.me?.jid),
     }
+  }
+
+  applyReactionEvent(entry = {}) {
+    const targetKey = entry?.key || entry?.reaction?.key || {}
+    const reaction = entry?.reaction || {}
+    const reactorKey = entry?.reactorKey || reaction?.key || {}
+    const targetId = targetKey?.id
+    const rawJid = targetKey?.remoteJid
+    if (!targetId || !rawJid) return null
+    const jid = this.store.canon(rawJid)
+    if (jid.endsWith('@broadcast') || jid.endsWith('@newsletter')) return null
+    const reactorRaw = reactorKey?.fromMe ? this.me?.jid || reactorKey?.remoteJid : (isGroup(jid) ? reactorKey?.participant || reactorKey?.participantAlt : reactorKey?.remoteJid)
+    const reactor = reactorRaw ? this.store.canon(reactorRaw) : null
+    if (!reactor) return null
+    const m = this.store.setReaction(jid, targetId, reactor, reaction?.text || '')
+    if (!m) return null
+    this.metrics.reactionsIn++
+    this.metrics.lastInboundAt = Date.now()
+    this.metrics.lastEventAt = Date.now()
+    const payload = { type: 'reaction', jid, id: targetId, reactions: this.store.reactionView(m, this.me?.jid) }
+    this.emit('event', payload)
+    return payload
+  }
+
+  async presenceSubscribe(jid) {
+    this.ensureConnected()
+    jid = this.store.canon(jid)
+    const target = await this.sendJid(jid)
+    try {
+      if (typeof this.sock.presenceSubscribe === 'function') await this.sock.presenceSubscribe(target)
+    } catch (e) { this.log('presence subscribe failed:', e?.message || e) }
+    return this.publicPresence(jid)
+  }
+
+  async typing(jid, state) {
+    this.ensureConnected()
+    jid = this.store.canon(jid)
+    const target = await this.sendJid(jid)
+    const next = ['composing', 'recording', 'paused'].includes(state) ? state : 'paused'
+    if (typeof this.sock.sendPresenceUpdate === 'function') await this.sock.sendPresenceUpdate(next, target)
+    return { ok: true, state: next }
+  }
+
+  async react(jid, messageId, emoji) {
+    this.ensureConnected()
+    jid = this.store.canon(jid)
+    const target = await this.sendJid(jid)
+    const m = this.store.findMessage(jid, messageId)
+    if (!m) { const e = new Error('Message not found'); e.status = 404; throw e }
+    const key = { remoteJid: m.rj || jid, id: m.id, fromMe: !!m.fromMe, participant: m.rp }
+    await this.sock.sendMessage(target, { react: { text: emoji || '', key } })
+    const mine = this.me?.jid || this.store.canon(this.sock.user?.id || '')
+    const updated = this.store.setReaction(jid, messageId, this.store.canon(mine), emoji || '')
+    this.metrics.reactionsOut++
+    this.metrics.lastOutboundAt = Date.now()
+    this.metrics.lastEventAt = Date.now()
+    if (updated) this.emit('event', { type: 'reaction', jid, id: messageId, reactions: this.store.reactionView(updated, this.me?.jid) })
+    return { id: messageId, reactions: updated ? this.store.reactionView(updated, this.me?.jid) : [] }
   }
 
   async loadGroups(sock) {
@@ -908,6 +1065,9 @@ export class Session extends EventEmitter {
     const quoted = this.quotedFor(jid, replyTo)
     const sent = await this.sock.sendMessage(target, { text }, quoted ? { quoted } : undefined)
     const msg = this.ingest(sent, { bumpUnread: false })
+    this.metrics.messagesOut++
+    this.metrics.lastOutboundAt = Date.now()
+    this.metrics.lastEventAt = Date.now()
     if (msg) this.emit('event', { type: 'message', message: this.publicMsg(msg) })
     this.emit('event', { type: 'chats' })
     return msg ? this.publicMsg(msg) : null
@@ -932,6 +1092,9 @@ export class Session extends EventEmitter {
     const quoted = this.quotedFor(jid, replyTo)
     const sent = await this.sock.sendMessage(target, content, quoted ? { quoted } : undefined)
     const msg = this.ingest(sent, { bumpUnread: false })
+    this.metrics.messagesOut++
+    this.metrics.lastOutboundAt = Date.now()
+    this.metrics.lastEventAt = Date.now()
     if (msg) this.emit('event', { type: 'message', message: this.publicMsg(msg) })
     this.emit('event', { type: 'chats' })
     return msg ? this.publicMsg(msg) : null
@@ -1064,6 +1227,7 @@ export class Session extends EventEmitter {
   }
 
   async markRead(jid) {
+    this.metrics.lastEventAt = Date.now()
     const had = this.store.chats.get(jid)?.unread
     this.store.markRead(jid)
     if (had) this.emit('event', { type: 'chats' })
@@ -1112,6 +1276,8 @@ export class Session extends EventEmitter {
     }
 
     const e = lastError instanceof Error ? lastError : new Error(String(lastError || 'Media download failed'))
+    this.metrics.lastMediaError = { at: Date.now(), jid: this.store.canon(jid), id, error: e.message }
+    this.metrics.lastEventAt = Date.now()
     this.log(`media download failed ${jid}/${id} after ${MEDIA_DOWNLOAD_ATTEMPTS} attempts:`, e.message)
     throw e
   }

@@ -164,6 +164,16 @@ html[data-panic] #app,html[data-panic] .overlay,html[data-panic] #toast,html[dat
 .m.me .rp{right:auto;left:-30px}
 .m:hover .rp{opacity:1}
 @media (hover:none){.m .rp{opacity:.7}}
+.m .rxs{display:flex;gap:4px;flex-wrap:wrap;clear:both;margin-top:4px}
+.m .rx,.m .rxadd{border:1px solid var(--line);background:var(--panel);color:inherit;border-radius:12px;padding:1px 7px;font-size:12px;line-height:20px;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.m .rx.mine{border-color:color-mix(in srgb,var(--accent) 55%,var(--line));background:color-mix(in srgb,var(--accent) 12%,var(--panel))}
+.m .rxadd{opacity:.55;padding:1px 6px}
+.m .rxadd:hover,.m .rx:hover{opacity:1;background:var(--hover)}
+.m .rxpick{position:absolute;right:8px;bottom:100%;display:none;gap:2px;padding:5px;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 8px 22px rgba(0,0,0,.18);z-index:8;white-space:nowrap}
+.m.me .rxpick{right:8px}
+.m .rxpick.on{display:flex}
+.m .rxpick button{width:32px;height:30px;border:0;border-radius:8px;background:none;font-size:19px;cursor:pointer}
+.m .rxpick button:hover{background:var(--hover)}
 .m .q{display:block;border-left:3px solid var(--accent);background:rgba(0,0,0,.06);border-radius:5px;padding:4px 8px;margin:1px 0 4px;
   font-size:13px;cursor:pointer;white-space:normal;overflow:hidden;text-overflow:ellipsis;max-height:3.2em}
 .m .q b{display:block;color:var(--accent);font-size:12px}
@@ -259,6 +269,7 @@ html[data-panic] #app,html[data-panic] .overlay,html[data-panic] #toast,html[dat
       <button data-m="name">Change display name</button>
       <button data-m="pw">Change password</button>
       <button data-m="relink">Re-link WhatsApp</button>
+      <button data-m="health">Connection &amp; status</button>
       <button data-m="news">What's new</button>
       <button data-m="tour">Tutorial</button>
       <button data-m="about">About</button>
@@ -424,6 +435,8 @@ const drafts = new Map();
 const linkify = (html) => html.replace(/\bhttps?:\/\/[^\s<]+[^\s<.,;:!?)\]'"]/g, u => `<a class="lnk" href="${u}" target="_blank" rel="noopener noreferrer">${u}</a>`);
 const rich = (t) => linkify(esc(t));
 let status = 'starting', me = null, chats = [], current = null, currentName = '', msgs = [], attach = null, tmpN = 0;
+let currentPresence = null, typingTimer = null, typingState = 'paused';
+const REACTIONS = ['❤️','😂','👍','😮','😢','🙏','🗿'];
 
 // ------------------------------------------------------------------ utils
 function toast(t, ms = 2800) {
@@ -463,6 +476,42 @@ const avImg = (jid) => `<img src="${esc(api('/avatar?jid=' + encodeURIComponent(
 const initials = (n) => (n || '?').replace(/[^\p{L}\p{N} ]/gu, '').trim().split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase() || '#';
 const fmtSize = (b) => b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB';
 const mediaUrl = (m) => api(`/media?jid=${encodeURIComponent(m.jid)}&id=${encodeURIComponent(m.id)}`);
+function presenceLabel(p) {
+  if (!p) return '';
+  if (p.typing) return p.recording ? 'recording…' : 'typing…';
+  if (p.online || p.state === 'available') return 'online';
+  if (p.lastSeen) {
+    const n = Number(p.lastSeen);
+    const sec = n > 1e12 ? Math.floor(n / 1000) : n;
+    if (Number.isFinite(sec) && sec > 0) return 'last seen ' + fmtWhen(sec);
+  }
+  return '';
+}
+function setPresence(p) {
+  currentPresence = p || null;
+  if (!currentPresence) { if (current) updateTitle(); return; }
+  const el = $('#presenceLabel');
+  if (el) el.textContent = presenceLabel(currentPresence) || '';
+}
+function scheduleTypingReset() {
+  clearTimeout(typingTimer);
+  if (!current) return;
+  typingTimer = setTimeout(() => { if (typingState !== 'paused') { typingState = 'paused'; call('POST','/typing',{jid:current,state:'paused'}).catch(()=>{}); } }, 5500);
+}
+function noteComposerActivity() {
+  if (!current || status !== 'connected') return;
+  const next = $('#text').value.trim() ? 'composing' : 'paused';
+  if (next !== typingState) { typingState = next; call('POST','/typing',{jid:current,state:next}).catch(()=>{}); }
+  if (next === 'composing') scheduleTypingReset();
+}
+function stopTyping() {
+  clearTimeout(typingTimer);
+  if (current && typingState !== 'paused') call('POST','/typing',{jid:current,state:'paused'}).catch(()=>{});
+  typingState = 'paused';
+}
+async function subscribePresence(jid) {
+  try { const p = await call('GET', `/presence?jid=${encodeURIComponent(jid)}`); if (current === jid) setPresence(p); } catch { if (current === jid) setPresence(null); }
+}
 
 // ------------------------------------------------------------ chat list
 function row(c, extra = '') {
@@ -504,7 +553,8 @@ function updateTitle() {
   $('#tav').hidden = false;
   $('#tav').className = 'av sm' + (c?.group ? ' g' : '');
   $('#tav').innerHTML = esc(c?.group ? '👥' : initials(name)) + avImg(current);
-  $('#title').innerHTML = `<b>${esc(name)}</b><small>${esc(sub.join(' · '))}</small>`;
+  const extra = presenceLabel(currentPresence)
+  $('#title').innerHTML = `<b>${esc(name)}</b><small id="presenceLabel">${esc(extra || sub.join(' · '))}</small>`;
   $('#nickBtn').hidden = false;
   $('#archBtn').hidden = false;
   $('#pinBtn').hidden = false;
@@ -558,7 +608,11 @@ function bubble(m) {
   }
   const q = m.quote ? `<span class="q" data-qid="${esc(m.quote.id)}"><b>${esc(m.quote.name || '')}</b>${esc(m.quote.text || '')}</span>` : '';
   const rp = m.pending || m.failed || String(m.id).startsWith('tmp') ? '' : `<button class="rp" data-reply="${esc(m.id)}" title="Reply">↩</button>`;
-  return `<div class="m ${m.fromMe ? 'me' : ''} ${m.pending ? 'pending' : ''} ${m.failed ? 'failed' : ''}" data-id="${esc(m.id)}">${rp}${who}${q}${body}<span class="t">${fmtTime(m.ts)}${tick}</span></div>`;
+  const canReact = !m.pending && !m.failed && !String(m.id).startsWith('tmp');
+  const rx = Array.isArray(m.reactions) ? m.reactions : [];
+  const pills = rx.map(r => `<button class="rx ${r.mine ? 'mine' : ''}" data-rx-value="${esc(r.emoji)}" data-rx-message="${esc(m.id)}" title="${r.count} reaction${r.count === 1 ? '' : 's'}">${esc(r.emoji)} ${r.count > 1 ? `<span>${r.count}</span>` : ''}</button>`).join('');
+  const rxbar = canReact ? `<div class="rxs">${pills}<button class="rxadd" data-rx-add="${esc(m.id)}" title="React">＋</button><span class="rxpick">${REACTIONS.map(e => `<button data-rx-pick="${esc(e)}" data-rx-message="${esc(m.id)}">${e}</button>`).join('')}</span></div>` : '';
+  return `<div class="m ${m.fromMe ? 'me' : ''} ${m.pending ? 'pending' : ''} ${m.failed ? 'failed' : ''}" data-id="${esc(m.id)}">${rp}${who}${q}${body}<span class="t">${fmtTime(m.ts)}${tick}</span>${rxbar}</div>`;
 }
 function renderMsgs(stick) {
   const box = $('#msgs');
@@ -598,7 +652,8 @@ function cancelReply() { replyTo = null; $('#reply').classList.remove('on'); }
 async function openChat(jid, name) {
   cancelReply();
   if (current) { const t = $('#text').value; if (t.trim()) drafts.set(current, t); else drafts.delete(current); }
-  current = jid; currentName = name || '';
+  stopTyping();
+  current = jid; currentName = name || ''; currentPresence = null;
   $('#text').value = drafts.get(jid) || ''; $('#text').style.height = 'auto';
   unseen = 0; showJump(false);
   document.body.classList.add('open');
@@ -608,6 +663,7 @@ async function openChat(jid, name) {
     msgs = await call('GET', `/messages?jid=${encodeURIComponent(jid)}`);
     if (current !== jid) return;
     renderMsgs(true);
+    subscribePresence(jid);
     const c = chats.find(x => x.jid === jid); if (c) c.unread = 0;
     renderChats();
   } catch (x) { toast(x.message); }
@@ -738,6 +794,7 @@ function clearAttach() { attach = null; $('#att').classList.remove('on'); $('#fi
 let pairSid = null;
 function setStatus(d) {
   const s = d.status, was = status; status = s;
+  if (s !== 'connected') { stopTyping(); setPresence(null); }
   if (d.me) me = d.me;
   $('#dot').className = 'dot' + (s === 'connected' ? ' ok' : s === 'logged-out' ? ' bad' : '');
 
@@ -800,6 +857,19 @@ function stream() {
     else if (d.type === 'chats') loadChats();
     else if (d.type === 'history') { syncing(d); loadChats(); if (current) reloadThread(); }
     else if (d.type === 'merged') { if (current === d.from) { current = d.to; reloadThread(); } loadChats(); }
+    else if (d.type === 'presence' && d.jid === current) {
+      if (d.participant && chats.find(x => x.jid === current)?.group) {
+        if (d.state === 'composing' || d.state === 'recording') setPresence({typing:true, recording:d.state === 'recording'});
+        else setPresence({state:d.state, online:d.state === 'available', lastSeen:d.lastSeen});
+        clearTimeout(window._presenceTimer); window._presenceTimer = setTimeout(() => { if (current) setPresence(null); }, 8000);
+      } else {
+        setPresence({state:d.state, online:d.state === 'available', typing:d.state === 'composing' || d.state === 'recording', recording:d.state === 'recording', lastSeen:d.lastSeen});
+      }
+    }
+    else if (d.type === 'reaction' && d.jid === current) {
+      const i = msgs.findIndex(x => x.id === d.id);
+      if (i >= 0) { msgs[i] = {...msgs[i], reactions: d.reactions || []}; renderMsgs(false); }
+    }
     else if (d.type === 'message-status' && d.jid === current) {
       const i = msgs.findIndex(x => x.id === d.id);
       if (i >= 0) { msgs[i] = {...msgs[i], status: d.status, pending: false}; renderMsgs(false); }
@@ -843,7 +913,8 @@ $('#search').addEventListener('input', renderChats);
 $('#back').addEventListener('click', () => document.body.classList.remove('open'));
 $('#send').addEventListener('click', send);
 $('#text').addEventListener('keydown', e => { if (suggestKey(e)) return; if (e.key === 'Enter' && !e.shiftKey && enterSends()) { e.preventDefault(); send(); } });
-$('#text').addEventListener('input', () => { if (current) drafts.set(current, $('#text').value); });
+$('#text').addEventListener('input', () => { if (current) drafts.set(current, $('#text').value); noteComposerActivity(); });
+$('#text').addEventListener('blur', stopTyping);
 function showJump(on) { $('#jump').hidden = !on; $('#jump span').textContent = unseen ? String(unseen) : ''; }
 $('#jump').addEventListener('click', () => { const b = $('#msgs'); b.scrollTo({top: b.scrollHeight, behavior: 'smooth'}); unseen = 0; showJump(false); });
 $('#msgs').addEventListener('scroll', () => {
@@ -1228,8 +1299,24 @@ $('#pinBtn').addEventListener('click', async () => {
 $('#aboutX').addEventListener('click', () => $('#about').classList.remove('on'));
 $('#about').addEventListener('click', e => { if (e.target.id === 'about') $('#about').classList.remove('on'); });
 $('#text').addEventListener('keydown', e => { if (e.key === 'Escape' && replyTo) cancelReply(); });
-$('#msgs').addEventListener('click', e => {
+$('#msgs').addEventListener('click', async e => {
   if (e.target.id === 'more') return loadOlder(e.target);
+  const add = e.target.closest('[data-rx-add]');
+  if (add) {
+    const pick = add.parentElement.querySelector('.rxpick');
+    document.querySelectorAll('.rxpick.on').forEach(x => { if (x !== pick) x.classList.remove('on'); });
+    pick?.classList.toggle('on');
+    return;
+  }
+  const rpick = e.target.closest('[data-rx-pick]');
+  if (rpick) {
+    rpick.closest('.rxpick')?.classList.remove('on');
+    return reactMessage(rpick.dataset.rxMessage, rpick.dataset.rxPick || rpick.textContent.trim());
+  }
+  const rx = e.target.closest('[data-rx-value]');
+  if (rx) {
+    return reactMessage(rx.dataset.rxMessage, rx.classList.contains('mine') ? '' : rx.dataset.rxValue);
+  }
   const rb = e.target.closest('[data-reply]'); if (rb) return startReply(rb.dataset.reply);
   const qb = e.target.closest('.q[data-qid]');
   if (qb) {
@@ -1240,6 +1327,16 @@ $('#msgs').addEventListener('click', e => {
   }
   const img = e.target.closest('img[data-full]'); if (img) window.open(img.dataset.full, '_blank', 'noopener');
 });
+async function reactMessage(messageId, emoji) {
+  if (!current || !messageId) return;
+  try {
+    const r = await call('POST','/react',{jid:current,messageId,emoji});
+    const m = msgs.find(x => x.id === messageId);
+    if (m) m.reactions = r.reactions || [];
+    renderMsgs(false);
+  } catch (x) { toast(x.message); }
+}
+
 const main = $('#main');
 main.addEventListener('dragover', e => { if (current && status === 'connected') { e.preventDefault(); $('#drop').classList.add('on'); } });
 main.addEventListener('dragleave', e => { if (!main.contains(e.relatedTarget)) $('#drop').classList.remove('on'); });
@@ -1259,7 +1356,7 @@ $('#nclist').addEventListener('click', async e => {
 });
 
 $('#menuBtn').addEventListener('click', e => { e.stopPropagation(); $('#menu').classList.toggle('on'); });
-document.addEventListener('click', e => { if (!e.target.closest('#menu')) $('#menu').classList.remove('on'); });
+document.addEventListener('click', e => { if (!e.target.closest('#menu')) $('#menu').classList.remove('on'); if (!e.target.closest('.rxs')) document.querySelectorAll('.rxpick.on').forEach(x => x.classList.remove('on')); });
 async function signOut() { await fetch('/api/logout', {method: 'POST'}); location.href = '/'; }
 $('#gateOut').addEventListener('click', signOut);
 $('#menu').addEventListener('click', async e => {
@@ -1288,6 +1385,7 @@ $('#menu').addEventListener('click', async e => {
     if (!confirm('Re-link WhatsApp?\n\nThis disconnects this site from your phone and shows a new QR code. Scanning it again reloads your chat history.\n\nYour saved chats here are kept.')) return;
     try { await call('POST', '/relink', {}); toast('Unlinked. Scan the new QR code.'); } catch (x) { toast(x.message); }
   }
+  if (m === 'health') location.href = `/u/__USER__/status`;
 });
 $('#pairOpen').addEventListener('click', () => { $('#pairForm').hidden = false; $('#pairPhone').focus(); });
 $('#pairForm').addEventListener('submit', async e => {
