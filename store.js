@@ -304,6 +304,7 @@ export class Store {
       id: m.id,
       jid: m.jid,
       fromMe: m.fromMe,
+      status: m.fromMe ? (Number.isFinite(Number(m.status)) ? Math.max(0, Math.min(5, Number(m.status))) : 2) : undefined,
       ts: m.ts,
       type: m.type,
       text: m.text,
