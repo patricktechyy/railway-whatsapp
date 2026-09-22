@@ -81,8 +81,20 @@ button{font:inherit;cursor:pointer}
     <div id="list"><div class="empty">Loading…</div></div>
   </div>
 
-  <p class="hint">The display name is set when you add someone. To change it, remove and re-add them
-  (that unlinks their phone, so do it before they link). Sign in as <b>admin</b>. You manage who exists; you can't read anyone's chats.
+  <div class="card">
+    <h2>Easter egg messages</h2>
+    <div class="hint">One message per line. A random one shows each time someone finds the secret.
+    Use **double stars** for bold and *single stars* for italic.</div>
+    <textarea id="eggtxt" rows="9" spellcheck="false" style="width:100%;margin-top:10px;padding:10px 12px;border-radius:8px;border:1px solid var(--line);background:var(--field);color:inherit;font:13px/1.5 ui-monospace,Menlo,Consolas,monospace;resize:vertical"></textarea>
+    <div style="display:flex;gap:8px;margin-top:10px;align-items:center;flex-wrap:wrap">
+      <button class="btn" id="eggsave">Save messages</button>
+      <button class="btn ghost" id="eggreset">Reset to defaults</button>
+      <span class="hint" id="eggstate" style="margin:0"></span>
+    </div>
+  </div>
+
+  <p class="hint">Display names can be changed any time, by you or by the person themselves. Usernames never
+  change, because they're part of each person's address. Sign in as <b>admin</b>. You manage who exists; you can't read anyone's chats.
   Each person signs in with their own username and the password they chose.</p>
 </div>
 <div id="toast"></div>
@@ -141,6 +153,7 @@ async function load() {
       </div>
       <div class="acts">
         <button class="btn ghost" data-a="link">${u.hasPassword ? 'Reset password' : 'Setup link'}</button>
+        <button class="btn ghost" data-a="rename">Rename</button>
         <button class="btn ghost" data-a="unlink" ${u.linked || u.status === 'connected' ? '' : 'disabled'}>Unlink phone</button>
         <button class="btn danger" data-a="delete">Remove</button>
       </div>
@@ -175,6 +188,10 @@ $('#list').addEventListener('click', async (e) => {
       if (hasPw && !confirm(`Reset ${n}'s password?\n\nThey'll be signed out and must choose a new one using the link. Their WhatsApp stays linked.`)) return;
       const d = await call('POST', url + '/reset', {});
       showLink(d.setupUrl, n, true);
+    } else if (a === 'rename') {
+      const name = prompt(`Display name for @${u} (the username stays the same):`, n);
+      if (name === null || !name.trim() || name.trim() === n) return;
+      await call('POST', url + '/rename', {name}); toast('Renamed');
     } else if (a === 'unlink') {
       if (!confirm(`Unlink ${n}'s phone?\n\nTheir WhatsApp is disconnected from this site and they'll need to scan a new QR code.`)) return;
       await call('POST', url + '/unlink', {}); toast('Unlinked');
@@ -195,6 +212,24 @@ $('#logout').addEventListener('click', async () => {
   await fetch('/api/logout', {method: 'POST'}); location.href = '/';
 });
 
+async function loadEgg(d) {
+  try {
+    d = d || await call('GET', '/admin/api/easter-egg');
+    $('#eggtxt').value = d.messages.join('\n');
+    $('#eggstate').textContent = d.custom ? `Your ${d.messages.length} messages` : 'Showing the built-in defaults';
+  } catch {}
+}
+$('#eggsave').addEventListener('click', async () => {
+  const messages = $('#eggtxt').value.split('\n').map(s => s.trim()).filter(Boolean);
+  try { await loadEgg(await call('POST', '/admin/api/easter-egg', {messages})); toast('Easter egg messages saved'); }
+  catch (x) { toast(x.message); }
+});
+$('#eggreset').addEventListener('click', async () => {
+  if (!confirm('Replace your messages with the built-in defaults?')) return;
+  try { await loadEgg(await call('POST', '/admin/api/easter-egg', {reset: true})); toast('Back to the defaults'); }
+  catch (x) { toast(x.message); }
+});
+loadEgg();
 load(); setInterval(load, 5000);
 </script>
 
@@ -220,16 +255,22 @@ load(); setInterval(load, 5000);
 <script>
 (() => {
   const QUIPS = [
-    'Apa yang Diatas? Literally "what\'s above"… as in <b>what\'s up</b>. You\'re welcome 😏',
+    'Apa yang Diatas? Literally "what\'s above"… as in **what\'s up**. You\'re welcome 😏',
     'Survived: 405s, 428s, LIDs and 14 release candidates.',
     'Fuelled by ☕, powered by stubbornness, debugged at 2am.',
-    'Commit history includes a message that just says <i>"please work god"</i>. It worked.',
+    'Commit history includes a message that just says *"please work god"*. It worked.',
     'No messages were harmed in the making of this app. A few were decrypted late.',
     'Fun fact: this whole thing runs without a single browser on the server.',
     'If you\'re reading this, you have excellent taste in secret combinations.',
   ];
   const KONAMI = ['arrowup','arrowup','arrowdown','arrowdown','arrowleft','arrowright','arrowleft','arrowright','b','a'];
   const WORD = 'hanzel';
+  // messages the admin edits on the admin page; the list above is the fallback
+  let remote = null;
+  fetch('/api/easter-egg').then(r => r.json()).then(d => { if (Array.isArray(d.messages) && d.messages.length) remote = d.messages; }).catch(() => {});
+  const fmt = (t) => String(t)
+    .replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))
+    .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\*(.+?)\*/g, '<i>$1</i>');
   let k = 0, typed = '', last = 0;
 
   function confetti() {
@@ -258,7 +299,8 @@ load(); setInterval(load, 5000);
       localStorage.setItem('wah-egg', JSON.stringify({found, first}));
     } catch (e) {}
     const days = Math.max(0, Math.floor((Date.now() - first) / 864e5));
-    const quip = QUIPS[Math.random() * QUIPS.length | 0];
+    const pool = remote || QUIPS;
+    const quip = fmt(pool[Math.random() * pool.length | 0]);
     const d = document.createElement('div');
     d.id = 'egg';
     d.innerHTML = `<div class="card" role="dialog" aria-label="Developer">

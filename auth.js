@@ -153,6 +153,16 @@ export class Auth {
   }
 
   /** New one-time link. Clears the old password and signs the user out. */
+  rename(username, name) {
+    const u = this.get(username)
+    if (!u) throw new HttpError(404, 'No such user')
+    name = String(name || '').trim().slice(0, 60)
+    if (!name) throw new HttpError(400, 'Display name cannot be empty')
+    u.name = name
+    this.save()
+    return u
+  }
+
   resetPassword(username) {
     const u = this.get(username)
     if (!u) throw new HttpError(404, 'No such user')

@@ -217,6 +217,7 @@ export class Store {
     }
     if (patch.t != null && patch.t > (chat.t || 0)) chat.t = patch.t
     if (patch.unread != null) chat.unread = patch.unread
+    if (patch.archived != null) chat.archived = !!patch.archived
     this.dirty = true
     return chat
   }
@@ -290,6 +291,7 @@ export class Store {
         unread: c.unread || 0,
         preview: c.preview || '',
         group: isGroup(c.jid),
+        archived: !!c.archived,
       }))
   }
 
