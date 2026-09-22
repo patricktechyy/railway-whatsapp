@@ -14,6 +14,26 @@ const PUBLIC = [path.join(__dirname, '..', 'public'), __dirname].find((d) =>
 const PORT = Number(process.env.PORT || 8080)
 const DATA_DIR = process.env.DATA_DIR || '/data'
 const BRAND = process.env.BRAND || 'Apa yang Diatas (Whats Up)'
+// Easter egg lines: editable from the admin page, saved on the volume.
+// **bold** and *italic* are supported.
+const EGG_FILE = path.join(DATA_DIR, 'easter-egg.json')
+const EGG_DEFAULTS = [
+  'Apa yang Diatas? Literally "what\'s above"… as in **what\'s up**. You\'re welcome 😏',
+  'Survived: 405s, 428s, LIDs and 14 release candidates.',
+  'Fuelled by ☕, powered by stubbornness, debugged at 2am.',
+  'Commit history includes a message that just says *"please work god"*. It worked.',
+  'No messages were harmed in the making of this app. A few were decrypted late.',
+  'Fun fact: this whole thing runs without a single browser on the server.',
+  "If you're reading this, you have excellent taste in secret combinations.",
+]
+function eggMessages() {
+  try {
+    const m = JSON.parse(fs.readFileSync(EGG_FILE, 'utf8')).messages
+    if (Array.isArray(m) && m.length) return { messages: m, custom: true }
+  } catch {}
+  return { messages: EGG_DEFAULTS, custom: false }
+}
+
 const MAX_UPLOAD = Number(process.env.MAX_UPLOAD_MB || 25) * 1024 * 1024
 
 fs.mkdirSync(DATA_DIR, { recursive: true })
@@ -162,6 +182,7 @@ async function route(req, res) {
     setCookie(req, res, auth.sign(claims), 30 * 24 * 3600)
     return json(res, { redirect: landing(claims) })
   }
+  if (p === '/api/easter-egg' && M === 'GET') return json(res, { messages: eggMessages().messages })
   if (p === '/api/logout' && M === 'POST') {
     setCookie(req, res, '', 0)
     return json(res, { redirect: '/' })
@@ -217,7 +238,25 @@ async function route(req, res) {
       console.log(`[admin] created user ${user.username}`)
       return json(res, { user: auth.publicUser(user), setupUrl: `${origin(req)}/setup/${token}` }, 201)
     }
-    m = p.match(/^\/admin\/api\/users\/([^/]+)(?:\/(reset|unlink))?$/)
+    if (p === '/admin/api/easter-egg') {
+      if (M === 'GET') return json(res, eggMessages())
+      if (M === 'POST') {
+        requireJson(req)
+        const { messages, reset } = await readJson(req)
+        if (reset) {
+          fs.rmSync(EGG_FILE, { force: true })
+          return json(res, eggMessages())
+        }
+        const clean = (Array.isArray(messages) ? messages : [])
+          .map((x) => String(x || '').trim().slice(0, 300))
+          .filter(Boolean)
+          .slice(0, 100)
+        if (!clean.length) throw new HttpError(400, 'Add at least one message, or reset to the defaults')
+        fs.writeFileSync(EGG_FILE, JSON.stringify({ messages: clean }, null, 2))
+        return json(res, eggMessages())
+      }
+    }
+    m = p.match(/^\/admin\/api\/users\/([^/]+)(?:\/(reset|unlink|rename))?$/)
     if (m) {
       const username = decodeURIComponent(m[1])
       const action = m[2]
@@ -234,6 +273,13 @@ async function route(req, res) {
       if (action === 'reset' && M === 'POST') {
         const token = auth.resetPassword(username)
         return json(res, { setupUrl: `${origin(req)}/setup/${token}` })
+      }
+      if (action === 'rename' && M === 'POST') {
+        const { name } = await readJson(req)
+        const u = auth.rename(username, name)
+        const s = sessions.get(username)
+        if (s) s.label = u.name
+        return json(res, { name: u.name })
       }
       if (action === 'unlink' && M === 'POST') {
         await sessions.get(username)?.relink()
@@ -319,6 +365,15 @@ async function route(req, res) {
     return json(res, await s.send(body.jid, text, body.replyTo))
   }
   if (api === '/resolve') return json(res, await s.resolveNumber(body.phone))
+  if (api === '/archive') {
+    if (!body.jid) throw new HttpError(400, 'jid required')
+    return json(res, await s.setArchived(body.jid, !!body.archived))
+  }
+  if (api === '/profile') {
+    const u = auth.rename(username, body.name)
+    s.label = u.name
+    return json(res, { name: u.name })
+  }
   if (api === '/nickname') {
     if (!body.jid) throw new HttpError(400, 'jid required')
     const name = s.store.setNick(body.jid, body.nick)

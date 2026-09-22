@@ -75,7 +75,13 @@ button{font:inherit;color:inherit;cursor:pointer}
 
 /* thread */
 #main{flex:1;display:flex;flex-direction:column;background:var(--thread);min-width:0;position:relative}
-#chips{display:flex;gap:6px;padding:0 12px 8px}
+.pill{border:1px solid var(--line);background:var(--field);color:var(--fg);border-radius:16px;padding:5px 11px;font-size:13px;white-space:nowrap;flex:0 0 auto}
+.pill:hover{border-color:var(--accent)}
+#aboutDlg{text-align:center}
+#aboutDlg .logo{font-size:46px;line-height:1;margin:4px 0 10px}
+#aboutDlg h3{margin:0 0 6px;font-size:20px}
+#aboutDlg p{margin:0 0 18px;color:var(--muted)}
+#chips{display:flex;flex-wrap:wrap;gap:6px;padding:0 12px 8px}
 #chips button{border:0;border-radius:14px;padding:4px 12px;background:var(--field);color:var(--muted);font-size:13px}
 #chips button.on{background:color-mix(in srgb,var(--accent) 18%,var(--field));color:var(--accent);font-weight:600}
 #jump{position:absolute;right:18px;bottom:82px;width:42px;height:42px;border-radius:50%;border:0;background:var(--panel);color:var(--muted);
@@ -189,13 +195,15 @@ button{font:inherit;color:inherit;cursor:pointer}
     <div id="menu">
       <button data-m="new">New chat</button>
       <button data-m="prefs">Appearance &amp; settings</button>
+      <button data-m="name">Change display name</button>
       <button data-m="pw">Change password</button>
       <button data-m="relink">Re-link WhatsApp</button>
+      <button data-m="about">About</button>
       <button data-m="out" class="danger">Sign out</button>
     </div>
     <div id="sync">Syncing your chats…</div>
     <input class="search" id="search" placeholder="Search chats  ( / )" autocomplete="off">
-    <div id="chips"><button data-f="all" class="on">All</button><button data-f="unread">Unread</button><button data-f="groups">Groups</button></div>
+    <div id="chips"><button data-f="all" class="on">All</button><button data-f="unread">Unread</button><button data-f="groups">Groups</button><button data-f="archived" id="archChip">📦 Archived</button></div>
     <div class="list" id="chats"><div class="empty">Loading…</div></div>
 
     <div id="newchat">
@@ -214,7 +222,8 @@ button{font:inherit;color:inherit;cursor:pointer}
       <button class="ib" id="back">←</button>
       <div class="av sm" id="tav" hidden></div>
       <div id="title"><b>Select a chat</b><small></small></div>
-      <button class="ib" id="nickBtn" title="Set a nickname" hidden>✎</button>
+      <button class="pill" id="nickBtn" title="Give this chat a nickname that only you see on this site" hidden>✏️ Nickname</button>
+      <button class="pill" id="archBtn" title="Archive or unarchive this chat" hidden>📦 Archive</button>
     </div>
     <div id="msgs"><div class="empty">Pick a conversation, or start a new one with ✎.</div></div>
     <button id="jump" title="Jump to latest" hidden>↓<span></span></button>
@@ -263,6 +272,14 @@ button{font:inherit;color:inherit;cursor:pointer}
   <button class="lnk" id="gateOut">Sign out</button>
 </div>
 
+<div class="overlay" id="about" style="background:rgba(0,0,0,.45)">
+  <div class="dlg" id="aboutDlg">
+    <div class="logo">💬</div>
+    <h3>__BRAND__</h3>
+    <p>Solusi buat anak IPLU</p>
+    <button type="button" class="btn" id="aboutX">Tutup</button>
+  </div>
+</div>
 <div class="overlay" id="prefs">
   <div class="dlg">
     <h3>Appearance &amp; settings</h3>
@@ -319,7 +336,7 @@ function setPref(k, v) {
   applyPrefs();
 }
 const enterSends = () => prefs.enter === 'send' || (prefs.enter === 'auto' && innerWidth > 760);
-const BASE_TITLE = document.title;
+let BASE_TITLE = document.title;
 let filter = 'all', unseen = 0;
 const drafts = new Map();
 // URLs in messages become links (runs on already-escaped text)
@@ -378,15 +395,17 @@ function row(c, extra = '') {
 function renderChats() {
   const q = $('#search').value.trim().toLowerCase();
   const list = chats
-    .filter(c => filter === 'all' || (filter === 'unread' ? c.unread > 0 : c.group))
+    .filter(c => filter === 'archived' ? c.archived : !c.archived && (filter === 'all' || (filter === 'unread' ? c.unread > 0 : c.group)))
     .filter(c => !q || c.name.toLowerCase().includes(q) || (c.phone || '').includes(q.replace(/\D/g, '') || '§'));
   $('#chats').innerHTML = list.map(c => {
     const d = c.jid !== current && drafts.get(c.jid);
     return row(c, d ? `<span class="draft">Draft:</span> ${esc(d)}` : '');
   }).join('') ||
-    `<div class="empty">${q ? 'No chats match.' : filter === 'unread' ? 'No unread chats 🎉' : filter === 'groups' ? 'No groups yet.' : status === 'connected' ? 'No chats yet. They appear here as history syncs, or start one with ✎.' : 'Waiting for WhatsApp…'}</div>`;
-  const n = chats.filter(c => c.unread > 0).length;
+    `<div class="empty">${q ? 'No chats match.' : filter === 'unread' ? 'No unread chats 🎉' : filter === 'groups' ? 'No groups yet.' : filter === 'archived' ? 'No archived chats.' : status === 'connected' ? 'No chats yet. They appear here as history syncs, or start one with ✎.' : 'Waiting for WhatsApp…'}</div>`;
+  const n = chats.filter(c => c.unread > 0 && !c.archived).length;
   document.title = (n ? `(${n}) ` : '') + BASE_TITLE;
+  const na = chats.filter(c => c.archived).length;
+  $('#archChip').textContent = na ? `📦 Archived (${na})` : '📦 Archived';
 }
 const loadChats = throttle(async () => {
   try { chats = await call('GET', '/chats'); renderChats(); updateTitle(); } catch {}
@@ -405,6 +424,8 @@ function updateTitle() {
   $('#tav').innerHTML = esc(c?.group ? '👥' : initials(name)) + avImg(current);
   $('#title').innerHTML = `<b>${esc(name)}</b><small>${esc(sub.join(' · '))}</small>`;
   $('#nickBtn').hidden = false;
+  $('#archBtn').hidden = false;
+  $('#archBtn').textContent = c?.archived ? '📤 Unarchive' : '📦 Archive';
 }
 async function setNickname() {
   if (!current) return;
@@ -627,10 +648,10 @@ function setStatus(d) {
   const s = d.status, was = status; status = s;
   if (d.me) me = d.me;
   $('#dot').className = 'dot' + (s === 'connected' ? ' ok' : s === 'logged-out' ? ' bad' : '');
-  if (me?.name) $('#meName').textContent = me.name;
+
   if (s === 'connected' && !$('#meAv').dataset.done) {
     $('#meAv').dataset.done = '1';
-    $('#meAv').innerHTML = esc(initials(me?.name || '__LABEL__')) + avImg('');
+    $('#meAv').innerHTML = esc(initials($('#meName').textContent)) + avImg('');
   }
   $('#mePhone').textContent = s === 'connected' ? (me?.phone || 'connected')
     : s === 'qr' || s === 'logged-out' ? 'not linked' : s === 'reconnecting' ? 'reconnecting…' : 'starting…';
@@ -749,7 +770,8 @@ document.addEventListener('keydown', e => {
   if ((e.key === '/' && !typing) || (e.key.toLowerCase() === 'k' && (e.ctrlKey || e.metaKey))) {
     e.preventDefault(); $('#newchat').classList.remove('on'); document.body.classList.remove('open'); $('#search').focus(); $('#search').select();
   } else if (e.key === 'Escape') {
-    if ($('#prefs').classList.contains('on')) $('#prefs').classList.remove('on');
+    if ($('#about').classList.contains('on')) $('#about').classList.remove('on');
+    else if ($('#prefs').classList.contains('on')) $('#prefs').classList.remove('on');
     else if ($('#newchat').classList.contains('on')) closeNew();
     else if (!replyTo && document.body.classList.contains('open') && innerWidth <= 760) document.body.classList.remove('open');
   }
@@ -765,6 +787,19 @@ $('#file').addEventListener('change', e => setAttach(e.target.files[0]));
 $('#attX').addEventListener('click', clearAttach);
 $('#replyX').addEventListener('click', cancelReply);
 $('#nickBtn').addEventListener('click', setNickname);
+$('#archBtn').addEventListener('click', async () => {
+  if (!current) return;
+  const c = chats.find(x => x.jid === current);
+  const want = !c?.archived;
+  try {
+    const r = await call('POST', '/archive', {jid: current, archived: want});
+    if (c) c.archived = r.archived;
+    renderChats(); updateTitle();
+    toast((want ? 'Chat archived' : 'Chat unarchived') + (r.synced ? '' : ' (on this site only)'));
+  } catch (x) { toast(x.message); }
+});
+$('#aboutX').addEventListener('click', () => $('#about').classList.remove('on'));
+$('#about').addEventListener('click', e => { if (e.target.id === 'about') $('#about').classList.remove('on'); });
 $('#text').addEventListener('keydown', e => { if (e.key === 'Escape' && replyTo) cancelReply(); });
 $('#msgs').addEventListener('click', e => {
   if (e.target.id === 'more') return loadOlder(e.target);
@@ -806,6 +841,18 @@ $('#menu').addEventListener('click', async e => {
   const m = b.dataset.m;
   if (m === 'new') openNew();
   if (m === 'prefs') { applyPrefs(); $('#prefs').classList.add('on'); }
+  if (m === 'about') $('#about').classList.add('on');
+  if (m === 'name') {
+    const cur = $('#meName').textContent;
+    const name = prompt('Your display name on this site (your username stays the same):', cur);
+    if (name === null || !name.trim() || name.trim() === cur) return;
+    try {
+      const r = await call('POST', '/profile', {name});
+      $('#meName').textContent = r.name;
+      BASE_TITLE = `${r.name} · __BRAND__`; renderChats();
+      toast('Display name changed');
+    } catch (x) { toast(x.message); }
+  }
   if (m === 'out') signOut();
   if (m === 'pw') { $('#pwf').reset(); $('#pwerr').textContent = ''; $('#pw').classList.add('on'); $('#pwc').focus(); }
   if (m === 'relink') {
@@ -866,16 +913,22 @@ stream();
 <script>
 (() => {
   const QUIPS = [
-    'Apa yang Diatas? Literally "what\'s above"… as in <b>what\'s up</b>. You\'re welcome 😏',
+    'Apa yang Diatas? Literally "what\'s above"… as in **what\'s up**. You\'re welcome 😏',
     'Survived: 405s, 428s, LIDs and 14 release candidates.',
     'Fuelled by ☕, powered by stubbornness, debugged at 2am.',
-    'Commit history includes a message that just says <i>"please work god"</i>. It worked.',
+    'Commit history includes a message that just says *"please work god"*. It worked.',
     'No messages were harmed in the making of this app. A few were decrypted late.',
     'Fun fact: this whole thing runs without a single browser on the server.',
     'If you\'re reading this, you have excellent taste in secret combinations.',
   ];
   const KONAMI = ['arrowup','arrowup','arrowdown','arrowdown','arrowleft','arrowright','arrowleft','arrowright','b','a'];
   const WORD = 'hanzel';
+  // messages the admin edits on the admin page; the list above is the fallback
+  let remote = null;
+  fetch('/api/easter-egg').then(r => r.json()).then(d => { if (Array.isArray(d.messages) && d.messages.length) remote = d.messages; }).catch(() => {});
+  const fmt = (t) => String(t)
+    .replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))
+    .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\*(.+?)\*/g, '<i>$1</i>');
   let k = 0, typed = '', last = 0;
 
   function confetti() {
@@ -904,7 +957,8 @@ stream();
       localStorage.setItem('wah-egg', JSON.stringify({found, first}));
     } catch (e) {}
     const days = Math.max(0, Math.floor((Date.now() - first) / 864e5));
-    const quip = QUIPS[Math.random() * QUIPS.length | 0];
+    const pool = remote || QUIPS;
+    const quip = fmt(pool[Math.random() * pool.length | 0]);
     const d = document.createElement('div');
     d.id = 'egg';
     d.innerHTML = `<div class="card" role="dialog" aria-label="Developer">
