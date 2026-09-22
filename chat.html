@@ -178,6 +178,7 @@ button{font:inherit;color:inherit;cursor:pointer}
     <div class="bar" style="background:var(--panel)">
       <button class="ib" id="back">←</button>
       <div id="title"><b>Select a chat</b><small></small></div>
+      <button class="ib" id="nickBtn" title="Set a nickname" hidden>✎</button>
     </div>
     <div id="msgs"><div class="empty">Pick a conversation, or start a new one with ✎.</div></div>
     <div id="reply">
@@ -309,6 +310,20 @@ function updateTitle() {
   const c = chats.find(x => x.jid === current);
   const name = c?.name || currentName || current.split('@')[0];
   $('#title').innerHTML = `<b>${esc(name)}</b><small>${esc(c?.group ? 'Group' : (c?.phone && c.phone !== name ? c.phone : ''))}</small>`;
+  $('#nickBtn').hidden = false;
+}
+async function setNickname() {
+  if (!current) return;
+  const cur = $('#title b')?.textContent || '';
+  const nick = prompt('Nickname for this chat (only shown on this site).\nLeave empty to remove it.', cur);
+  if (nick === null) return;
+  try {
+    const r = await call('POST', '/nickname', {jid: current, nick});
+    currentName = r.name;
+    const c = chats.find(x => x.jid === current); if (c) c.name = r.name;
+    updateTitle(); renderChats(); reloadThread();
+    toast(nick.trim() ? 'Nickname saved' : 'Nickname removed');
+  } catch (x) { toast(x.message); }
 }
 
 // --------------------------------------------------------------- thread
@@ -615,6 +630,7 @@ $('#attach').addEventListener('click', () => $('#file').click());
 $('#file').addEventListener('change', e => setAttach(e.target.files[0]));
 $('#attX').addEventListener('click', clearAttach);
 $('#replyX').addEventListener('click', cancelReply);
+$('#nickBtn').addEventListener('click', setNickname);
 $('#text').addEventListener('keydown', e => { if (e.key === 'Escape' && replyTo) cancelReply(); });
 $('#msgs').addEventListener('click', e => {
   if (e.target.id === 'more') return loadOlder(e.target);

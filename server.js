@@ -313,6 +313,12 @@ async function route(req, res) {
     return json(res, await s.send(body.jid, text, body.replyTo))
   }
   if (api === '/resolve') return json(res, await s.resolveNumber(body.phone))
+  if (api === '/nickname') {
+    if (!body.jid) throw new HttpError(400, 'jid required')
+    const name = s.store.setNick(body.jid, body.nick)
+    s.emit('event', { type: 'chats' }) // every open device picks it up
+    return json(res, { name })
+  }
   if (api === '/pair') return json(res, await s.pairingCode(body.phone))
   if (api === '/older') {
     if (!body.jid) throw new HttpError(400, 'jid required')
