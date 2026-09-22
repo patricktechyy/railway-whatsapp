@@ -49,12 +49,19 @@ export class Auth {
     this.passwordFile = path.join(dataDir, 'passwords.json')
     this.secret = readOrCreate(path.join(dataDir, '.secret'), () => crypto.randomBytes(32).toString('hex'))
 
-    // ADMIN_PASSWORD wins; the old PASSWORD variable still works so an
-    // existing deploy keeps its login; otherwise generate one and keep it.
-    this.adminFromEnv = !!(process.env.ADMIN_PASSWORD || process.env.PASSWORD)
+    // Prefer the documented variable, but keep compatibility with older
+    // deployments and common aliases. Railway values sometimes arrive with
+    // an accidental trailing newline, so only the admin environment value is
+    // normalized here; user passwords remain byte-for-byte exact.
+    const adminEnv = [
+      ['ADMIN_PASSWORD', process.env.ADMIN_PASSWORD],
+      ['PASSWORD', process.env.PASSWORD],
+      ['ADMIN_PASS', process.env.ADMIN_PASS],
+    ].find(([, value]) => typeof value === 'string' && value.length > 0)
+    this.adminFromEnv = !!adminEnv
+    this.adminEnvName = adminEnv?.[0] || null
     this.adminPassword =
-      process.env.ADMIN_PASSWORD ||
-      process.env.PASSWORD ||
+      (adminEnv ? String(adminEnv[1]).replace(/\r?\n$/, '') : '') ||
       readOrCreate(path.join(dataDir, '.admin-password'), () => crypto.randomBytes(12).toString('base64url').slice(0, 16))
     this.adminPv = sha(this.adminPassword).slice(0, 12)
 
@@ -347,6 +354,7 @@ export class Auth {
     this.throttle(ip, key)
     if (username === 'admin') {
       if (eq(password, this.adminPassword)) return this.ok(key, { k: 'admin', u: 'admin', pv: this.adminPv })
+      console.warn(`[auth] admin login failed: passwordLength=${String(password ?? '').length}, configuredBy=${this.adminEnvName || 'generated-file'}, configuredLength=${this.adminPassword.length}, ip=${ip}`)
     } else {
       const u = this.get(username)
       if (u && !this.storedPassword(u)) {
@@ -354,6 +362,7 @@ export class Auth {
         throw new HttpError(403, 'This account has no password yet. Use the setup link you were sent.')
       }
       if (await this.checkPassword(u, password)) return this.ok(key, { k: 'user', u: u.username, pv: u.pv })
+      console.warn(`[auth] user login failed: username=${JSON.stringify(username)}, found=${!!u}, hasPassword=${!!u && !!this.storedPassword(u)}, passwordLength=${String(password ?? '').length}, ip=${ip}`)
     }
     this.fail(ip, key)
     throw new HttpError(401, 'Wrong username or password')
