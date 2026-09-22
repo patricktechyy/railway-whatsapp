@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Status · __BRAND__</title>
+<script>try{var p=JSON.parse(localStorage.getItem('wah-prefs')||'{}');if(p.theme&&p.theme!=='auto')document.documentElement.dataset.theme=p.theme}catch(e){}</script>
+<style>
+:root{--bg:#f0f2f5;--panel:#fff;--fg:#111b21;--muted:#667781;--line:#e3e6e8;--accent:#128c7e;--danger:#d64550;--warn:#d99c2b;--ok:#128c7e;--field:#f5f6f7;box-sizing:border-box}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0b141a;--panel:#111b21;--fg:#e9edef;--muted:#8696a0;--line:#2a3942;--accent:#00a884;--danger:#f15c6d;--warn:#f0b429;--ok:#00a884;--field:#202c33}}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#0b141a;--panel:#111b21;--fg:#e9edef;--muted:#8696a0;--line:#2a3942;--accent:#00a884;--danger:#f15c6d;--warn:#f0b429;--ok:#00a884;--field:#202c33}
+*{box-sizing:inherit} body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+a{color:inherit}.wrap{max-width:980px;margin:0 auto;padding:18px}.top{display:flex;align-items:center;gap:12px;margin-bottom:16px}.back{border:1px solid var(--line);background:var(--panel);border-radius:9px;padding:8px 12px;text-decoration:none}.top h1{margin:0;font-size:22px}.top small{display:block;color:var(--muted)}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;box-shadow:0 1px 2px rgba(0,0,0,.05)}.card.wide{grid-column:1/-1}.card h2{font-size:15px;margin:0 0 12px}.state{display:flex;align-items:center;gap:10px}.dot{width:12px;height:12px;border-radius:50%;background:var(--muted);flex:0 0 12px}.dot.ok{background:var(--ok)}.dot.warn{background:var(--warn)}.dot.bad{background:var(--danger)}.big{font-size:18px;font-weight:700}.muted{color:var(--muted)}.row{display:flex;justify-content:space-between;gap:16px;padding:7px 0;border-bottom:1px solid var(--line)}.row:last-child{border-bottom:0}.row b{font-weight:600}.mono{font:12px ui-monospace,SFMono-Regular,Menlo,monospace;word-break:break-word}.bar{height:8px;background:var(--field);border-radius:99px;overflow:hidden}.bar i{display:block;height:100%;background:var(--accent);width:0}.hint{margin-top:9px;color:var(--muted);font-size:12px}.err{color:var(--danger)}.foot{margin-top:15px;color:var(--muted);font-size:12px;text-align:center}.btn{border:1px solid var(--line);background:var(--panel);color:inherit;border-radius:8px;padding:7px 11px;cursor:pointer}.actions{display:flex;gap:8px;margin-left:auto}
+@media(max-width:700px){.wrap{padding:12px}.grid{grid-template-columns:1fr}.card.wide{grid-column:auto}.top{align-items:flex-start}.actions{flex-wrap:wrap}}
+</style>
+<body>
+<div class="wrap">
+  <div class="top">
+    <a class="back" href="/u/__USER__/">← Chat</a>
+    <div><h1>Connection &amp; system status</h1><small>__LABEL__ · live diagnostics</small></div>
+    <div class="actions"><button class="btn" id="refresh">Refresh</button></div>
+  </div>
+  <div class="grid">
+    <section class="card">
+      <h2>WhatsApp uplink</h2>
+      <div class="state"><span class="dot" id="wsDot"></span><div><div class="big" id="wsState">Loading…</div><div class="muted" id="wsSub">Checking session</div></div></div>
+      <div class="hint" id="wsErr"></div>
+    </section>
+    <section class="card">
+      <h2>Socket / network</h2>
+      <div class="row"><span>Socket</span><b id="socket">—</b></div>
+      <div class="row"><span>Reconnect failures</span><b id="failures">—</b></div>
+      <div class="row"><span>Last network error</span><b class="mono" id="neterr">—</b></div>
+    </section>
+    <section class="card">
+      <h2>Message pipeline</h2>
+      <div class="row"><span>Incoming</span><b id="in">0</b></div>
+      <div class="row"><span>Outgoing</span><b id="out">0</b></div>
+      <div class="row"><span>Reactions in / out</span><b id="rx">0 / 0</b></div>
+      <div class="row"><span>Last inbound</span><b id="lastIn">—</b></div>
+      <div class="row"><span>Last outbound</span><b id="lastOut">—</b></div>
+    </section>
+    <section class="card">
+      <h2>Sync / presence</h2>
+      <div class="row"><span>History progress</span><b id="history">—</b></div>
+      <div class="row"><span>Subscribed presence entries</span><b id="presence">0</b></div>
+      <div class="row"><span>Open viewers</span><b id="viewers">0</b></div>
+      <div class="row"><span>Last presence event</span><b id="lastPresence">—</b></div>
+    </section>
+    <section class="card">
+      <h2>Local store</h2>
+      <div class="row"><span>Chats</span><b id="chats">0</b></div>
+      <div class="row"><span>Messages</span><b id="messages">0</b></div>
+      <div class="row"><span>Disk usage</span><b id="bytes">—</b></div>
+      <div class="row"><span>Pending save</span><b id="dirty">—</b></div>
+    </section>
+    <section class="card">
+      <h2>Runtime</h2>
+      <div class="row"><span>Uptime</span><b id="uptime">—</b></div>
+      <div class="row"><span>Node</span><b id="node">—</b></div>
+      <div class="row"><span>RSS</span><b id="rss">—</b></div>
+      <div class="row"><span>Heap</span><b id="heap">—</b></div>
+    </section>
+    <section class="card wide">
+      <h2>Last media error</h2>
+      <div class="mono" id="mediaerr">None</div>
+      <div class="hint">Useful for diagnosing media download failures without exposing message contents.</div>
+    </section>
+  </div>
+  <div class="foot">Auto-refreshes every 3 seconds · build __VERSION__</div>
+</div>
+<script>
+const api=p=>`/u/__USER__/api${p}`;
+const $=id=>document.getElementById(id);
+const n=(v)=>Number(v||0).toLocaleString();
+const ago=(ms)=>{if(!ms)return '—';const s=Math.max(0,Math.floor((Date.now()-ms)/1000));if(s<5)return 'just now';if(s<60)return s+'s ago';if(s<3600)return Math.floor(s/60)+'m ago';return Math.floor(s/3600)+'h ago'};
+const bytes=(b)=>b>1048576?(b/1048576).toFixed(1)+' MB':Math.max(1,Math.round(b/1024))+' KB';
+const up=(s)=>{if(s<60)return s+'s';if(s<3600)return Math.floor(s/60)+'m '+s%60+'s';return Math.floor(s/3600)+'h '+Math.floor((s%3600)/60)+'m'};
+function state(v){return v==='connected'?'ok':(['starting','reconnecting','qr'].includes(v)?'warn':'bad')}
+function render(d){
+  const cls=state(d.status); $('wsDot').className='dot '+cls; $('wsState').textContent=d.status||'unknown';
+  $('wsSub').textContent=d.linked?(d.me?.phone?`Linked as ${d.me.phone}`:'Linked'):d.status==='qr'?'Waiting for QR scan':'Not linked';
+  $('wsErr').textContent=d.error?String(d.error):''; $('wsErr').className=d.error?'hint err':'hint';
+  $('socket').textContent=d.socket?.active?'active':'inactive'; $('failures').textContent=n(d.failures); $('neterr').textContent=d.socket?.lastNetworkError||'none';
+  $('in').textContent=n(d.metrics?.messagesIn); $('out').textContent=n(d.metrics?.messagesOut); $('rx').textContent=`${n(d.metrics?.reactionsIn)} / ${n(d.metrics?.reactionsOut)}`;
+  $('lastIn').textContent=ago(d.metrics?.lastInboundAt); $('lastOut').textContent=ago(d.metrics?.lastOutboundAt);
+  $('history').textContent=d.metrics?.historyProgress==null?'—':Math.round(Number(d.metrics.historyProgress))+'%'; $('presence').textContent=n(d.presence); $('viewers').textContent=n(d.viewers); $('lastPresence').textContent=ago(d.metrics?.lastPresenceAt);
+  $('chats').textContent=n(d.store?.chats); $('messages').textContent=n(d.store?.messages); $('bytes').textContent=bytes(d.store?.bytes||0); $('dirty').textContent=d.store?.dirty?'yes':'no';
+  $('uptime').textContent=up(Number(d.runtime?.uptimeSec)||0); $('node').textContent=d.runtime?.node||'—'; $('rss').textContent=bytes(d.runtime?.rss||0); $('heap').textContent=bytes(d.runtime?.heapUsed||0)+' / '+bytes(d.runtime?.heapTotal||0);
+  $('mediaerr').textContent=d.metrics?.lastMediaError||'None';
+}
+async function refresh(){try{const r=await fetch(api('/health'),{cache:'no-store'});if(r.status===401){location.href='/';return}const d=await r.json();render(d)}catch(e){$('wsState').textContent='Status unavailable';$('wsDot').className='dot bad';$('wsSub').textContent=e.message}}
+$('refresh').onclick=refresh; refresh(); setInterval(refresh,3000);
+</script>
+</body>
+</html>

@@ -349,6 +349,12 @@ async function route(req, res) {
     sessions.get(username)?.wake()
     return page(res, render('chat.html', { USER: username, LABEL: u.name }))
   }
+  if (rest === '/status' || rest === '/status/') {
+    if (!allowed) return redirect(res, '/')
+    const u = auth.get(username)
+    sessions.get(username)?.wake()
+    return page(res, render('status.html', { USER: username, LABEL: u.name }))
+  }
   if (!allowed) throw new HttpError(401, 'Please sign in again')
   const s = sessions.get(username)
   if (!s) throw new HttpError(404, 'Session not found')
@@ -368,10 +374,15 @@ async function route(req, res) {
   if (api === '/chats') return json(res, s.store.chatList())
   if (api === '/contacts') return json(res, s.store.contactList(url.searchParams.get('q') || ''))
   if (api === '/events') return sse(req, res, s)
+  if (api === '/health') return json(res, s.health())
+  if (api === '/presence') {
+    if (!jid) throw new HttpError(400, 'jid required')
+    return json(res, await s.presenceSubscribe(jid))
+  }
   if (api === '/messages') {
     if (!jid) throw new HttpError(400, 'jid required')
     s.markRead(jid)
-    return json(res, s.store.messageList(jid))
+    return json(res, s.store.messageList(jid, s.me?.jid))
   }
   if (api === '/media') {
     const out = await s.media(jid, url.searchParams.get('id'))
@@ -443,6 +454,19 @@ async function route(req, res) {
   if (api === '/older') {
     if (!body.jid) throw new HttpError(400, 'jid required')
     return json(res, await s.fetchOlder(body.jid))
+  }
+  if (api === '/react') {
+    if (!body.jid || !body.messageId) throw new HttpError(400, 'jid and messageId required')
+    const emoji = String(body.emoji || '').trim().slice(0, 16)
+    return json(res, await s.react(body.jid, body.messageId, emoji))
+  }
+  if (api === '/presence') {
+    if (!body.jid) throw new HttpError(400, 'jid required')
+    return json(res, await s.presenceSubscribe(body.jid))
+  }
+  if (api === '/typing') {
+    if (!body.jid) throw new HttpError(400, 'jid required')
+    return json(res, await s.typing(body.jid, body.state))
   }
   if (api === '/relink') {
     await s.relink()

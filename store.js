@@ -259,6 +259,37 @@ export class Store {
     return (this.messages.get(this.canon(jid)) || []).find((m) => m.id === id) || null
   }
 
+  /** Add/replace one user's reaction on a message. Empty emoji removes it. */
+  setReaction(jid, id, sender, emoji) {
+    const m = this.findMessage(jid, id)
+    if (!m || !sender) return null
+    const reactions = Array.isArray(m.reactions) ? [...m.reactions] : []
+    const idx = reactions.findIndex((r) => r?.sender === sender)
+    if (!emoji) {
+      if (idx >= 0) reactions.splice(idx, 1)
+    } else if (idx >= 0) {
+      reactions[idx] = { sender, emoji: String(emoji).slice(0, 16) }
+    } else {
+      reactions.push({ sender, emoji: String(emoji).slice(0, 16) })
+    }
+    m.reactions = reactions
+    this.dirty = true
+    return m
+  }
+
+  reactionView(m, mineJid) {
+    const rows = Array.isArray(m?.reactions) ? m.reactions : []
+    const grouped = new Map()
+    for (const r of rows) {
+      if (!r?.emoji) continue
+      const cur = grouped.get(r.emoji) || { emoji: r.emoji, count: 0, mine: false }
+      cur.count++
+      if (mineJid && this.canon(r.sender) === this.canon(mineJid)) cur.mine = true
+      grouped.set(r.emoji, cur)
+    }
+    return [...grouped.values()]
+  }
+
   oldest(jid) {
     jid = this.canon(jid)
     return (this.messages.get(jid) || [])[0] || null
@@ -297,7 +328,7 @@ export class Store {
       }))
   }
 
-  messageList(jid) {
+  messageList(jid, mineJid) {
     jid = this.canon(jid)
     const group = isGroup(jid)
     return (this.messages.get(jid) || []).map((m) => ({
@@ -312,6 +343,7 @@ export class Store {
       fileName: m.fileName,
       quote: this.quoteView(m.quote),
       senderName: group && !m.fromMe && m.sender ? this.displayName(m.sender) : '',
+      reactions: this.reactionView(m, mineJid),
     }))
   }
 

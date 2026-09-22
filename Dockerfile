@@ -10,7 +10,7 @@ COPY package.json ./
 RUN npm install --omit=dev --no-audit --no-fund
 
 COPY server.js session.js store.js auth.js ./src/
-COPY chat.html login.html setup.html admin.html ./public/
+COPY chat.html login.html setup.html admin.html status.html ./public/
 
 ENV PORT=8080 \
     DATA_DIR=/data \
