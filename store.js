@@ -178,9 +178,22 @@ export class Store {
   displayName(jid) {
     if (!jid) return ''
     jid = this.canon(jid)
-    if (isGroup(jid)) return this.chats.get(jid)?.subject || 'Group'
     const c = this.contacts.get(jid) || {}
+    if (c.nick) return c.nick // local nickname beats everything
+    if (isGroup(jid)) return this.chats.get(jid)?.subject || 'Group'
     return c.name || c.verified || c.notify || phoneOf(jid) || 'Unknown contact'
+  }
+
+  /** Nickname only this site shows. Empty clears it. Never sent to WhatsApp. */
+  setNick(jid, nick) {
+    jid = this.canon(jid)
+    const c = { ...(this.contacts.get(jid) || {}) }
+    nick = String(nick || '').trim().slice(0, 60)
+    if (nick) c.nick = nick
+    else delete c.nick
+    this.contacts.set(jid, c)
+    this.dirty = true
+    return this.displayName(jid)
   }
 
   // ------------------------------------------------------------ chats/msgs
