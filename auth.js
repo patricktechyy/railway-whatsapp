@@ -60,15 +60,22 @@ export class Auth {
 
     this.users = []
     this.passwords = Object.create(null)
+    this.usersMtime = 0
+    this.passwordsMtime = 0
     this.failures = new Map()
     this.load()
     this.loadPasswords()
   }
 
   // ---------------------------------------------------------------- storage
+  statMtime(file) {
+    try { return fs.statSync(file).mtimeMs } catch { return 0 }
+  }
+
   load() {
     try {
       this.users = JSON.parse(fs.readFileSync(this.file, 'utf8')).users || []
+      this.usersMtime = this.statMtime(this.file)
     } catch {
       this.users = this.migrate()
       this.save()
@@ -85,9 +92,11 @@ export class Auth {
       fs.closeSync(fd)
     }
     fs.renameSync(tmp, this.file)
+    this.usersMtime = this.statMtime(this.file)
   }
 
-  loadPasswords() {
+  loadPasswords({ migrateLegacy = true } = {}) {
+    const exists = fs.existsSync(this.passwordFile)
     try {
       const data = JSON.parse(fs.readFileSync(this.passwordFile, 'utf8'))
       this.passwords = data && typeof data.passwords === 'object' && data.passwords ? data.passwords : Object.create(null)
@@ -98,14 +107,28 @@ export class Auth {
     // One-time migration from users.json. Passwords are immediately copied
     // to their dedicated file, after which that file is the credential source.
     let migrated = false
-    for (const u of this.users) {
-      if (u.pass && typeof this.passwords[u.username] !== 'string') {
-        this.passwords[u.username] = u.pass
-        migrated = true
+    if (migrateLegacy && !exists) {
+      for (const u of this.users) {
+        if (u.pass && typeof this.passwords[u.username] !== 'string') {
+          this.passwords[u.username] = u.pass
+          migrated = true
+        }
       }
     }
-    if (migrated || !fs.existsSync(this.passwordFile)) this.savePasswords()
-    for (const u of this.users) u.pass = this.passwords[u.username] || null
+    if (migrated || !exists) this.savePasswords()
+    for (const u of this.users) u.pass = typeof this.passwords[u.username] === 'string' ? this.passwords[u.username] : null
+    this.passwordsMtime = this.statMtime(this.passwordFile)
+  }
+
+  // Other Railway processes/replicas can update the durable files while this
+  // Node process is still alive. Refresh only when the on-disk version changes,
+  // so login/reset/setup never relies on stale in-memory credentials.
+  refresh() {
+    const um = this.statMtime(this.file)
+    const usersChanged = !!um && um !== this.usersMtime
+    if (usersChanged) this.load()
+    const pm = this.statMtime(this.passwordFile)
+    if (usersChanged || pm !== this.passwordsMtime || (!pm && this.users.length)) this.loadPasswords()
   }
 
   savePasswords() {
@@ -157,10 +180,12 @@ export class Auth {
 
   // ------------------------------------------------------------------ users
   get(username) {
+    this.refresh()
     return this.users.find((u) => u.username === username) || null
   }
 
   publicUser(u) {
+    this.refresh()
     return {
       username: u.username,
       name: u.name,
@@ -171,6 +196,7 @@ export class Auth {
   }
 
   create(username, name) {
+    this.refresh()
     username = String(username || '').trim().toLowerCase()
     name = String(name || '').trim().slice(0, 60) || username
     if (!USERNAME_RE.test(username)) {
@@ -194,6 +220,7 @@ export class Auth {
   }
 
   remove(username) {
+    this.refresh()
     const i = this.users.findIndex((u) => u.username === username)
     if (i < 0) throw new HttpError(404, 'No such user')
     const [u] = this.users.splice(i, 1)
@@ -205,6 +232,7 @@ export class Auth {
 
   /** New one-time link. Clears the old password and signs the user out. */
   markSeen(username, version) {
+    this.refresh()
     const u = this.get(username)
     if (!u || u.seenVersion === version) return
     u.seenVersion = version
@@ -212,6 +240,7 @@ export class Auth {
   }
 
   rename(username, name) {
+    this.refresh()
     const u = this.get(username)
     if (!u) throw new HttpError(404, 'No such user')
     name = String(name || '').trim().slice(0, 60)
@@ -222,6 +251,7 @@ export class Auth {
   }
 
   resetPassword(username) {
+    this.refresh()
     const u = this.get(username)
     if (!u) throw new HttpError(404, 'No such user')
     u.pass = null
@@ -240,12 +270,14 @@ export class Auth {
   }
 
   userForSetup(token) {
+    this.refresh()
     if (!token) return null
     const h = sha(String(token))
     return this.users.find((u) => u.setup && eq(u.setup.hash, h) && u.setup.exp > Date.now()) || null
   }
 
   async completeSetup(token, password) {
+    this.refresh()
     const u = this.userForSetup(token)
     if (!u) throw new HttpError(410, 'This setup link is invalid or has expired. Ask for a new one.')
     await this.setPassword(u, password)
@@ -282,6 +314,7 @@ export class Auth {
   }
 
   async changePassword(username, current, next) {
+    this.refresh()
     const u = this.get(username)
     if (!u) throw new HttpError(404, 'No such user')
     if (!(await this.checkPassword(u, current))) throw new HttpError(403, 'Current password is wrong')
@@ -291,6 +324,7 @@ export class Auth {
 
   // ------------------------------------------------------------------ login
   async login(ip, username, password) {
+    this.refresh()
     username = String(username || '').trim().toLowerCase().slice(0, 40)
     const key = `${ip}|${username}`
     this.throttle(ip, key)
@@ -348,6 +382,7 @@ export class Auth {
   /** Returns {k, u} for a valid, current cookie, else null. */
 
   verify(cookie) {
+    this.refresh()
     if (!cookie || !cookie.includes('.')) return null
     const [body, mac] = cookie.split('.')
     const want = crypto.createHmac('sha256', this.secret).update(body).digest('base64url')
