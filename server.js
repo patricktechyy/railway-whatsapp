@@ -13,7 +13,7 @@ const PUBLIC = [path.join(__dirname, '..', 'public'), __dirname].find((d) =>
 
 const PORT = Number(process.env.PORT || 8080)
 const DATA_DIR = process.env.DATA_DIR || '/data'
-const BRAND = process.env.BRAND || 'WhatsApp Hub'
+const BRAND = process.env.BRAND || 'Apa yang Diatas (Whats Up)'
 const MAX_UPLOAD = Number(process.env.MAX_UPLOAD_MB || 25) * 1024 * 1024
 
 fs.mkdirSync(DATA_DIR, { recursive: true })
@@ -202,6 +202,7 @@ async function route(req, res) {
           return {
             ...auth.publicUser(u),
             status: s?.status || 'stopped',
+            phone: s?.me?.phone || '',
             error: info.error ? [info.error.text, info.error.detail].filter(Boolean).join(' — ') : '',
             linked: !!info.linked,
           }

@@ -22,7 +22,7 @@ export default defineRailway(() => {
     healthcheckTimeout: 120,
     volumeMounts: { '/data': data },
     env: {
-      BRAND: process.env.WA_BRAND ?? 'WhatsApp Hub',
+      BRAND: process.env.WA_BRAND ?? 'Apa yang Diatas (Whats Up)',
       // ADMIN_PASSWORD is deliberately not here so it never lands in git.
       // Set it in the Railway dashboard.
     },

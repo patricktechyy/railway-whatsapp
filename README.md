@@ -106,7 +106,7 @@ yourself — they'd notice, because it signs them out.)
 | Variable | Default | |
 | --- | --- | --- |
 | `ADMIN_PASSWORD` | generated | Admin login. The old `PASSWORD` still works. |
-| `BRAND` | `WhatsApp Hub` | Name on the login page. |
+| `BRAND` | `Apa yang Diatas (Whats Up)` | Name on the login page. |
 | `FULL_HISTORY` | `1` | `0` takes only recent history at pairing (lighter on very large accounts). |
 | `HISTORY_DAYS` | `12` | Messages older than this are not saved, and are removed from storage. |
 | `MAX_MSGS_PER_CHAT` | `150` | Messages kept per chat on the server. |
