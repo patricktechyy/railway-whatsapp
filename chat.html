@@ -78,6 +78,21 @@ button{font:inherit;color:inherit;cursor:pointer}
 .m .note{color:var(--muted);font-size:13px}
 
 /* composer */
+.m .rp{position:absolute;top:2px;right:-30px;width:26px;height:26px;border:0;border-radius:50%;background:var(--panel);
+  color:var(--muted);font-size:14px;opacity:0;transition:opacity .15s;box-shadow:0 1px 2px rgba(0,0,0,.15)}
+.m.me .rp{right:auto;left:-30px}
+.m:hover .rp{opacity:1}
+@media (hover:none){.m .rp{opacity:.7}}
+.m .q{display:block;border-left:3px solid var(--accent);background:rgba(0,0,0,.06);border-radius:5px;padding:4px 8px;margin:1px 0 4px;
+  font-size:13px;cursor:pointer;white-space:normal;overflow:hidden;text-overflow:ellipsis;max-height:3.2em}
+.m .q b{display:block;color:var(--accent);font-size:12px}
+.m.flash{animation:flash 1.2s}
+@keyframes flash{0%,40%{box-shadow:0 0 0 3px var(--accent)}}
+#reply{display:none;align-items:center;gap:10px;padding:8px 12px;background:var(--panel);border-top:1px solid var(--line)}
+#reply.on{display:flex}
+#reply .q{flex:1;min-width:0;border-left:3px solid var(--accent);padding:2px 10px;font-size:13px}
+#reply .q b{display:block;color:var(--accent);font-size:12px}
+#reply .q span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted)}
 #att{display:none;align-items:center;gap:10px;padding:8px 12px;background:var(--panel);border-top:1px solid var(--line)}
 #att.on{display:flex}
 #att img{width:48px;height:48px;object-fit:cover;border-radius:6px}
@@ -165,6 +180,10 @@ button{font:inherit;color:inherit;cursor:pointer}
       <div id="title"><b>Select a chat</b><small></small></div>
     </div>
     <div id="msgs"><div class="empty">Pick a conversation, or start a new one with ✎.</div></div>
+    <div id="reply">
+      <div class="q"><b id="replyName"></b><span id="replyText"></span></div>
+      <button class="ib" id="replyX" title="Cancel reply">✕</button>
+    </div>
     <div id="att">
       <img id="attImg" alt="" hidden><span id="attIcon" style="font-size:28px" hidden>📄</span>
       <div class="info"><b id="attName"></b><small id="attSize"></small></div>
@@ -225,6 +244,7 @@ const api = (p) => `/u/${USER}/api${p}`;
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
+let replyTo = null;
 let status = 'starting', me = null, chats = [], current = null, currentName = '', msgs = [], attach = null, tmpN = 0;
 
 // ------------------------------------------------------------------ utils
@@ -314,7 +334,9 @@ function bubble(m) {
     body = esc(m.text);
   }
   const tick = m.failed ? ' ⚠️' : m.pending ? ' 🕓' : '';
-  return `<div class="m ${m.fromMe ? 'me' : ''} ${m.pending ? 'pending' : ''} ${m.failed ? 'failed' : ''}">${who}${body}<span class="t">${fmtTime(m.ts)}${tick}</span></div>`;
+  const q = m.quote ? `<span class="q" data-qid="${esc(m.quote.id)}"><b>${esc(m.quote.name || '')}</b>${esc(m.quote.text || '')}</span>` : '';
+  const rp = m.pending || m.failed || String(m.id).startsWith('tmp') ? '' : `<button class="rp" data-reply="${esc(m.id)}" title="Reply">↩</button>`;
+  return `<div class="m ${m.fromMe ? 'me' : ''} ${m.pending ? 'pending' : ''} ${m.failed ? 'failed' : ''}" data-id="${esc(m.id)}">${rp}${who}${q}${body}<span class="t">${fmtTime(m.ts)}${tick}</span></div>`;
 }
 function renderMsgs(stick) {
   const box = $('#msgs');
@@ -337,7 +359,22 @@ function upsert(m) {
   msgs.sort((a, b) => a.ts - b.ts);
 }
 
+function quotePreview(m) {
+  if (m.text) return m.text;
+  return {image: '📷 Photo', video: '🎥 Video', audio: '🎤 Voice message', sticker: 'Sticker'}[m.type] || ('📄 ' + (m.fileName || 'Document'));
+}
+function startReply(id) {
+  const m = msgs.find(x => x.id === id); if (!m) return;
+  replyTo = m;
+  $('#replyName').textContent = m.fromMe ? 'You' : (m.senderName || $('#title b')?.textContent || '');
+  $('#replyText').textContent = quotePreview(m);
+  $('#reply').classList.add('on');
+  $('#text').focus();
+}
+function cancelReply() { replyTo = null; $('#reply').classList.remove('on'); }
+
 async function openChat(jid, name) {
+  cancelReply();
   current = jid; currentName = name || '';
   document.body.classList.add('open');
   updateTitle(); setComposer();
@@ -389,10 +426,12 @@ async function send() {
     const a = attach; clearAttach();
     return sendFile(jid, a, text);
   }
-  const tmp = {id: 'tmp' + (++tmpN), jid, fromMe: true, ts: Math.floor(Date.now() / 1000), type: 'text', text, pending: true};
+  const r = replyTo; cancelReply();
+  const tmp = {id: 'tmp' + (++tmpN), jid, fromMe: true, ts: Math.floor(Date.now() / 1000), type: 'text', text, pending: true,
+    quote: r ? {id: r.id, text: quotePreview(r), name: r.fromMe ? 'You' : r.senderName || ''} : undefined};
   upsert(tmp); renderMsgs(true);
   try {
-    const real = await call('POST', '/send', {jid, text});
+    const real = await call('POST', '/send', {jid, text, replyTo: r?.id});
     if (current === jid) { msgs = msgs.filter(m => m.id !== tmp.id); if (real) upsert(real); renderMsgs(true); }
     loadChats();
   } catch (x) {
@@ -407,7 +446,8 @@ async function sendFile(jid, a, caption) {
     type: isImg ? 'image' : 'document', text: caption, fileName: a.name, local: isImg ? URL.createObjectURL(a.jpeg) : undefined};
   upsert(tmp); renderMsgs(true);
   try {
-    const qs = `?jid=${encodeURIComponent(jid)}&name=${encodeURIComponent(a.name)}&caption=${encodeURIComponent(caption || '')}`;
+    const r = replyTo; cancelReply();
+    const qs = `?jid=${encodeURIComponent(jid)}&name=${encodeURIComponent(a.name)}&caption=${encodeURIComponent(caption || '')}` + (r ? `&replyTo=${encodeURIComponent(r.id)}` : '');
     const headers = {'content-type': isImg ? 'image/jpeg' : (a.file.type || 'application/octet-stream')};
     if (a.thumb) headers['x-thumb'] = a.thumb;
     const real = await call('POST', '/send-media' + qs, isImg ? a.jpeg : a.file, headers);
@@ -574,8 +614,18 @@ $('#text').addEventListener('paste', e => {
 $('#attach').addEventListener('click', () => $('#file').click());
 $('#file').addEventListener('change', e => setAttach(e.target.files[0]));
 $('#attX').addEventListener('click', clearAttach);
+$('#replyX').addEventListener('click', cancelReply);
+$('#text').addEventListener('keydown', e => { if (e.key === 'Escape' && replyTo) cancelReply(); });
 $('#msgs').addEventListener('click', e => {
   if (e.target.id === 'more') return loadOlder(e.target);
+  const rb = e.target.closest('[data-reply]'); if (rb) return startReply(rb.dataset.reply);
+  const qb = e.target.closest('.q[data-qid]');
+  if (qb) {
+    const el = [...document.querySelectorAll('#msgs .m[data-id]')].find(x => x.dataset.id === qb.dataset.qid);
+    if (el) { el.scrollIntoView({block: 'center', behavior: 'smooth'}); el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); }
+    else toast('That message is older than what is saved here');
+    return;
+  }
   const img = e.target.closest('img[data-full]'); if (img) window.open(img.dataset.full, '_blank', 'noopener');
 });
 const main = $('#main');

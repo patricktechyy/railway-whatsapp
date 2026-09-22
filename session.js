@@ -2,7 +2,7 @@ import { EventEmitter } from 'node:events'
 import fs from 'node:fs'
 import path from 'node:path'
 import QRCode from 'qrcode'
-import { Store, bare, isGroup, isLid, isPn, phoneOf, toPn } from './store.js'
+import { Store, historyCutoff, bare, isGroup, isLid, isPn, phoneOf, toPn } from './store.js'
 
 // Ask the phone for the full backlog at pairing time. Set FULL_HISTORY=0 to
 // only take the recent slice (lighter pairing spike on huge accounts).
@@ -615,6 +615,7 @@ export class Session extends EventEmitter {
 
     const c = inner(m.message)
     if (!c) return null
+    if (num(m.messageTimestamp) && num(m.messageTimestamp) < historyCutoff()) return null // outside the history window
     if (c.protocolMessage || c.senderKeyDistributionMessage || c.reactionMessage) {
       if (!c.conversation && !c.extendedTextMessage) return null
     }
@@ -660,7 +661,26 @@ export class Session extends EventEmitter {
       })
     }
 
+    // what this message is replying to, if anything
+    const ctx = Object.values(c).find((v) => v && typeof v === 'object' && v.contextInfo?.stanzaId)?.contextInfo
+    let quote
+    if (ctx?.stanzaId) {
+      const q = inner(ctx.quotedMessage) || {}
+      const qText =
+        q.conversation || q.extendedTextMessage?.text || q.imageMessage?.caption || q.videoMessage?.caption ||
+        (q.imageMessage ? '📷 Photo' : q.videoMessage ? '🎥 Video' : q.audioMessage ? '🎤 Voice message' :
+         q.documentMessage ? '📄 ' + (q.documentMessage.fileName || 'Document') : q.stickerMessage ? 'Sticker' : '')
+      const qSender = ctx.participant ? this.store.canon(ctx.participant) : null
+      quote = {
+        id: ctx.stanzaId,
+        text: String(qText).slice(0, 300),
+        sender: qSender || undefined,
+        fromMe: !!(qSender && this.me?.jid && qSender === this.store.canon(this.me.jid)),
+      }
+    }
+
     const msg = {
+      quote,
       id: k.id,
       jid,
       fromMe: !!k.fromMe,
@@ -686,6 +706,7 @@ export class Session extends EventEmitter {
       text: m.text,
       media: !!m.rm,
       fileName: m.fileName,
+      quote: this.store.quoteView(m.quote),
       senderName: isGroup(m.jid) && !m.fromMe && m.sender ? this.store.displayName(m.sender) : '',
     }
   }
@@ -776,17 +797,27 @@ export class Session extends EventEmitter {
     return target
   }
 
-  async send(jid, text) {
+  /** Rebuild a stored message into the shape Baileys needs for `quoted`. */
+  quotedFor(jid, replyTo) {
+    const m = replyTo && this.store.findMessage(jid, replyTo)
+    if (!m) return undefined
+    const key = { remoteJid: m.rj || m.jid, id: m.id, fromMe: m.fromMe, participant: m.rp }
+    const message = m.rm ? fromJsonSafe(m.rm).message : { conversation: m.text || '' }
+    return { key, message }
+  }
+
+  async send(jid, text, replyTo) {
     this.ensureConnected()
     const target = await this.sendJid(jid)
-    const sent = await this.sock.sendMessage(target, { text })
+    const quoted = this.quotedFor(jid, replyTo)
+    const sent = await this.sock.sendMessage(target, { text }, quoted ? { quoted } : undefined)
     const msg = this.ingest(sent, { bumpUnread: false })
     if (msg) this.emit('event', { type: 'message', message: this.publicMsg(msg) })
     this.emit('event', { type: 'chats' })
     return msg ? this.publicMsg(msg) : null
   }
 
-  async sendMedia(jid, buffer, { mime, name, caption, thumb }) {
+  async sendMedia(jid, buffer, { mime, name, caption, thumb, replyTo }) {
     this.ensureConnected()
     const target = await this.sendJid(jid)
     let content
@@ -802,7 +833,8 @@ export class Session extends EventEmitter {
         caption: caption || undefined,
       }
     }
-    const sent = await this.sock.sendMessage(target, content)
+    const quoted = this.quotedFor(jid, replyTo)
+    const sent = await this.sock.sendMessage(target, content, quoted ? { quoted } : undefined)
     const msg = this.ingest(sent, { bumpUnread: false })
     if (msg) this.emit('event', { type: 'message', message: this.publicMsg(msg) })
     this.emit('event', { type: 'chats' })
