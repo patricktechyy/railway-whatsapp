@@ -298,6 +298,7 @@ async function route(req, res) {
       mime,
       name: url.searchParams.get('name') || 'file',
       caption: (url.searchParams.get('caption') || '').slice(0, 4000),
+      replyTo: url.searchParams.get('replyTo') || undefined,
       thumb: thumb?.length && thumb.length < 20000 ? thumb : undefined,
     })
     return json(res, msg)
@@ -309,7 +310,7 @@ async function route(req, res) {
     const text = String(body.text || '').trim()
     if (!body.jid || !text) throw new HttpError(400, 'jid and text required')
     if (text.length > 65000) throw new HttpError(400, 'Message too long')
-    return json(res, await s.send(body.jid, text))
+    return json(res, await s.send(body.jid, text, body.replyTo))
   }
   if (api === '/resolve') return json(res, await s.resolveNumber(body.phone))
   if (api === '/pair') return json(res, await s.pairingCode(body.phone))

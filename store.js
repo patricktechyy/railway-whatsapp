@@ -4,6 +4,9 @@ import path from 'node:path'
 const MAX_CHATS = Number(process.env.MAX_CHATS || 800)
 const MAX_MSGS = Number(process.env.MAX_MSGS_PER_CHAT || 150)
 const HARD_MSG_CAP = 1000
+// Keep only this many days of messages (HISTORY_DAYS, default 12).
+const HISTORY_DAYS = Math.max(1, Number(process.env.HISTORY_DAYS) || 12)
+export const historyCutoff = () => Math.floor(Date.now() / 1000) - HISTORY_DAYS * 86400
 
 export const isLid = (j) => typeof j === 'string' && j.endsWith('@lid')
 export const isPn = (j) => typeof j === 'string' && j.endsWith('@s.whatsapp.net')
@@ -66,8 +69,12 @@ export class Store {
         .slice(0, MAX_CHATS)
       const keep = new Set(chats.map((c) => c.jid))
       const messages = {}
+      const cutoff = historyCutoff()
       for (const [jid, list] of this.messages) {
-        if (keep.has(jid)) messages[jid] = list.slice(-(this.chats.get(jid)?.cap || MAX_MSGS))
+        // drop anything past the history window, in memory and on disk
+        const fresh = list.filter((m) => m.ts >= cutoff)
+        if (fresh.length !== list.length) this.messages.set(jid, fresh)
+        if (keep.has(jid) && fresh.length) messages[jid] = fresh.slice(-(this.chats.get(jid)?.cap || MAX_MSGS))
       }
       fs.mkdirSync(path.dirname(this.file), { recursive: true })
       const tmp = this.file + '.tmp'
@@ -216,6 +223,11 @@ export class Store {
     return msg
   }
 
+  quoteView(q) {
+    if (!q) return undefined
+    return { id: q.id, text: q.text, name: q.fromMe ? 'You' : q.sender ? this.displayName(q.sender) : '' }
+  }
+
   findMessage(jid, id) {
     return (this.messages.get(this.canon(jid)) || []).find((m) => m.id === id) || null
   }
@@ -267,6 +279,7 @@ export class Store {
       text: m.text,
       media: !!m.rm,
       fileName: m.fileName,
+      quote: this.quoteView(m.quote),
       senderName: group && !m.fromMe && m.sender ? this.displayName(m.sender) : '',
     }))
   }
