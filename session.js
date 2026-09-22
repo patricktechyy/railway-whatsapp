@@ -447,6 +447,7 @@ export class Session extends EventEmitter {
           // decrypted yet. Ask the phone to resend it instead of silently
           // dropping it from our local message list.
           if (!m?.message && !m?.messageStubType && m?.key?.id && typeof sock.requestPlaceholderResend === 'function') {
+            this.rememberName(m)
             placeholders++
             Promise.resolve(sock.requestPlaceholderResend(m.key)).catch((e) => {
               if (live()) this.log('placeholder resend failed:', m.key.id, e?.message || e)
@@ -613,6 +614,10 @@ export class Session extends EventEmitter {
     this.linkAndNotify(rj, k.remoteJidAlt || k.senderPn || k.senderLid)
     if (k.participant) this.linkAndNotify(k.participant, k.participantAlt || k.participantPn || k.participantLid)
 
+    // Grab the sender's WhatsApp name before anything below can skip this
+    // message (reactions, unsupported types, old history all carry it too).
+    this.rememberName(m)
+
     const c = inner(m.message)
     if (!c) return null
     if (num(m.messageTimestamp) && num(m.messageTimestamp) < historyCutoff()) return null // outside the history window
@@ -648,7 +653,6 @@ export class Session extends EventEmitter {
     const jid = this.store.canon(rj)
     const group = isGroup(jid)
     const sender = k.participant ? this.store.canon(k.participant) : undefined
-    if (m.pushName && !k.fromMe) this.store.setContact(group ? sender : jid, { notify: m.pushName })
 
     let rm
     if (mediaKey) {
@@ -694,6 +698,19 @@ export class Session extends EventEmitter {
       rm,
     }
     return this.store.addMessage(msg, opts)
+  }
+
+  /** Save the sender's WhatsApp profile name (and business name) if present. */
+  rememberName(m) {
+    const k = m?.key
+    if (!k?.remoteJid || k.fromMe) return
+    const who = isGroup(this.store.canon(k.remoteJid)) ? k.participant : k.remoteJid
+    if (!who) return
+    const info = {}
+    if (m.pushName && m.pushName.trim()) info.notify = m.pushName.trim()
+    if (m.verifiedBizName) info.verified = m.verifiedBizName
+    if (!info.notify && !info.verified) return
+    this.store.setContact(who, info)
   }
 
   publicMsg(m) {
