@@ -291,7 +291,7 @@ function row(c, extra = '') {
   return `<div class="row ${c.jid === current ? 'sel' : ''}" data-jid="${esc(c.jid)}" data-name="${esc(c.name)}">
     <div class="av ${c.group ? 'g' : ''}">${esc(c.group ? '👥' : initials(c.name))}</div>
     <div class="ct">
-      <div class="top"><span class="nm">${esc(c.name)}</span><span class="tm">${c.t ? fmtWhen(c.t) : ''}</span></div>
+      <div class="top"><span class="nm">${esc(c.profile && c.name === c.profile ? '~' + c.name : c.name)}</span><span class="tm">${c.t ? fmtWhen(c.t) : ''}</span></div>
       <div class="pv">${extra || esc(c.preview || c.phone || '')}${c.unread ? `<span class="badge">${c.unread}</span>` : ''}</div>
     </div></div>`;
 }
@@ -309,7 +309,11 @@ function updateTitle() {
   if (!current) return;
   const c = chats.find(x => x.jid === current);
   const name = c?.name || currentName || current.split('@')[0];
-  $('#title').innerHTML = `<b>${esc(name)}</b><small>${esc(c?.group ? 'Group' : (c?.phone && c.phone !== name ? c.phone : ''))}</small>`;
+  const sub = c?.group ? ['Group'] : [
+    c?.profile && c.profile !== name ? '~' + c.profile : '',
+    c?.phone && c.phone !== name ? c.phone : '',
+  ].filter(Boolean);
+  $('#title').innerHTML = `<b>${esc(name)}</b><small>${esc(sub.join(' · '))}</small>`;
   $('#nickBtn').hidden = false;
 }
 async function setNickname() {
