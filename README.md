@@ -185,3 +185,11 @@ what's happening:
 | "This account has no password yet" | Ask the admin for a setup link. |
 | Everyone logged out after a deploy | The `/data` volume isn't mounted. |
 | Build fails fetching libsignal | Keep `git` in the Dockerfile's `apk add` line. |
+
+## Versioning
+
+`MAJOR.MINOR.PATCH`, set in `package.json` and shown in ⋮ → About (with the deployed commit added automatically).
+
+- **PATCH** (2.9.**1**): fixes only.
+- **MINOR** (2.**9**.0): an update that adds features. Reset PATCH to 0.
+- **MAJOR** (**2**.0.0): a rebuild that changes how the app works or is set up. 1.x was the browser/VNC version; 2.x is the lightweight rewrite.
