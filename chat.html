@@ -32,7 +32,9 @@ button{font:inherit;color:inherit;cursor:pointer}
 .list{flex:1;overflow-y:auto}
 .row{display:flex;gap:12px;padding:10px 14px;cursor:pointer;align-items:center}
 .row:hover,.row.sel{background:var(--hover)}
-.av{flex:0 0 44px;height:44px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:15px}
+.av{flex:0 0 44px;height:44px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:15px;position:relative;overflow:hidden}
+.av img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.av.sm{flex-basis:38px;width:38px;height:38px;font-size:13px}
 .av.g{background:#6b7c85}
 .ct{flex:1;min-width:0;border-bottom:1px solid var(--line);padding-bottom:10px;margin-bottom:-10px}
 .ct .top{display:flex;justify-content:space-between;gap:8px}
@@ -145,10 +147,14 @@ button{font:inherit;color:inherit;cursor:pointer}
 }
 </style>
 
+<div id="adminbar" style="display:none;background:#8a6d00;color:#fff;font-size:13px;padding:6px 12px;text-align:center">
+  Admin view — you're using <b>__LABEL__</b>'s WhatsApp. <a href="/admin" style="color:#fff;text-decoration:underline">Back to admin</a>
+</div>
 <div id="app">
   <aside id="side">
     <div class="bar">
       <span class="dot" id="dot"></span>
+      <div class="av sm" id="meAv"></div>
       <div class="me"><b id="meName">__LABEL__</b><small id="mePhone">connecting…</small></div>
       <button class="ib" id="newBtn" title="New chat">✎</button>
       <button class="ib" id="menuBtn" title="Menu">⋮</button>
@@ -177,6 +183,7 @@ button{font:inherit;color:inherit;cursor:pointer}
   <main id="main">
     <div class="bar" style="background:var(--panel)">
       <button class="ib" id="back">←</button>
+      <div class="av sm" id="tav" hidden></div>
       <div id="title"><b>Select a chat</b><small></small></div>
       <button class="ib" id="nickBtn" title="Set a nickname" hidden>✎</button>
     </div>
@@ -282,6 +289,7 @@ function fmtDay(ts) {
   if (d.toDateString() === y.toDateString()) return 'Yesterday';
   return d.toLocaleDateString([], {weekday: 'short', day: 'numeric', month: 'long', year: d.getFullYear() === now.getFullYear() ? undefined : 'numeric'});
 }
+const avImg = (jid) => `<img src="${esc(api('/avatar?jid=' + encodeURIComponent(jid || '')))}" loading="lazy" alt="" onerror="this.remove()">`;
 const initials = (n) => (n || '?').replace(/[^\p{L}\p{N} ]/gu, '').trim().split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase() || '#';
 const fmtSize = (b) => b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB';
 const mediaUrl = (m) => api(`/media?jid=${encodeURIComponent(m.jid)}&id=${encodeURIComponent(m.id)}`);
@@ -289,7 +297,7 @@ const mediaUrl = (m) => api(`/media?jid=${encodeURIComponent(m.jid)}&id=${encode
 // ------------------------------------------------------------ chat list
 function row(c, extra = '') {
   return `<div class="row ${c.jid === current ? 'sel' : ''}" data-jid="${esc(c.jid)}" data-name="${esc(c.name)}">
-    <div class="av ${c.group ? 'g' : ''}">${esc(c.group ? '👥' : initials(c.name))}</div>
+    <div class="av ${c.group ? 'g' : ''}">${esc(c.group ? '👥' : initials(c.name))}${avImg(c.jid)}</div>
     <div class="ct">
       <div class="top"><span class="nm">${esc(c.profile && c.name === c.profile ? '~' + c.name : c.name)}</span><span class="tm">${c.t ? fmtWhen(c.t) : ''}</span></div>
       <div class="pv">${extra || esc(c.preview || c.phone || '')}${c.unread ? `<span class="badge">${c.unread}</span>` : ''}</div>
@@ -313,6 +321,9 @@ function updateTitle() {
     c?.profile && c.profile !== name ? '~' + c.profile : '',
     c?.phone && c.phone !== name ? c.phone : '',
   ].filter(Boolean);
+  $('#tav').hidden = false;
+  $('#tav').className = 'av sm' + (c?.group ? ' g' : '');
+  $('#tav').innerHTML = esc(c?.group ? '👥' : initials(name)) + avImg(current);
   $('#title').innerHTML = `<b>${esc(name)}</b><small>${esc(sub.join(' · '))}</small>`;
   $('#nickBtn').hidden = false;
 }
@@ -534,6 +545,10 @@ function setStatus(d) {
   if (d.me) me = d.me;
   $('#dot').className = 'dot' + (s === 'connected' ? ' ok' : s === 'logged-out' ? ' bad' : '');
   if (me?.name) $('#meName').textContent = me.name;
+  if (s === 'connected' && !$('#meAv').dataset.done) {
+    $('#meAv').dataset.done = '1';
+    $('#meAv').innerHTML = esc(initials(me?.name || '__LABEL__')) + avImg('');
+  }
   $('#mePhone').textContent = s === 'connected' ? (me?.phone || 'connected')
     : s === 'qr' || s === 'logged-out' ? 'not linked' : s === 'reconnecting' ? 'reconnecting…' : 'starting…';
 
@@ -709,6 +724,11 @@ $('#pwf').addEventListener('submit', async e => {
   } catch (x) { $('#pwerr').textContent = x.message; }
 });
 
+const ADMIN_VIEW = '__ADMIN_VIEW__' === '1';
+if (ADMIN_VIEW) {
+  $('#adminbar').style.display = 'block';
+  document.querySelectorAll('#menu [data-m="pw"], #menu [data-m="out"]').forEach(el => el.remove());
+}
 call('GET', '/state').then(setStatus).catch(() => {});
 stream();
 </script>

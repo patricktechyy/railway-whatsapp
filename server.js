@@ -39,7 +39,7 @@ const esc = (s) =>
 const templates = {}
 const tpl = (f) => (templates[f] ??= fs.readFileSync(path.join(PUBLIC, f), 'utf8'))
 const render = (f, vars) =>
-  Object.entries({ BRAND, ...vars }).reduce((s, [k, v]) => s.replaceAll(`__${k}__`, esc(v)), tpl(f))
+  Object.entries({ BRAND, ADMIN_VIEW: '', ...vars }).reduce((s, [k, v]) => s.replaceAll(`__${k}__`, esc(v)), tpl(f))
 
 function send(res, code, body, headers = {}) {
   res.writeHead(code, {
@@ -239,6 +239,12 @@ async function route(req, res) {
         await sessions.get(username)?.relink()
         return json(res, { ok: true })
       }
+      if (action === 'open' && M === 'POST') {
+        // hand back a scoped cookie that opens just this user's chats
+        setCookie(req, res, auth.signImpersonation(username), 2 * 3600)
+        console.log(`[admin] opened ${username}'s WhatsApp`)
+        return json(res, { redirect: `/u/${username}/` })
+      }
     }
     throw new HttpError(404, 'Not found')
   }
@@ -249,14 +255,15 @@ async function route(req, res) {
   const username = m[1]
   const rest = m[2] || ''
   const c = whoami(req)
-  const allowed = c?.k === 'user' && c.u === username
+  const asAdmin = c?.k === 'admin-as' && c.u === username
+  const allowed = (c?.k === 'user' && c.u === username) || asAdmin
 
   if (rest === '' || rest === '/') {
     if (!allowed) return redirect(res, '/')
     if (rest === '') return redirect(res, `/u/${username}/`)
     const u = auth.get(username)
     sessions.get(username)?.wake()
-    return page(res, render('chat.html', { USER: username, LABEL: u.name }))
+    return page(res, render('chat.html', { USER: username, LABEL: u.name, ADMIN_VIEW: asAdmin ? '1' : '' }))
   }
   if (!allowed) throw new HttpError(401, 'Please sign in again')
   const s = sessions.get(username)
@@ -282,6 +289,12 @@ async function route(req, res) {
     const headers = { 'content-type': out.mime, 'cache-control': 'private, max-age=86400' }
     if (out.fileName) headers['content-disposition'] = `inline; filename*=UTF-8''${encodeURIComponent(out.fileName)}`
     return send(res, 200, out.buffer, headers)
+  }
+
+  if (api === '/avatar') {
+    const buf = await s.avatar(jid) // no jid = your own picture
+    if (!buf) return send(res, 404, '', { 'cache-control': 'private, max-age=3600' })
+    return send(res, 200, buf, { 'content-type': 'image/jpeg', 'cache-control': 'private, max-age=21600' })
   }
 
   if (M !== 'POST') throw new HttpError(405, 'Method not allowed')
@@ -329,6 +342,7 @@ async function route(req, res) {
     return json(res, { ok: true })
   }
   if (api === '/password') {
+    if (asAdmin) throw new HttpError(403, 'Open as the user is view-only for account settings')
     const u = await auth.changePassword(username, body.current, body.next)
     setCookie(req, res, auth.sign({ k: 'user', u: u.username, pv: u.pv }), 30 * 24 * 3600)
     return json(res, { ok: true })
