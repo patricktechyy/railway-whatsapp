@@ -93,6 +93,13 @@ html[data-panic] #app,html[data-panic] .overlay,html[data-panic] #toast,html[dat
 #panic li{margin:0 0 2px}
 #panic .code{margin-top:16px;font-size:.86em;text-transform:uppercase;color:#5f6368}
 @media (prefers-color-scheme:dark){#panic{background:#202124;color:#9aa0a6}#panic h1{color:#e8eaed}#panic .code{color:#9aa0a6}#panic svg{filter:invert(.72)}}
+#news{background:rgba(0,0,0,.45)}
+#news .dlg{max-width:400px;max-height:85vh;overflow-y:auto}
+#news .ver{color:var(--muted);font-size:12px;margin:-6px 0 10px}
+#news ul{margin:0 0 6px;padding-left:20px}
+#news li{margin:5px 0;line-height:1.45}
+#news .older{margin-top:14px;padding-top:10px;border-top:1px solid var(--line)}
+#news .older b{font-size:13px}
 #tour{position:fixed;inset:0;z-index:50;display:flex;align-items:flex-end;justify-content:center;padding:20px;background:rgba(0,0,0,.35);pointer-events:none}
 #tour .card{pointer-events:auto;background:var(--panel);color:var(--fg);border-radius:16px;width:100%;max-width:420px;padding:22px 22px 16px;
   box-shadow:0 18px 50px rgba(0,0,0,.35);animation:tourIn .25s ease-out;margin-bottom:max(12px,env(safe-area-inset-bottom))}
@@ -131,6 +138,7 @@ html[data-panic] #app,html[data-panic] .overlay,html[data-panic] #toast,html[dat
 #prefs{background:rgba(0,0,0,.45)}
 #prefs .dlg{max-height:90vh;overflow-y:auto}
 .pv .draft{color:var(--danger)}
+.pin{font-size:11px;margin-left:4px;opacity:.75}
 #back{display:none}
 #title{flex:1;min-width:0;line-height:1.25}
 #title b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -250,6 +258,7 @@ html[data-panic] #app,html[data-panic] .overlay,html[data-panic] #toast,html[dat
       <button data-m="name">Change display name</button>
       <button data-m="pw">Change password</button>
       <button data-m="relink">Re-link WhatsApp</button>
+      <button data-m="news">What's new</button>
       <button data-m="tour">Tutorial</button>
       <button data-m="about">About</button>
       <button data-m="out" class="danger">Sign out</button>
@@ -276,6 +285,7 @@ html[data-panic] #app,html[data-panic] .overlay,html[data-panic] #toast,html[dat
       <div class="av sm" id="tav" hidden></div>
       <div id="title"><b>Select a chat</b><small></small></div>
       <button class="pill" id="nickBtn" title="Give this chat a nickname that only you see on this site" hidden>✏️ Nickname</button>
+      <button class="pill" id="pinBtn" title="Pin this chat to the top on this site (your phone isn't affected)" hidden>📌 Pin</button>
       <button class="pill" id="archBtn" title="Archive or unarchive this chat on this site (your phone isn't affected)" hidden>📦 Archive</button>
     </div>
     <div id="msgs"><div class="empty">Pick a conversation, or start a new one with ✎.</div></div>
@@ -339,6 +349,14 @@ html[data-panic] #app,html[data-panic] .overlay,html[data-panic] #toast,html[dat
     <p>Solusi buat anak IPLU</p>
     <p style="margin:-10px 0 18px;font-size:12px;opacity:.75">Versi __VERSION__</p>
     <button type="button" class="btn" id="aboutX">Tutup</button>
+  </div>
+</div>
+<div class="overlay" id="news">
+  <div class="dlg">
+    <h3>✨ What's new</h3>
+    <div class="ver" id="newsVer"></div>
+    <div id="newsBody"></div>
+    <div class="acts"><button type="button" class="btn" id="newsX">Got it</button></div>
   </div>
 </div>
 <div class="overlay" id="prefs">
@@ -450,7 +468,7 @@ function row(c, extra = '') {
   return `<div class="row ${c.jid === current ? 'sel' : ''}" data-jid="${esc(c.jid)}" data-name="${esc(c.name)}">
     <div class="av ${c.group ? 'g' : ''}">${esc(c.group ? '👥' : initials(c.name))}${avImg(c.jid)}</div>
     <div class="ct">
-      <div class="top"><span class="nm">${esc(c.profile && c.name === c.profile ? '~' + c.name : c.name)}</span><span class="tm">${c.t ? fmtWhen(c.t) : ''}</span></div>
+      <div class="top"><span class="nm">${esc(c.profile && c.name === c.profile ? '~' + c.name : c.name)}</span><span class="tm">${c.t ? fmtWhen(c.t) : ''}${c.pinned ? '<span class="pin" title="Pinned">📌</span>' : ''}</span></div>
       <div class="pv">${extra || esc(c.preview || c.phone || '')}${c.unread ? `<span class="badge">${c.unread}</span>` : ''}</div>
     </div></div>`;
 }
@@ -458,7 +476,8 @@ function renderChats() {
   const q = $('#search').value.trim().toLowerCase();
   const list = chats
     .filter(c => filter === 'archived' ? c.archived : !c.archived && (filter === 'all' || (filter === 'unread' ? c.unread > 0 : c.group)))
-    .filter(c => !q || c.name.toLowerCase().includes(q) || (c.phone || '').includes(q.replace(/\D/g, '') || '§'));
+    .filter(c => !q || c.name.toLowerCase().includes(q) || (c.phone || '').includes(q.replace(/\D/g, '') || '§'))
+    .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
   $('#chats').innerHTML = list.map(c => {
     const d = c.jid !== current && drafts.get(c.jid);
     return row(c, d ? `<span class="draft">Draft:</span> ${esc(d)}` : '');
@@ -487,6 +506,8 @@ function updateTitle() {
   $('#title').innerHTML = `<b>${esc(name)}</b><small>${esc(sub.join(' · '))}</small>`;
   $('#nickBtn').hidden = false;
   $('#archBtn').hidden = false;
+  $('#pinBtn').hidden = false;
+  $('#pinBtn').textContent = c?.pinned ? '📌 Unpin' : '📌 Pin';
   $('#archBtn').textContent = c?.archived ? '📤 Unarchive' : '📦 Archive';
 }
 async function setNickname() {
@@ -834,7 +855,8 @@ document.addEventListener('keydown', e => {
   } else if (e.key === 'Escape' && !$('#emojiPanel').hidden) {
     closeEmoji();
   } else if (e.key === 'Escape') {
-    if ($('#about').classList.contains('on')) $('#about').classList.remove('on');
+    if ($('#news').classList.contains('on')) closeNews();
+    else if ($('#about').classList.contains('on')) $('#about').classList.remove('on');
     else if ($('#prefs').classList.contains('on')) $('#prefs').classList.remove('on');
     else if ($('#newchat').classList.contains('on')) closeNew();
     else if (!replyTo && document.body.classList.contains('open') && innerWidth <= 760) document.body.classList.remove('open');
@@ -987,9 +1009,10 @@ const TOUR = [
    body: `Open a chat and press <b>✏️ Nickname</b> to name it however you like.
      <ul><li>Only <b>you</b> see it, only on this site. It's never sent to WhatsApp.</li>
      <li>A name shown as <b>~Budi</b> is the name that person set on their own WhatsApp.</li></ul>`},
-  {ico: '📦', title: 'Archive (this site only)', target: '#archBtn',
-   body: `<b>📦 Archive</b> tucks a chat into the <b>Archived</b> filter.
-     <ul><li>It's <b>local to this site</b>. Your phone isn't affected, and archiving on your phone doesn't archive here.</li>
+  {ico: '📌', title: 'Pin & archive (this site only)', target: '#pinBtn',
+   body: `<b>📌 Pin</b> keeps a chat at the top of your list. <b>📦 Archive</b> tucks it into the <b>Archived</b> filter.
+     <ul><li>Both are <b>local to this site</b>. Your phone isn't affected, and pins or archives on your phone don't carry over.</li>
+     <li>Archiving a chat unpins it, and pinning an archived chat brings it back.</li>
      <li>Archived chats don't count towards the unread number.</li></ul>`},
   {ico: '🎨', title: 'Make it yours', target: '#menuBtn',
    body: `<b>⋮ → Appearance &amp; settings</b>: light or dark theme, accent colour, chat background, text size, and what <kbd>Enter</kbd> does.
@@ -1013,6 +1036,7 @@ function endTour() {
   tourHl?.classList.remove('tour-hl'); tourHl = null;
   document.getElementById('tour')?.remove();
   tourStep = -1;
+  if (pendingNews) { const d = pendingNews; pendingNews = null; setTimeout(() => showNews(d), 300); }
 }
 function showTourStep(i) {
   tourStep = Math.max(0, Math.min(TOUR.length - 1, i));
@@ -1054,8 +1078,42 @@ document.addEventListener('keydown', e => {
 function maybeStartTour() {
   let seen = false;
   try { seen = localStorage.getItem('wah-tour') === '1'; } catch {}
-  if (!seen && tourStep < 0) setTimeout(() => { if (status === 'connected' && tourStep < 0) startTour(); }, 900);
+  const tourComing = !seen && tourStep < 0;
+  if (tourComing) setTimeout(() => { if (status === 'connected' && tourStep < 0) startTour(); }, 900);
+  checkNews(tourComing);
 }
+
+// ------------------------------------------------------------- changelog
+let pendingNews = null, newsChecked = false;
+const fmtNote = (t) => esc(t).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\*(.+?)\*/g, '<i>$1</i>');
+const noteList = (notes) => '<ul>' + String(notes).split('\n').map(l => l.replace(/^\s*[-•*]\s+/, '').trim())
+  .filter(Boolean).map(l => `<li>${fmtNote(l)}</li>`).join('') + '</ul>';
+async function checkNews(tourComing) {
+  if (newsChecked) return; newsChecked = true;
+  try {
+    const d = await call('GET', '/changelog');
+    if (!d.notes || d.seen) return;
+    if (tourComing || tourStep >= 0) pendingNews = d;   // after the tutorial
+    else showNews(d);
+  } catch {}
+}
+function showNews(d, withHistory = false) {
+  const cur = d.notes || '';
+  const older = withHistory ? (d.history || []).filter(h => h.version !== d.version) : [];
+  if (!cur && !older.length) { toast('No changelog yet'); return; }
+  $('#newsVer').textContent = cur ? `Version ${d.version}` : `Current version ${d.version}`;
+  $('#newsBody').innerHTML = (cur ? noteList(cur) : '') +
+    older.map(h => `<div class="older"><b>${esc(h.version)}</b>${noteList(h.notes)}</div>`).join('');
+  $('#news').dataset.version = d.version;
+  $('#news').classList.add('on');
+}
+function closeNews() {
+  if (!$('#news').classList.contains('on')) return;
+  $('#news').classList.remove('on');
+  call('POST', '/changelog/seen', {}).catch(() => {});
+}
+$('#newsX').addEventListener('click', closeNews);
+$('#news').addEventListener('click', e => { if (e.target.id === 'news') closeNews(); });
 
 
 // ------------------------------------------------------------- panic mode
@@ -1137,9 +1195,20 @@ $('#archBtn').addEventListener('click', async () => {
   const want = !c?.archived;
   try {
     const r = await call('POST', '/archive', {jid: current, archived: want});
-    if (c) c.archived = r.archived;
+    if (c) { c.archived = r.archived; if (r.archived) c.pinned = false; }
     renderChats(); updateTitle();
     toast(want ? 'Chat archived (on this site only)' : 'Chat unarchived');
+  } catch (x) { toast(x.message); }
+});
+$('#pinBtn').addEventListener('click', async () => {
+  if (!current) return;
+  const c = chats.find(x => x.jid === current);
+  const want = !c?.pinned;
+  try {
+    const r = await call('POST', '/pin', {jid: current, pinned: want});
+    if (c) { c.pinned = r.pinned; if (r.pinned) c.archived = false; }
+    renderChats(); updateTitle();
+    toast(want ? 'Chat pinned (on this site only)' : 'Chat unpinned');
   } catch (x) { toast(x.message); }
 });
 $('#aboutX').addEventListener('click', () => $('#about').classList.remove('on'));
@@ -1187,6 +1256,7 @@ $('#menu').addEventListener('click', async e => {
   if (m === 'prefs') { applyPrefs(); $('#prefs').classList.add('on'); }
   if (m === 'about') $('#about').classList.add('on');
   if (m === 'tour') startTour();
+  if (m === 'news') { try { showNews(await call('GET', '/changelog'), true); } catch (x) { toast(x.message); } }
   if (m === 'name') {
     const cur = $('#meName').textContent;
     const name = prompt('Your display name on this site (your username stays the same):', cur);

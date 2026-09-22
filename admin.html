@@ -82,6 +82,18 @@ button{font:inherit;cursor:pointer}
   </div>
 
   <div class="card">
+    <h2>Changelog <span class="hint" id="clver" style="font-weight:400"></span></h2>
+    <div class="hint">What's new in this version. Everyone sees it once, the first time they open the site after this
+    version is deployed. One change per line; **bold** and *italic* work. Leave it empty for no popup.</div>
+    <textarea id="cltxt" rows="6" spellcheck="true" placeholder="Pin chats to the top with 📌&#10;Fixed Enter not sending" style="width:100%;margin-top:10px;padding:10px 12px;border-radius:8px;border:1px solid var(--line);background:var(--field);color:inherit;font:14px/1.5 system-ui,sans-serif;resize:vertical"></textarea>
+    <div style="display:flex;gap:8px;margin-top:10px;align-items:center;flex-wrap:wrap">
+      <button class="btn" id="clsave">Save changelog</button>
+      <span class="hint" id="clstate" style="margin:0"></span>
+    </div>
+    <details id="clold" style="margin-top:12px" hidden><summary class="hint" style="cursor:pointer">Earlier versions</summary><div id="clhist"></div></details>
+  </div>
+
+  <div class="card">
     <h2>Easter egg messages</h2>
     <div class="hint">One message per line. A random one shows each time someone finds the secret.
     Use **double stars** for bold and *single stars* for italic.</div>
@@ -229,6 +241,25 @@ $('#eggreset').addEventListener('click', async () => {
   try { await loadEgg(await call('POST', '/admin/api/easter-egg', {reset: true})); toast('Back to the defaults'); }
   catch (x) { toast(x.message); }
 });
+let clVersion = '';
+async function loadChangelog(d) {
+  try {
+    d = d || await call('GET', '/admin/api/changelog');
+    clVersion = d.version;
+    const cur = d.history.find(h => h.version === d.version);
+    $('#clver').textContent = `· version ${d.version}`;
+    $('#cltxt').value = cur ? cur.notes : '';
+    $('#clstate').textContent = cur ? 'Saved. People who haven\'t seen it yet will get the popup.' : 'No notes for this version yet, so no popup.';
+    const old = d.history.filter(h => h.version !== d.version);
+    $('#clold').hidden = !old.length;
+    $('#clhist').innerHTML = old.map(h => `<div style="margin-top:10px"><b>${esc(h.version)}</b><div class="hint" style="white-space:pre-wrap;margin:2px 0 0">${esc(h.notes)}</div></div>`).join('');
+  } catch {}
+}
+$('#clsave').addEventListener('click', async () => {
+  try { await loadChangelog(await call('POST', '/admin/api/changelog', {version: clVersion, notes: $('#cltxt').value})); toast('Changelog saved'); }
+  catch (x) { toast(x.message); }
+});
+loadChangelog();
 loadEgg();
 load(); setInterval(load, 5000);
 </script>
