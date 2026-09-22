@@ -1,6 +1,7 @@
 import { EventEmitter } from 'node:events'
 import fs from 'node:fs'
 import path from 'node:path'
+import crypto from 'node:crypto'
 import QRCode from 'qrcode'
 import { Store, historyCutoff, bare, isGroup, isLid, isPn, phoneOf, toPn } from './store.js'
 
@@ -910,6 +911,75 @@ export class Session extends EventEmitter {
       oldest.ts
     )
     return { requested: true }
+  }
+
+  // ------------------------------------------------------ profile pictures
+  // Fetched only when a picture is actually shown, cached on the volume for a
+  // day, and at most two lookups at a time so long chat lists don't trip
+  // WhatsApp's rate limits.
+  async avatar(jid) {
+    jid = this.store.canon(jid || this.me?.jid || '')
+    if (!jid) return null
+    const dir = path.join(this.dir, 'avatars')
+    const key = crypto.createHash('sha1').update(jid).digest('hex').slice(0, 16)
+    const file = path.join(dir, key + '.jpg')
+    const none = path.join(dir, key + '.none')
+    const age = (f) => { try { return Date.now() - fs.statSync(f).mtimeMs } catch { return Infinity } }
+    const read = () => { try { return fs.readFileSync(file) } catch { return null } }
+    if (age(file) < 24 * 3600e3) return read()
+    if (age(none) < 6 * 3600e3) return null
+    if (!this.sock || this.status !== 'connected') return read() // offline: serve a stale copy if we have one
+
+    this.avatarInflight ??= new Map()
+    if (this.avatarInflight.has(jid)) return this.avatarInflight.get(jid)
+    const job = this.avatarQueue(async () => {
+      // try the phone address first, then any LID we know for it
+      const tries = [jid, ...[...this.store.alias].filter(([, pn]) => pn === jid).map(([lid]) => lid)]
+      let url = null
+      let hidden = false
+      for (const j of tries) {
+        try {
+          url = await this.sock.profilePictureUrl(j, 'preview')
+          if (url) break
+        } catch (e) {
+          const code = e?.output?.statusCode ?? e?.data?.code
+          if ([401, 403, 404].includes(Number(code))) hidden = true // no picture, or privacy
+          else throw e // rate limit / network: don't cache, try again later
+        }
+      }
+      fs.mkdirSync(dir, { recursive: true })
+      if (!url) {
+        if (hidden || tries.length) fs.writeFileSync(none, '')
+        fs.rmSync(file, { force: true })
+        return null
+      }
+      const r = await fetch(url)
+      if (!r.ok) throw new Error(`picture download failed (${r.status})`)
+      const buf = Buffer.from(await r.arrayBuffer())
+      fs.writeFileSync(file, buf)
+      fs.rmSync(none, { force: true })
+      return buf
+    })
+    this.avatarInflight.set(jid, job)
+    try {
+      return await job
+    } catch (e) {
+      return read()
+    } finally {
+      this.avatarInflight.delete(jid)
+    }
+  }
+
+  avatarQueue(fn) {
+    const q = (this.aq ??= { active: 0, waiting: [] })
+    return new Promise((resolve, reject) => {
+      const run = async () => {
+        q.active++
+        try { resolve(await fn()) } catch (e) { reject(e) } finally { q.active--; q.waiting.shift()?.() }
+      }
+      if (q.active < 2) run()
+      else q.waiting.push(run)
+    })
   }
 
   async markRead(jid) {
