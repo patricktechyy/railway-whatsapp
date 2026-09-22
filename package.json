@@ -1,6 +1,6 @@
 {
   "name": "wa-lite",
-  "version": "2.13.4",
+  "version": "2.13.5",
   "private": true,
   "type": "module",
   "description": "Several independent WhatsApp accounts, one per person, each with their own login. No browser, no VNC.",
