@@ -594,8 +594,6 @@ export class Session extends EventEmitter {
     const t = num(c.conversationTimestamp || c.lastMessageRecvTimestamp)
     if (t) patch.t = t
     if (c.unreadCount != null) patch.unread = Math.max(0, c.unreadCount)
-    const arch = c.archived ?? c.archive
-    if (arch != null) patch.archived = !!arch // archived on the phone -> archived here
     if (!isUpdate || Object.keys(patch).length) this.store.touchChat(jid, patch)
   }
 
@@ -984,25 +982,12 @@ export class Session extends EventEmitter {
     })
   }
 
-  /** Archive / unarchive. Saved here, and mirrored to WhatsApp when possible. */
+  /** Archive / unarchive on this site only. WhatsApp is never told. */
   async setArchived(jid, archived) {
     jid = this.store.canon(jid)
-    this.store.touchChat(jid, { archived })
+    this.store.touchChat(jid, { localArchived: !!archived })
     this.emit('event', { type: 'chats' })
-    let synced = false
-    try {
-      if (this.sock?.chatModify && this.status === 'connected') {
-        const last = (this.store.messages.get(jid) || []).at(-1)
-        const lastMessages = last
-          ? [{ key: { remoteJid: last.rj || jid, id: last.id, fromMe: last.fromMe, participant: last.rp }, messageTimestamp: last.ts }]
-          : []
-        await this.sock.chatModify({ archive: !!archived, lastMessages }, last?.rj || jid)
-        synced = true
-      }
-    } catch (e) {
-      this.log('archive sync to WhatsApp failed (kept on this site only):', e?.message || e)
-    }
-    return { archived: !!archived, synced }
+    return { archived: !!archived }
   }
 
   async markRead(jid) {

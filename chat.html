@@ -241,7 +241,7 @@ button{font:inherit;color:inherit;cursor:pointer}
       <div class="av sm" id="tav" hidden></div>
       <div id="title"><b>Select a chat</b><small></small></div>
       <button class="pill" id="nickBtn" title="Give this chat a nickname that only you see on this site" hidden>✏️ Nickname</button>
-      <button class="pill" id="archBtn" title="Archive or unarchive this chat" hidden>📦 Archive</button>
+      <button class="pill" id="archBtn" title="Archive or unarchive this chat on this site (your phone isn't affected)" hidden>📦 Archive</button>
     </div>
     <div id="msgs"><div class="empty">Pick a conversation, or start a new one with ✎.</div></div>
     <button id="jump" title="Jump to latest" hidden>↓<span></span></button>
@@ -358,135 +358,7 @@ function applyPrefs() {
 function setPref(k, v) {
   prefs[k] = v;
   try { localStorage.setItem('wah-prefs', JSON.stringify(prefs)); } catch {}
-  
-// ---------------------------------------------------------------- emoji
-const EMOJI_RAW = `#Smileys|😀\n😀 grinning smile happy\n😃 smiley happy\n😄 smile happy joy\n😁 grin beaming\n😆 laughing lol haha\n😅 sweat_smile nervous\n🤣 rofl rolling\n😂 joy lmao tears laugh\n🙂 slight_smile\n🙃 upside_down\n😉 wink\n😊 blush shy\n😇 innocent angel halo\n🥰 smiling_hearts love adore\n😍 heart_eyes love crush\n🤩 star_struck wow\n😘 kiss blow_kiss\n😗 kissing\n😋 yum delicious\n😛 tongue\n😜 wink_tongue crazy\n🤪 zany goofy\n😝 squint_tongue\n🤑 money_mouth rich\n🤗 hug hugging\n🤭 hand_over_mouth oops giggle\n🤫 shush quiet secret\n🤔 thinking hmm think\n🤐 zipper_mouth\n🤨 raised_eyebrow sus suspicious\n😐 neutral meh\n😑 expressionless\n😶 no_mouth speechless\n😏 smirk\n😒 unamused\n🙄 eye_roll rolling_eyes\n😬 grimace awkward\n😮‍💨 exhale sigh\n🤥 lying pinocchio\n😌 relieved\n😔 pensive\n😪 sleepy\n🤤 drool\n😴 sleeping zzz\n😷 mask sick\n🤒 thermometer ill\n🤕 head_bandage hurt\n🤢 nauseated gross\n🤮 vomit puke\n🥵 hot sweating\n🥶 cold freezing\n🥴 woozy dizzy drunk\n😵 dizzy_face\n🤯 mind_blown exploding_head\n🤠 cowboy yeehaw\n🥳 party partying celebrate\n😎 cool sunglasses\n🤓 nerd geek\n🧐 monocle\n😕 confused\n😟 worried\n🙁 slight_frown\n😮 open_mouth surprised\n😯 hushed\n😲 astonished shocked\n😳 flushed embarrassed\n🥺 pleading puppy_eyes please\n🥹 holding_tears touched\n😦 frowning\n😧 anguished\n😨 fearful scared\n😰 anxious sweat\n😥 sad_relieved\n😢 cry sad tear\n😭 sob crying\n😱 scream horror\n😖 confounded\n😣 persevere\n😞 disappointed\n😓 downcast_sweat\n😩 weary\n😫 tired\n🥱 yawn bored\n😤 triumph huff\n😡 rage pout angry\n😠 angry mad\n🤬 cursing swear\n😈 smiling_imp devil\n👿 imp\n💀 skull dead lmao\n☠️ skull_crossbones\n💩 poop poo\n🤡 clown\n👻 ghost boo\n👽 alien\n🤖 robot bot\n😺 smiley_cat\n😹 joy_cat\n😻 heart_eyes_cat\n🙈 see_no_evil monkey\n🙉 hear_no_evil\n🙊 speak_no_evil\n#Gestures|👍\n👍 thumbsup +1 like yes ok\n👎 thumbsdown -1 dislike no\n👌 ok_hand perfect\n🤌 pinched italian\n✌️ v peace victory\n🤞 crossed_fingers luck hope\n🤟 love_you_gesture\n🤘 metal rock\n🤙 call_me shaka\n👈 point_left\n👉 point_right\n👆 point_up\n👇 point_down\n☝️ index_up\n👋 wave hi hello bye\n🤚 raised_back_hand\n✋ raised_hand stop high_five\n🖐️ hand_splayed\n🖖 vulcan\n👏 clap applause bravo\n🙌 raised_hands hooray yay\n👐 open_hands\n🤲 palms_up\n🤝 handshake deal\n🙏 pray please thanks amen\n✍️ writing\n💪 muscle strong flex\n🫡 salute\n🫶 heart_hands\n👀 eyes look\n🧠 brain smart\n👶 baby\n🧑 person\n👨 man\n👩 woman\n🧓 older_person\n🤷 shrug idk\n🤦 facepalm\n🙋 raising_hand me\n🙇 bow sorry\n💁 tipping_hand\n🏃 run running\n💃 dancer dance\n🕺 man_dancing\n#Hearts|❤️\n❤️ heart love red_heart\n🧡 orange_heart\n💛 yellow_heart\n💚 green_heart\n💙 blue_heart\n💜 purple_heart\n🖤 black_heart\n🤍 white_heart\n🤎 brown_heart\n💔 broken_heart heartbreak\n❤️‍🔥 heart_on_fire\n💕 two_hearts\n💞 revolving_hearts\n💓 heartbeat\n💗 growing_heart\n💖 sparkling_heart\n💘 cupid\n💝 gift_heart\n💋 kiss_mark lips\n💯 100 hundred perfect\n💢 anger\n💥 boom collision\n💫 dizzy_star\n💦 sweat_drops\n💨 dash fast\n💬 speech chat bubble\n💭 thought\n💤 zzz_sleep\n#Nature|🐶\n🐶 dog puppy\n🐱 cat kitty\n🐭 mouse\n🐰 rabbit bunny\n🦊 fox\n🐻 bear\n🐼 panda\n🐨 koala\n🐯 tiger\n🦁 lion\n🐮 cow\n🐷 pig\n🐸 frog\n🐵 monkey_face\n🐔 chicken\n🐧 penguin\n🐦 bird\n🦆 duck\n🦉 owl\n🐴 horse\n🦄 unicorn\n🐝 bee\n🦋 butterfly\n🐌 snail\n🐢 turtle\n🐍 snake\n🐙 octopus\n🐬 dolphin\n🐳 whale\n🦈 shark\n🐊 crocodile\n🌸 cherry_blossom flower\n🌹 rose\n🌻 sunflower\n🌷 tulip\n🌱 seedling\n🌴 palm_tree\n🌵 cactus\n🍀 four_leaf_clover lucky\n🍁 maple_leaf\n🌈 rainbow\n☀️ sun sunny\n🌙 moon night\n⭐ star\n🌟 glowing_star\n✨ sparkles shiny\n⚡ zap lightning\n🔥 fire lit hot\n🌊 wave_water ocean\n❄️ snowflake\n☁️ cloud\n🌧️ rain\n⛈️ storm thunder\n#Food|🍕\n🍎 apple\n🍌 banana\n🍉 watermelon\n🍇 grapes\n🍓 strawberry\n🍑 peach\n🍍 pineapple\n🥭 mango\n🥥 coconut\n🥑 avocado\n🌶️ hot_pepper spicy\n🌽 corn\n🍞 bread\n🧀 cheese\n🍳 egg cooking\n🍔 burger hamburger\n🍟 fries\n🍕 pizza\n🌭 hotdog\n🌮 taco\n🍜 ramen noodles mie\n🍝 spaghetti\n🍣 sushi\n🍛 curry rice\n🍚 rice nasi\n🍗 chicken_leg ayam\n🍤 shrimp\n🍦 icecream\n🍩 donut\n🍪 cookie\n🎂 birthday_cake\n🍰 cake\n🍫 chocolate\n🍿 popcorn\n☕ coffee kopi\n🍵 tea teh\n🧋 boba bubble_tea\n🥤 soda drink\n🍺 beer\n🍻 cheers beers\n🥂 champagne toast\n#Activity|⚽\n⚽ soccer football bola\n🏀 basketball\n🏈 american_football\n⚾ baseball\n🎾 tennis\n🏐 volleyball\n🏸 badminton\n🏓 ping_pong\n🎱 8ball billiards\n🏆 trophy win\n🥇 first_place gold\n🥈 second_place\n🥉 third_place\n🏅 medal\n🎮 video_game gaming\n🎲 dice\n🎯 dart bullseye target\n🎨 art paint\n🎬 clapper film\n🎤 microphone sing\n🎧 headphones music\n🎵 musical_note\n🎸 guitar\n🎉 tada party celebrate\n🎊 confetti_ball\n🎁 gift present\n🎈 balloon\n🎂 cake_birthday\n#Objects|💡\n📱 phone mobile hp\n💻 laptop computer\n🖥️ desktop\n⌨️ keyboard\n📷 camera photo\n📸 camera_flash\n📺 tv\n⏰ alarm clock\n⌛ hourglass\n💡 bulb idea\n🔋 battery\n🔌 plug\n💰 moneybag money\n💵 dollar cash\n💳 credit_card\n📦 package box\n✉️ envelope mail\n📩 incoming_envelope\n📝 memo note\n📚 books study\n📖 book read\n✏️ pencil\n📌 pushpin pin\n📎 paperclip\n🔑 key\n🔒 lock\n🔓 unlock\n🔔 bell notification\n📣 megaphone announce\n🛒 cart shopping\n🚗 car\n🚕 taxi\n🏍️ motorcycle motor\n🚌 bus\n🚆 train\n✈️ airplane plane\n🚀 rocket launch\n🏠 house home rumah\n🏫 school sekolah\n🏢 office\n🕌 mosque masjid\n⛪ church\n🗓️ calendar\n⏳ hourglass_flowing\n#Symbols|✅\n✅ check done yes white_check_mark\n☑️ ballot_check\n✔️ heavy_check\n❌ x no wrong cross\n❎ cross_mark_button\n⭕ o circle\n❓ question\n❗ exclamation\n‼️ double_exclamation\n⁉️ interrobang\n⚠️ warning\n🚫 no_entry prohibited\n⛔ stop_sign\n🆗 ok_button\n🆕 new\n🆒 cool_button\n🆓 free\n🔝 top\n🔥 fire_symbol\n♻️ recycle\n➕ plus\n➖ minus\n✖️ multiply\n➗ divide\n🔴 red_circle\n🟢 green_circle\n🔵 blue_circle\n🟡 yellow_circle\n⚫ black_circle\n⚪ white_circle\n⬆️ up arrow_up\n⬇️ down arrow_down\n⬅️ left arrow_left\n➡️ right arrow_right\n🔄 repeat refresh\n▶️ play\n⏸️ pause\n🔊 loud sound\n🔇 mute\n🇮🇩 indonesia id flag_id\n🇸🇬 singapore flag_sg\n🇲🇾 malaysia flag_my\n🏳️‍🌈 rainbow_flag`;
-const EMOJI = [], EMOJI_CATS = [];
-for (const line of EMOJI_RAW.split('\n')) {
-  if (line.startsWith('#')) { const [name, icon] = line.slice(1).split('|'); EMOJI_CATS.push({name, icon, list: []}); continue; }
-  const [ch, ...words] = line.split(' ');
-  const e = {ch, name: words[0], words};
-  EMOJI.push(e); EMOJI_CATS.at(-1).list.push(e);
-}
-let recent = [];
-try { recent = JSON.parse(localStorage.getItem('wah-recent-emoji') || '[]'); } catch {}
-const byName = (n) => EMOJI.find(e => e.words.includes(n));
-function findEmoji(q, limit = 60) {
-  q = q.toLowerCase().replace(/^:|:$/g, '');
-  if (!q) return [];
-  const starts = [], has = [];
-  for (const e of EMOJI) {
-    if (e.words.some(w => w.startsWith(q))) starts.push(e);
-    else if (e.words.some(w => w.includes(q))) has.push(e);
-  }
-  const seen = new Set();
-  return [...starts, ...has].filter(e => !seen.has(e.ch) && seen.add(e.ch)).slice(0, limit);
-}
-function insertAtCaret(str, from, to) {
-  const t = $('#text');
-  const a = from ?? t.selectionStart, b = to ?? t.selectionEnd;
-  t.value = t.value.slice(0, a) + str + t.value.slice(b);
-  const pos = a + str.length;
-  t.setSelectionRange(pos, pos);
-  t.dispatchEvent(new Event('input'));   // resize, save draft
-  t.focus();
-}
-function useEmoji(ch) {
-  recent = [ch, ...recent.filter(x => x !== ch)].slice(0, 24);
-  try { localStorage.setItem('wah-recent-emoji', JSON.stringify(recent)); } catch {}
-}
-
-// picker
-let emojiTab = 0;
-function renderEmoji() {
-  const q = $('#emojiSearch').value.trim();
-  const tabs = [{name: 'Recent', icon: '🕘', list: recent.map(ch => EMOJI.find(e => e.ch === ch) || {ch, name: ''})}, ...EMOJI_CATS];
-  $('#emojiTabs').innerHTML = tabs.map((c, i) => `<button data-t="${i}" title="${c.name}" class="${!q && i === emojiTab ? 'on' : ''}">${c.icon}</button>`).join('');
-  const cell = (e) => `<button data-e="${e.ch}" title="${e.name ? ':' + e.name + ':' : ''}">${e.ch}</button>`;
-  let html;
-  if (q) {
-    const found = findEmoji(q, 120);
-    html = found.length ? found.map(cell).join('') : '<div class="lbl">No emoji found</div>';
-  } else {
-    const c = tabs[emojiTab];
-    html = `<div class="lbl">${c.name}</div>` + (c.list.length ? c.list.map(cell).join('') : '<div class="lbl">Emoji you use show up here.</div>');
-  }
-  $('#emojiGrid').innerHTML = html;
-}
-function openEmoji() {
-  if (!recent.length && emojiTab === 0) emojiTab = 1;
-  $('#emojiSearch').value = ''; renderEmoji();
-  $('#emojiPanel').hidden = false;
-  if (innerWidth > 760) $('#emojiSearch').focus();
-}
-function closeEmoji() { $('#emojiPanel').hidden = true; }
-$('#emojiBtn').addEventListener('click', e => { e.stopPropagation(); $('#emojiPanel').hidden ? openEmoji() : closeEmoji(); });
-$('#emojiSearch').addEventListener('input', renderEmoji);
-$('#emojiSearch').addEventListener('keydown', e => {
-  if (e.key === 'Enter') { e.preventDefault(); const b = $('#emojiGrid button[data-e]'); if (b) b.click(); }
-});
-$('#emojiTabs').addEventListener('click', e => {
-  const b = e.target.closest('[data-t]'); if (!b) return;
-  emojiTab = +b.dataset.t; $('#emojiSearch').value = ''; renderEmoji();
-});
-$('#emojiGrid').addEventListener('click', e => {
-  const b = e.target.closest('[data-e]'); if (!b) return;
-  useEmoji(b.dataset.e); insertAtCaret(b.dataset.e);
-  if (e.shiftKey === false && innerWidth <= 760) closeEmoji();
-});
-document.addEventListener('click', e => {
-  if (!$('#emojiPanel').hidden && !e.target.closest('#emojiPanel, #emojiBtn')) closeEmoji();
-  if (!$('#suggest').hidden && !e.target.closest('#suggest, #text')) hideSuggest();
-});
-
-// :shortcodes  ->  suggestions while typing, auto-replace on the closing colon
-let sugg = [], suggIdx = 0, suggFrom = 0;
-function hideSuggest() { $('#suggest').hidden = true; sugg = []; }
-function pickSuggest(i) {
-  const e = sugg[i]; if (!e) return;
-  const t = $('#text');
-  useEmoji(e.ch);
-  hideSuggest();
-  insertAtCaret(e.ch + ' ', suggFrom, t.selectionStart);
-}
-function checkShortcode() {
-  const t = $('#text'), pos = t.selectionStart, before = t.value.slice(0, pos);
-  // ":cool:" typed in full -> replace it right away
-  let m = before.match(/(^|\s):([a-z0-9_+-]{2,}):$/i);
-  if (m) {
-    const e = byName(m[2].toLowerCase());
-    if (e) { useEmoji(e.ch); hideSuggest(); insertAtCaret(e.ch, pos - m[2].length - 2, pos); return; }
-  }
-  // ":coo" -> show matches
-  m = before.match(/(^|\s):([a-z0-9_+-]{2,})$/i);
-  if (!m) return hideSuggest();
-  sugg = findEmoji(m[2], 6);
-  if (!sugg.length) return hideSuggest();
-  suggFrom = pos - m[2].length - 1; suggIdx = 0;
-  $('#suggest').innerHTML = sugg.map((e, i) =>
-    `<div data-i="${i}" class="${i ? '' : 'on'}"><span>${e.ch}</span>:${esc(e.name)}:<small>${i ? '' : 'Tab ↹'}</small></div>`).join('');
-  $('#suggest').hidden = false;
-}
-function suggestKey(e) {
-  if ($('#suggest').hidden || !sugg.length) return false;
-  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-    e.preventDefault();
-    suggIdx = (suggIdx + (e.key === 'ArrowDown' ? 1 : sugg.length - 1)) % sugg.length;
-    $('#suggest').querySelectorAll('div').forEach((d, i) => d.classList.toggle('on', i === suggIdx));
-    return true;
-  }
-  if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); pickSuggest(suggIdx); return true; }
-  if (e.key === 'Escape') { e.preventDefault(); hideSuggest(); return true; }
-  return false;
-}
-$('#suggest').addEventListener('mousedown', e => {
-  const d = e.target.closest('[data-i]'); if (!d) return;
-  e.preventDefault(); pickSuggest(+d.dataset.i);
-});
-$('#text').addEventListener('input', checkShortcode);
-$('#text').addEventListener('click', checkShortcode);
-
-applyPrefs();
+  applyPrefs();
 }
 const enterSends = () => prefs.enter === 'send' || (prefs.enter === 'auto' && innerWidth > 760);
 let BASE_TITLE = document.title;
@@ -931,6 +803,133 @@ document.addEventListener('keydown', e => {
     else if (!replyTo && document.body.classList.contains('open') && innerWidth <= 760) document.body.classList.remove('open');
   }
 });
+// ---------------------------------------------------------------- emoji
+const EMOJI_RAW = `#Smileys|😀\n😀 grinning smile happy\n😃 smiley happy\n😄 smile happy joy\n😁 grin beaming\n😆 laughing lol haha\n😅 sweat_smile nervous\n🤣 rofl rolling\n😂 joy lmao tears laugh\n🙂 slight_smile\n🙃 upside_down\n😉 wink\n😊 blush shy\n😇 innocent angel halo\n🥰 smiling_hearts love adore\n😍 heart_eyes love crush\n🤩 star_struck wow\n😘 kiss blow_kiss\n😗 kissing\n😋 yum delicious\n😛 tongue\n😜 wink_tongue crazy\n🤪 zany goofy\n😝 squint_tongue\n🤑 money_mouth rich\n🤗 hug hugging\n🤭 hand_over_mouth oops giggle\n🤫 shush quiet secret\n🤔 thinking hmm think\n🤐 zipper_mouth\n🤨 raised_eyebrow sus suspicious\n😐 neutral meh\n😑 expressionless\n😶 no_mouth speechless\n😏 smirk\n😒 unamused\n🙄 eye_roll rolling_eyes\n😬 grimace awkward\n😮‍💨 exhale sigh\n🤥 lying pinocchio\n😌 relieved\n😔 pensive\n😪 sleepy\n🤤 drool\n😴 sleeping zzz\n😷 mask sick\n🤒 thermometer ill\n🤕 head_bandage hurt\n🤢 nauseated gross\n🤮 vomit puke\n🥵 hot sweating\n🥶 cold freezing\n🥴 woozy dizzy drunk\n😵 dizzy_face\n🤯 mind_blown exploding_head\n🤠 cowboy yeehaw\n🥳 party partying celebrate\n😎 cool sunglasses\n🤓 nerd geek\n🧐 monocle\n😕 confused\n😟 worried\n🙁 slight_frown\n😮 open_mouth surprised\n😯 hushed\n😲 astonished shocked\n😳 flushed embarrassed\n🥺 pleading puppy_eyes please\n🥹 holding_tears touched\n😦 frowning\n😧 anguished\n😨 fearful scared\n😰 anxious sweat\n😥 sad_relieved\n😢 cry sad tear\n😭 sob crying\n😱 scream horror\n😖 confounded\n😣 persevere\n😞 disappointed\n😓 downcast_sweat\n😩 weary\n😫 tired\n🥱 yawn bored\n😤 triumph huff\n😡 rage pout angry\n😠 angry mad\n🤬 cursing swear\n😈 smiling_imp devil\n👿 imp\n💀 skull dead lmao\n☠️ skull_crossbones\n💩 poop poo\n🤡 clown\n👻 ghost boo\n👽 alien\n🤖 robot bot\n😺 smiley_cat\n😹 joy_cat\n😻 heart_eyes_cat\n🙈 see_no_evil monkey\n🙉 hear_no_evil\n🙊 speak_no_evil\n#Gestures|👍\n👍 thumbsup +1 like yes ok\n👎 thumbsdown -1 dislike no\n👌 ok_hand perfect\n🤌 pinched italian\n✌️ v peace victory\n🤞 crossed_fingers luck hope\n🤟 love_you_gesture\n🤘 metal rock\n🤙 call_me shaka\n👈 point_left\n👉 point_right\n👆 point_up\n👇 point_down\n☝️ index_up\n👋 wave hi hello bye\n🤚 raised_back_hand\n✋ raised_hand stop high_five\n🖐️ hand_splayed\n🖖 vulcan\n👏 clap applause bravo\n🙌 raised_hands hooray yay\n👐 open_hands\n🤲 palms_up\n🤝 handshake deal\n🙏 pray please thanks amen\n✍️ writing\n💪 muscle strong flex\n🫡 salute\n🫶 heart_hands\n👀 eyes look\n🧠 brain smart\n👶 baby\n🧑 person\n👨 man\n👩 woman\n🧓 older_person\n🤷 shrug idk\n🤦 facepalm\n🙋 raising_hand me\n🙇 bow sorry\n💁 tipping_hand\n🏃 run running\n💃 dancer dance\n🕺 man_dancing\n#Hearts|❤️\n❤️ heart love red_heart\n🧡 orange_heart\n💛 yellow_heart\n💚 green_heart\n💙 blue_heart\n💜 purple_heart\n🖤 black_heart\n🤍 white_heart\n🤎 brown_heart\n💔 broken_heart heartbreak\n❤️‍🔥 heart_on_fire\n💕 two_hearts\n💞 revolving_hearts\n💓 heartbeat\n💗 growing_heart\n💖 sparkling_heart\n💘 cupid\n💝 gift_heart\n💋 kiss_mark lips\n💯 100 hundred perfect\n💢 anger\n💥 boom collision\n💫 dizzy_star\n💦 sweat_drops\n💨 dash fast\n💬 speech chat bubble\n💭 thought\n💤 zzz_sleep\n#Nature|🐶\n🐶 dog puppy\n🐱 cat kitty\n🐭 mouse\n🐰 rabbit bunny\n🦊 fox\n🐻 bear\n🐼 panda\n🐨 koala\n🐯 tiger\n🦁 lion\n🐮 cow\n🐷 pig\n🐸 frog\n🐵 monkey_face\n🐔 chicken\n🐧 penguin\n🐦 bird\n🦆 duck\n🦉 owl\n🐴 horse\n🦄 unicorn\n🐝 bee\n🦋 butterfly\n🐌 snail\n🐢 turtle\n🐍 snake\n🐙 octopus\n🐬 dolphin\n🐳 whale\n🦈 shark\n🐊 crocodile\n🌸 cherry_blossom flower\n🌹 rose\n🌻 sunflower\n🌷 tulip\n🌱 seedling\n🌴 palm_tree\n🌵 cactus\n🍀 four_leaf_clover lucky\n🍁 maple_leaf\n🌈 rainbow\n☀️ sun sunny\n🌙 moon night\n⭐ star\n🌟 glowing_star\n✨ sparkles shiny\n⚡ zap lightning\n🔥 fire lit hot\n🌊 wave_water ocean\n❄️ snowflake\n☁️ cloud\n🌧️ rain\n⛈️ storm thunder\n#Food|🍕\n🍎 apple\n🍌 banana\n🍉 watermelon\n🍇 grapes\n🍓 strawberry\n🍑 peach\n🍍 pineapple\n🥭 mango\n🥥 coconut\n🥑 avocado\n🌶️ hot_pepper spicy\n🌽 corn\n🍞 bread\n🧀 cheese\n🍳 egg cooking\n🍔 burger hamburger\n🍟 fries\n🍕 pizza\n🌭 hotdog\n🌮 taco\n🍜 ramen noodles mie\n🍝 spaghetti\n🍣 sushi\n🍛 curry rice\n🍚 rice nasi\n🍗 chicken_leg ayam\n🍤 shrimp\n🍦 icecream\n🍩 donut\n🍪 cookie\n🎂 birthday_cake\n🍰 cake\n🍫 chocolate\n🍿 popcorn\n☕ coffee kopi\n🍵 tea teh\n🧋 boba bubble_tea\n🥤 soda drink\n🍺 beer\n🍻 cheers beers\n🥂 champagne toast\n#Activity|⚽\n⚽ soccer football bola\n🏀 basketball\n🏈 american_football\n⚾ baseball\n🎾 tennis\n🏐 volleyball\n🏸 badminton\n🏓 ping_pong\n🎱 8ball billiards\n🏆 trophy win\n🥇 first_place gold\n🥈 second_place\n🥉 third_place\n🏅 medal\n🎮 video_game gaming\n🎲 dice\n🎯 dart bullseye target\n🎨 art paint\n🎬 clapper film\n🎤 microphone sing\n🎧 headphones music\n🎵 musical_note\n🎸 guitar\n🎉 tada party celebrate\n🎊 confetti_ball\n🎁 gift present\n🎈 balloon\n🎂 cake_birthday\n#Objects|💡\n📱 phone mobile hp\n💻 laptop computer\n🖥️ desktop\n⌨️ keyboard\n📷 camera photo\n📸 camera_flash\n📺 tv\n⏰ alarm clock\n⌛ hourglass\n💡 bulb idea\n🔋 battery\n🔌 plug\n💰 moneybag money\n💵 dollar cash\n💳 credit_card\n📦 package box\n✉️ envelope mail\n📩 incoming_envelope\n📝 memo note\n📚 books study\n📖 book read\n✏️ pencil\n📌 pushpin pin\n📎 paperclip\n🔑 key\n🔒 lock\n🔓 unlock\n🔔 bell notification\n📣 megaphone announce\n🛒 cart shopping\n🚗 car\n🚕 taxi\n🏍️ motorcycle motor\n🚌 bus\n🚆 train\n✈️ airplane plane\n🚀 rocket launch\n🏠 house home rumah\n🏫 school sekolah\n🏢 office\n🕌 mosque masjid\n⛪ church\n🗓️ calendar\n⏳ hourglass_flowing\n#Symbols|✅\n✅ check done yes white_check_mark\n☑️ ballot_check\n✔️ heavy_check\n❌ x no wrong cross\n❎ cross_mark_button\n⭕ o circle\n❓ question\n❗ exclamation\n‼️ double_exclamation\n⁉️ interrobang\n⚠️ warning\n🚫 no_entry prohibited\n⛔ stop_sign\n🆗 ok_button\n🆕 new\n🆒 cool_button\n🆓 free\n🔝 top\n🔥 fire_symbol\n♻️ recycle\n➕ plus\n➖ minus\n✖️ multiply\n➗ divide\n🔴 red_circle\n🟢 green_circle\n🔵 blue_circle\n🟡 yellow_circle\n⚫ black_circle\n⚪ white_circle\n⬆️ up arrow_up\n⬇️ down arrow_down\n⬅️ left arrow_left\n➡️ right arrow_right\n🔄 repeat refresh\n▶️ play\n⏸️ pause\n🔊 loud sound\n🔇 mute\n🇮🇩 indonesia id flag_id\n🇸🇬 singapore flag_sg\n🇲🇾 malaysia flag_my\n🏳️‍🌈 rainbow_flag`;
+const EMOJI = [], EMOJI_CATS = [];
+for (const line of EMOJI_RAW.split('\n')) {
+  if (line.startsWith('#')) { const [name, icon] = line.slice(1).split('|'); EMOJI_CATS.push({name, icon, list: []}); continue; }
+  const [ch, ...words] = line.split(' ');
+  const e = {ch, name: words[0], words};
+  EMOJI.push(e); EMOJI_CATS.at(-1).list.push(e);
+}
+let recent = [];
+try { recent = JSON.parse(localStorage.getItem('wah-recent-emoji') || '[]'); } catch {}
+const byName = (n) => EMOJI.find(e => e.words.includes(n));
+function findEmoji(q, limit = 60) {
+  q = q.toLowerCase().replace(/^:|:$/g, '');
+  if (!q) return [];
+  const starts = [], has = [];
+  for (const e of EMOJI) {
+    if (e.words.some(w => w.startsWith(q))) starts.push(e);
+    else if (e.words.some(w => w.includes(q))) has.push(e);
+  }
+  const seen = new Set();
+  return [...starts, ...has].filter(e => !seen.has(e.ch) && seen.add(e.ch)).slice(0, limit);
+}
+function insertAtCaret(str, from, to) {
+  const t = $('#text');
+  const a = from ?? t.selectionStart, b = to ?? t.selectionEnd;
+  t.value = t.value.slice(0, a) + str + t.value.slice(b);
+  const pos = a + str.length;
+  t.setSelectionRange(pos, pos);
+  t.dispatchEvent(new Event('input'));   // resize, save draft
+  t.focus();
+}
+function useEmoji(ch) {
+  recent = [ch, ...recent.filter(x => x !== ch)].slice(0, 24);
+  try { localStorage.setItem('wah-recent-emoji', JSON.stringify(recent)); } catch {}
+}
+
+// picker
+let emojiTab = 0;
+function renderEmoji() {
+  const q = $('#emojiSearch').value.trim();
+  const tabs = [{name: 'Recent', icon: '🕘', list: recent.map(ch => EMOJI.find(e => e.ch === ch) || {ch, name: ''})}, ...EMOJI_CATS];
+  $('#emojiTabs').innerHTML = tabs.map((c, i) => `<button data-t="${i}" title="${c.name}" class="${!q && i === emojiTab ? 'on' : ''}">${c.icon}</button>`).join('');
+  const cell = (e) => `<button data-e="${e.ch}" title="${e.name ? ':' + e.name + ':' : ''}">${e.ch}</button>`;
+  let html;
+  if (q) {
+    const found = findEmoji(q, 120);
+    html = found.length ? found.map(cell).join('') : '<div class="lbl">No emoji found</div>';
+  } else {
+    const c = tabs[emojiTab];
+    html = `<div class="lbl">${c.name}</div>` + (c.list.length ? c.list.map(cell).join('') : '<div class="lbl">Emoji you use show up here.</div>');
+  }
+  $('#emojiGrid').innerHTML = html;
+}
+function openEmoji() {
+  if (!recent.length && emojiTab === 0) emojiTab = 1;
+  $('#emojiSearch').value = ''; renderEmoji();
+  $('#emojiPanel').hidden = false;
+  if (innerWidth > 760) $('#emojiSearch').focus();
+}
+function closeEmoji() { $('#emojiPanel').hidden = true; }
+$('#emojiBtn').addEventListener('click', e => { e.stopPropagation(); $('#emojiPanel').hidden ? openEmoji() : closeEmoji(); });
+$('#emojiSearch').addEventListener('input', renderEmoji);
+$('#emojiSearch').addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); const b = $('#emojiGrid button[data-e]'); if (b) b.click(); }
+});
+$('#emojiTabs').addEventListener('click', e => {
+  const b = e.target.closest('[data-t]'); if (!b) return;
+  emojiTab = +b.dataset.t; $('#emojiSearch').value = ''; renderEmoji();
+});
+$('#emojiGrid').addEventListener('click', e => {
+  const b = e.target.closest('[data-e]'); if (!b) return;
+  useEmoji(b.dataset.e); insertAtCaret(b.dataset.e);
+  if (e.shiftKey === false && innerWidth <= 760) closeEmoji();
+});
+document.addEventListener('click', e => {
+  if (!$('#emojiPanel').hidden && !e.target.closest('#emojiPanel, #emojiBtn')) closeEmoji();
+  if (!$('#suggest').hidden && !e.target.closest('#suggest, #text')) hideSuggest();
+});
+
+// :shortcodes  ->  suggestions while typing, auto-replace on the closing colon
+let sugg = [], suggIdx = 0, suggFrom = 0;
+function hideSuggest() { $('#suggest').hidden = true; sugg = []; }
+function pickSuggest(i) {
+  const e = sugg[i]; if (!e) return;
+  const t = $('#text');
+  useEmoji(e.ch);
+  hideSuggest();
+  insertAtCaret(e.ch + ' ', suggFrom, t.selectionStart);
+}
+function checkShortcode() {
+  const t = $('#text'), pos = t.selectionStart, before = t.value.slice(0, pos);
+  // ":cool:" typed in full -> replace it right away
+  let m = before.match(/(^|\s):([a-z0-9_+-]{2,}):$/i);
+  if (m) {
+    const e = byName(m[2].toLowerCase());
+    if (e) { useEmoji(e.ch); hideSuggest(); insertAtCaret(e.ch, pos - m[2].length - 2, pos); return; }
+  }
+  // ":coo" -> show matches
+  m = before.match(/(^|\s):([a-z0-9_+-]{2,})$/i);
+  if (!m) return hideSuggest();
+  sugg = findEmoji(m[2], 6);
+  if (!sugg.length) return hideSuggest();
+  suggFrom = pos - m[2].length - 1; suggIdx = 0;
+  $('#suggest').innerHTML = sugg.map((e, i) =>
+    `<div data-i="${i}" class="${i ? '' : 'on'}"><span>${e.ch}</span>:${esc(e.name)}:<small>${i ? '' : 'Tab ↹'}</small></div>`).join('');
+  $('#suggest').hidden = false;
+}
+function suggestKey(e) {
+  if ($('#suggest').hidden || !sugg.length) return false;
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    suggIdx = (suggIdx + (e.key === 'ArrowDown' ? 1 : sugg.length - 1)) % sugg.length;
+    $('#suggest').querySelectorAll('div').forEach((d, i) => d.classList.toggle('on', i === suggIdx));
+    return true;
+  }
+  if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); pickSuggest(suggIdx); return true; }
+  if (e.key === 'Escape') { e.preventDefault(); hideSuggest(); return true; }
+  return false;
+}
+$('#suggest').addEventListener('mousedown', e => {
+  const d = e.target.closest('[data-i]'); if (!d) return;
+  e.preventDefault(); pickSuggest(+d.dataset.i);
+});
+$('#text').addEventListener('input', checkShortcode);
+$('#text').addEventListener('click', checkShortcode);
+
 applyPrefs();
 $('#text').addEventListener('input', function () { this.style.height = 'auto'; this.style.height = Math.min(this.scrollHeight, 140) + 'px'; });
 $('#text').addEventListener('paste', e => {
@@ -950,7 +949,7 @@ $('#archBtn').addEventListener('click', async () => {
     const r = await call('POST', '/archive', {jid: current, archived: want});
     if (c) c.archived = r.archived;
     renderChats(); updateTitle();
-    toast((want ? 'Chat archived' : 'Chat unarchived') + (r.synced ? '' : ' (on this site only)'));
+    toast(want ? 'Chat archived (on this site only)' : 'Chat unarchived');
   } catch (x) { toast(x.message); }
 });
 $('#aboutX').addEventListener('click', () => $('#about').classList.remove('on'));
