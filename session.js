@@ -94,6 +94,14 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 const mediaAttemptsEnv = Number(process.env.MEDIA_DOWNLOAD_ATTEMPTS || 3)
 const MEDIA_DOWNLOAD_ATTEMPTS = Number.isFinite(mediaAttemptsEnv) && mediaAttemptsEnv > 0 ? Math.floor(mediaAttemptsEnv) : 3
 
+// Baileys WebMessageInfo.Status values: ERROR=0, PENDING=1, SERVER_ACK=2,
+// DELIVERY_ACK=3, READ=4, PLAYED=5. Keep only the monotonic delivery/read
+// state we need for the WhatsApp-style ticks in the UI.
+function messageStatusValue(v) {
+  const n = Number(v)
+  return Number.isFinite(n) ? Math.max(0, Math.min(5, n)) : null
+}
+
 export function forgetVersion() {
   versionAt = 0 // force a re-check next time, but keep versionBest as a floor
 }
@@ -479,6 +487,59 @@ export class Session extends EventEmitter {
       }
       try { this.emit('event', { type: 'chats' }) } catch (e) { this.log('chat event delivery failed:', e?.message || e) }
     })
+
+    // WhatsApp delivery/read receipts for messages we sent. In 1:1 chats,
+    // Baileys emits these as messages.update status changes.
+    sock.ev.on('messages.update', (updates = []) => {
+      if (!live()) return
+      for (const entry of updates) {
+        try {
+          const id = entry?.key?.id
+          const status = messageStatusValue(entry?.update?.status)
+          if (!id || status == null) continue
+          // Only our own messages need outgoing tick state.
+          const rj = entry.key.remoteJid
+          const jid = rj ? this.store.canon(rj) : null
+          const existing = jid ? this.store.findMessage(jid, id) : null
+          if (!existing?.fromMe) continue
+          const next = Math.max(messageStatusValue(existing.status) ?? 2, status)
+          if (next === (messageStatusValue(existing.status) ?? 2)) continue
+          existing.status = next
+          this.store.dirty = true
+          this.emit('event', { type: 'message-status', jid, id, status: next })
+        } catch (e) {
+          this.log('message status update failed:', e?.message || e)
+        }
+      }
+    })
+
+    // Group chats use per-recipient receipt updates. Keep the highest receipt
+    // state we have seen so the sender still gets useful ticks in the UI.
+    sock.ev.on('message-receipt.update', (updates = []) => {
+      if (!live()) return
+      for (const entry of updates) {
+        try {
+          const id = entry?.key?.id
+          const receipt = entry?.receipt || {}
+          if (!id) continue
+          const rj = entry?.key?.remoteJid
+          const jid = rj ? this.store.canon(rj) : null
+          const existing = jid ? this.store.findMessage(jid, id) : null
+          if (!existing?.fromMe) continue
+          let status = null
+          if (receipt.readTimestamp || receipt.readTimestampMs) status = 4
+          else if (receipt.receiptTimestamp || receipt.receiptTimestampMs) status = 3
+          if (status == null) continue
+          const next = Math.max(messageStatusValue(existing.status) ?? 2, status)
+          if (next === (messageStatusValue(existing.status) ?? 2)) continue
+          existing.status = next
+          this.store.dirty = true
+          this.emit('event', { type: 'message-status', jid, id, status: next })
+        } catch (e) {
+          this.log('message receipt update failed:', e?.message || e)
+        }
+      }
+    })
   }
 
   async onClose(B, u, sock) {
@@ -689,6 +750,8 @@ export class Session extends EventEmitter {
       id: k.id,
       jid,
       fromMe: !!k.fromMe,
+      // Outgoing messages start as sent/pending until WhatsApp sends a receipt.
+      status: k.fromMe ? (messageStatusValue(m.status) ?? 2) : undefined,
       ts: num(m.messageTimestamp) || Math.floor(Date.now() / 1000),
       type,
       text,
@@ -733,6 +796,7 @@ export class Session extends EventEmitter {
       id: m.id,
       jid: m.jid,
       fromMe: m.fromMe,
+      status: m.fromMe ? (messageStatusValue(m.status) ?? 2) : undefined,
       ts: m.ts,
       type: m.type,
       text: m.text,

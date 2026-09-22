@@ -153,6 +153,7 @@ html[data-panic] #app,html[data-panic] .overlay,html[data-panic] #toast,html[dat
 .m.failed{outline:1px solid var(--danger)}
 .m .who{font-size:12.5px;font-weight:600;color:var(--accent);margin-bottom:2px}
 .m .t{font-size:10.5px;color:var(--muted);float:right;margin:7px 0 -4px 10px}
+.m .tick{margin-left:3px;letter-spacing:-1.2px;color:var(--muted);font-weight:600}.m .tick.read{color:#53bdeb}
 .m img{max-width:min(320px,100%);max-height:360px;border-radius:6px;display:block;margin:1px 0 3px;cursor:zoom-in;background:var(--field);min-height:60px;min-width:60px;object-fit:cover}
 .m .file{display:flex;align-items:center;gap:8px;padding:8px;border-radius:6px;background:rgba(0,0,0,.05);color:inherit;text-decoration:none;margin-bottom:2px}
 .m .note{color:var(--muted);font-size:13px}
@@ -546,7 +547,15 @@ function bubble(m) {
   } else {
     body = rich(m.text);
   }
-  const tick = m.failed ? ' ⚠️' : m.pending ? ' 🕓' : '';
+  let tick = '';
+  if (m.failed) tick = ' <span class="tick">⚠️</span>';
+  else if (m.pending) tick = ' <span class="tick">🕓</span>';
+  else if (m.fromMe) {
+    const st = Number.isFinite(Number(m.status)) ? Number(m.status) : 2;
+    if (st >= 4) tick = ' <span class="tick read">✓✓</span>';
+    else if (st >= 3) tick = ' <span class="tick">✓✓</span>';
+    else tick = ' <span class="tick">✓</span>';
+  }
   const q = m.quote ? `<span class="q" data-qid="${esc(m.quote.id)}"><b>${esc(m.quote.name || '')}</b>${esc(m.quote.text || '')}</span>` : '';
   const rp = m.pending || m.failed || String(m.id).startsWith('tmp') ? '' : `<button class="rp" data-reply="${esc(m.id)}" title="Reply">↩</button>`;
   return `<div class="m ${m.fromMe ? 'me' : ''} ${m.pending ? 'pending' : ''} ${m.failed ? 'failed' : ''}" data-id="${esc(m.id)}">${rp}${who}${q}${body}<span class="t">${fmtTime(m.ts)}${tick}</span></div>`;
@@ -791,6 +800,10 @@ function stream() {
     else if (d.type === 'chats') loadChats();
     else if (d.type === 'history') { syncing(d); loadChats(); if (current) reloadThread(); }
     else if (d.type === 'merged') { if (current === d.from) { current = d.to; reloadThread(); } loadChats(); }
+    else if (d.type === 'message-status' && d.jid === current) {
+      const i = msgs.findIndex(x => x.id === d.id);
+      if (i >= 0) { msgs[i] = {...msgs[i], status: d.status, pending: false}; renderMsgs(false); }
+    }
     else if (d.type === 'message' && d.message.jid === current) {
       const m = d.message;
       // our own optimistic bubble may still be pending; the real one replaces it
