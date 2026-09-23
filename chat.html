@@ -2100,7 +2100,7 @@ $('#rDock').addEventListener('click', e => {
   e.stopPropagation();
   setPref('rail', prefs.rail === 'auto' ? 'show' : 'auto');
   $('#rail').classList.remove('peek'); syncDock();
-  toast(prefs.rail === 'auto' ? 'Left bar hides until you point at the left edge' : 'Left bar stays open');
+  toast(prefs.rail === 'auto' ? 'Left bar is hidden' : 'Left bar restored');
 });
 $('#prefs').addEventListener('click', () => setTimeout(syncDock));
 syncDock();
