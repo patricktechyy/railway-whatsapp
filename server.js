@@ -467,6 +467,11 @@ async function route(req, res) {
     if (!body.jid) throw new HttpError(400, 'jid required')
     return json(res, await s.groupInvite(body.jid))
   }
+  if (api === '/read') {
+    if (!body.jid) throw new HttpError(400, 'jid required')
+    await s.markRead(body.jid)
+    return json(res, { ok: true })
+  }
   if (api === '/delete') {
     if (!body.jid || !body.id) throw new HttpError(400, 'jid and id required')
     return json(res, await s.deleteMessage(body.jid, body.id, !!body.everyone))
