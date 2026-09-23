@@ -109,7 +109,7 @@ const esc = (s) =>
 const templates = {}
 const tpl = (f) => (templates[f] ??= fs.readFileSync(path.join(PUBLIC, f), 'utf8'))
 const render = (f, vars) =>
-  Object.entries({ BRAND, VERSION, ...vars }).reduce((s, [k, v]) => s.replaceAll(`__${k}__`, esc(v)), tpl(f))
+  Object.entries({ BRAND, VERSION, APPV: APP_VERSION, ...vars }).reduce((s, [k, v]) => s.replaceAll(`__${k}__`, esc(v)), tpl(f))
 
 function send(res, code, body, headers = {}) {
   res.writeHead(code, {
@@ -216,6 +216,10 @@ async function route(req, res) {
   const p = url.pathname
   const M = req.method
 
+  // the shared design system every page loads
+  if (p === '/ui.css') {
+    return send(res, 200, tpl('ui.css'), { 'content-type': 'text/css; charset=utf-8', 'cache-control': 'public, max-age=86400' })
+  }
   if (p === '/healthz') return send(res, 200, 'ok', { 'content-type': 'text/plain' })
   if (p === '/favicon.ico') return send(res, 204, '')
 

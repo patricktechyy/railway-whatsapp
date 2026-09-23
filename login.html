@@ -2,40 +2,54 @@
 <html lang="en">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>__BRAND__</title>
+<meta name="theme-color" content="#17805a">
+<title>Sign in · __BRAND__</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2048%2048%22%20aria-hidden%3D%22true%22%3E%3Cpath%20fill%3D%22%2317805a%22%20d%3D%22M15%203.5%20L22.5%2013%20H33%20A11%2011%200%200%201%2044%2024%20V31%20A11%2011%200%200%201%2033%2042%20H15%20A11%2011%200%200%201%204%2031%20V24%20A11%2011%200%200%201%2011.5%2013.4%20Z%22/%3E%3Cpath%20d%3D%22M16%2031.5%2024%2023.5%2032%2031.5%22%20fill%3D%22none%22%20stroke%3D%22%23ffffff%22%20stroke-width%3D%224.2%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
 <script>try{var p=JSON.parse(localStorage.getItem('wah-prefs')||'{}');if(p.theme&&p.theme!=='auto')document.documentElement.dataset.theme=p.theme}catch(e){}</script>
-<style>:root{--bg:#f0f2f5;--panel:#fff;--fg:#111b21;--muted:#667781;--line:#e3e6e8;--accent:#128c7e;--accent-fg:#fff;--danger:#d64550;--field:#f5f6f7;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0b141a;--panel:#111b21;--fg:#e9edef;--muted:#8696a0;--line:#2a3942;--accent:#00a884;--accent-fg:#fff;--danger:#f15c6d;--field:#202c33}}
-:root[data-theme="dark"]{color-scheme:dark;--bg:#0b141a;--panel:#111b21;--fg:#e9edef;--muted:#8696a0;--line:#2a3942;--accent:#00a884;--accent-fg:#fff;--danger:#f15c6d;--field:#202c33}
-*{box-sizing:inherit}
-body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
-.center{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
-.box{width:100%;max-width:380px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:28px}
-h1{font-size:21px;margin:0 0 4px}
-.sub{color:var(--muted);font-size:14px;margin:0 0 22px}
-label{display:block;font-size:13px;font-weight:600;margin:14px 0 6px}
-input{width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--line);background:var(--field);color:inherit;font:inherit;outline:none}
-input:focus{border-color:var(--accent)}
-button{font:inherit;cursor:pointer}
-.btn{border:0;border-radius:8px;padding:10px 16px;background:var(--accent);color:var(--accent-fg);font-weight:600}
-.btn:disabled{opacity:.5;cursor:default}
-.btn.full{width:100%;margin-top:20px}
-.btn.ghost{background:transparent;color:var(--fg);border:1px solid var(--line)}
-.btn.danger{background:transparent;color:var(--danger);border:1px solid var(--line)}
-.err{color:var(--danger);font-size:13px;min-height:20px;margin-top:12px}
-.hint{color:var(--muted);font-size:12px;margin-top:6px}</style>
-<div class="center">
-  <form class="box" id="f">
-    <h1 data-egg>__BRAND__</h1>
-    <p class="sub">Sign in to your WhatsApp.</p>
-    <label for="u">Username</label>
-    <input id="u" autocomplete="username" autocapitalize="none" spellcheck="false" required autofocus>
-    <label for="p">Password</label>
-    <input id="p" type="password" autocomplete="current-password" required>
-    <button class="btn full" id="go">Sign in</button>
-    <div class="err" id="err"></div>
-  </form>
-</div>
+<link rel="stylesheet" href="/ui.css?v=__APPV__">
+<body>
+<main class="auth">
+  <section class="auth-brand" aria-label="__BRAND__">
+    <div class="bubbles" aria-hidden="true">
+      <i style="left:12%;--s:46px;--d:7s;--w:.1s;--h:-78vh"></i>
+      <i style="left:34%;--s:28px;--d:6s;--w:.6s;--h:-64vh"></i>
+      <i style="left:58%;--s:60px;--d:8s;--w:.3s;--h:-86vh"></i>
+      <i style="left:78%;--s:34px;--d:6.5s;--w:1s;--h:-70vh"></i>
+      <i style="left:88%;--s:22px;--d:5.5s;--w:1.4s;--h:-58vh"></i>
+    </div>
+    <span class="mark"><svg viewBox="0 0 48 48" aria-hidden="true"><path fill="#f3f7f5" d="M15 3.5 L22.5 13 H33 A11 11 0 0 1 44 24 V31 A11 11 0 0 1 33 42 H15 A11 11 0 0 1 4 31 V24 A11 11 0 0 1 11.5 13.4 Z"/><path d="M16 31.5 24 23.5 32 31.5" fill="none" stroke="#17805a" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+    <div class="spacer"></div>
+    <div>
+      <h1 class="word" data-egg>Apa yang Diatas<small>Whats Up</small></h1>
+      <p class="tag">Solusi buat anak IPLU. Your WhatsApp, in any browser.</p>
+    </div>
+    <div class="foot">Private to the people your admin adds.</div>
+  </section>
+  <section class="auth-main">
+    <form class="auth-form" id="f" novalidate>
+      <h1>Sign in</h1>
+      <p class="lede">Use the username and password you chose when you set up your account.</p>
+      <label class="field"><span>Username</span>
+        <input id="u" autocomplete="username" autocapitalize="none" spellcheck="false" required autofocus></label>
+      <label class="field"><span>Password</span>
+        <span class="input-wrap"><input id="p" type="password" autocomplete="current-password" required>
+        <button type="button" class="reveal" data-reveal="p" aria-label="Show password">Show</button></span></label>
+      <button class="btn lg full" id="go">Sign in</button>
+      <div class="error" id="err" role="alert"></div>
+      <p class="aside">Forgot your password? Ask your admin for a new setup link. Your chats stay as they are.</p>
+    </form>
+  </section>
+</main>
+<div id="toast"></div>
+<script>
+document.querySelectorAll('[data-reveal]').forEach(b => b.addEventListener('click', () => {
+  const i = document.getElementById(b.dataset.reveal), show = i.type === 'password';
+  i.type = show ? 'text' : 'password'; b.textContent = show ? 'Hide' : 'Show';
+  b.setAttribute('aria-label', show ? 'Hide password' : 'Show password'); i.focus();
+}));
+</script>
 <script>
 document.getElementById('f').addEventListener('submit', async (e) => {
   e.preventDefault();
