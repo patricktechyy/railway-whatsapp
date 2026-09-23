@@ -612,6 +612,7 @@ html:root[data-theme="dark"][data-accent]{--out:color-mix(in srgb,var(--accent) 
       <button data-m="relink">Re-link WhatsApp</button>
       <button data-m="health">Connection &amp; status</button>
       <button data-m="news">What's new</button>
+      <button data-m="admin" id="adminItem" hidden>Admin settings</button>
       <button data-m="tour">Tutorial</button>
       <button data-m="about">About</button>
       <button data-m="out" class="danger">Sign out</button>
@@ -703,6 +704,7 @@ html:root[data-theme="dark"][data-accent]{--out:color-mix(in srgb,var(--accent) 
     <p class="err" id="pairErr" style="margin:0"></p>
   </div>
   <button class="btn ghost" id="restart" hidden>Still stuck? Start over with a new QR code</button>
+  <button class="lnk" id="gateAdmin" hidden>Admin settings</button>
   <button class="lnk" id="gateOut">Sign out</button>
 </div>
 
@@ -835,6 +837,7 @@ let replyTo = null;
 let panicOn = false, panicSaved = null;
 let editing = null, editBackup = '', locked = false;
 let keyTrail = '', keyTrailAt = 0, lockFav = null, historyDays = 12;
+let storeMore = false, pageLoading = false;   // more saved messages on the server for this chat?
 let mentionMode = false, composerMentions = [];
 const PREF_DEFAULTS = {theme: 'auto', accent: 'green', wall: 'doodle', size: 'normal', enter: 'auto', blur: 'off', idle: '0', rail: 'show'};
 let prefs = {...PREF_DEFAULTS};
@@ -1065,7 +1068,7 @@ function renderMsgs(stick) {
   const group = String(current || '').endsWith('@g.us');
   box.classList.toggle('grp', group);
   // at the history limit, say so instead of offering to load more
-  const atLimit = msgs.length && msgs[0].ts <= Date.now() / 1000 - (historyDays - 1) * 86400;
+  const atLimit = msgs.length && !storeMore && msgs[0].ts <= Date.now() / 1000 - (historyDays - 1) * 86400;
   let html = !msgs.length ? '' : atLimit
     ? `<div class="limit">Messages older than ${historyDays} days aren't kept</div>`
     : status === 'connected' ? '<button class="more" id="more">Load earlier messages</button>' : '';
@@ -1126,8 +1129,9 @@ async function openChat(jid, name) {
   updateTitle(); setComposer();
   $('#msgs').innerHTML = '<div class="empty">Loading…</div>';
   try {
-    msgs = await call('GET', `/messages?jid=${encodeURIComponent(jid)}`);
+    msgs = await call('GET', `/messages?jid=${encodeURIComponent(jid)}&limit=200`);
     if (current !== jid) return;
+    storeMore = msgs.length >= 200;
     renderMsgs(true);
     subscribePresence(jid);
     const c = chats.find(x => x.jid === jid); if (c) c.unread = 0;
@@ -1139,7 +1143,8 @@ const reloadThread = throttle(async () => {
   if (!current) return;
   const jid = current;
   try {
-    const fresh = await call('GET', `/messages?jid=${encodeURIComponent(jid)}`);
+    const oldest = msgs.find(m => !m.pending && !m.failed);
+    const fresh = await call('GET', `/messages?jid=${encodeURIComponent(jid)}` + (oldest ? `&sinceId=${encodeURIComponent(oldest.id)}` : '&limit=200'));
     if (current !== jid) return;
     const pend = msgs.filter(m => m.pending || m.failed);
     const grew = fresh.length && msgs.length && fresh[0].ts < (msgs.find(m => !m.pending)?.ts ?? Infinity);
@@ -1148,7 +1153,28 @@ const reloadThread = throttle(async () => {
   } catch {}
 }, 800);
 
+// Older messages already saved on the server load instantly, a page at a time.
+async function loadEarlierPage() {
+  if (pageLoading || !storeMore || !current) return false;
+  const oldest = msgs.find(m => !m.pending && !m.failed); if (!oldest) return false;
+  pageLoading = true;
+  const jid = current;
+  try {
+    const page = await call('GET', `/messages?jid=${encodeURIComponent(jid)}&limit=200&beforeId=${encodeURIComponent(oldest.id)}`);
+    if (current !== jid) return false;
+    const have = new Set(msgs.map(m => m.id));
+    msgs = page.filter(m => !have.has(m.id)).concat(msgs);
+    storeMore = page.length >= 200;
+    renderMsgs('keep');
+    return true;
+  } catch (x) { toast(x.message); return false; }
+  finally { pageLoading = false; }
+}
+// scrolling near the top pulls in the next saved page, so you can keep going
+$('#msgs').addEventListener('scroll', () => { if ($('#msgs').scrollTop < 160 && storeMore) loadEarlierPage(); }, {passive: true});
+
 async function loadOlder(btn) {
+  if (storeMore) { btn.disabled = true; btn.textContent = 'Loading…'; await loadEarlierPage(); return; }
   btn.disabled = true; btn.textContent = 'Asking your phone…';
   try {
     const r = await call('POST', '/older', {jid: current});
@@ -2269,6 +2295,11 @@ document.addEventListener('pointerdown', (e) => {
   if ($('#menu').classList.contains('on') && !t.closest('#menu, #menuBtn, #rMe')) $('#menu').classList.remove('on');
 }, true);
 
+
+// accounts the admin has marked as admins get a way into the admin page
+if ('__IS_ADMIN__' === '1') { $('#adminItem').hidden = false; $('#gateAdmin').hidden = false; }
+$('#gateAdmin').addEventListener('click', () => { location.href = '/admin'; });
+
 applyPrefs();
 $('#text').addEventListener('input', function () { this.style.height = 'auto'; this.style.height = Math.min(this.scrollHeight, 140) + 'px'; });
 $('#text').addEventListener('paste', e => {
@@ -2385,6 +2416,7 @@ $('#menu').addEventListener('click', async e => {
   if (m === 'prefs') { applyPrefs(); $('#prefs').classList.add('on'); }
   if (m === 'about') $('#about').classList.add('on');
   if (m === 'tour') startTour();
+  if (m === 'admin') location.href = '/admin';
   if (m === 'news') { try { showNews(await call('GET', '/changelog'), true); } catch (x) { toast(x.message); } }
   if (m === 'name') {
     const cur = $('#meName').textContent;

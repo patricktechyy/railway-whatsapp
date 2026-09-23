@@ -2,8 +2,9 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 const MAX_CHATS = Number(process.env.MAX_CHATS || 800)
-const MAX_MSGS = Number(process.env.MAX_MSGS_PER_CHAT || 150)
-const HARD_MSG_CAP = 1000
+// Messages are kept for the admin's day limit; this per-chat count is only a safety net.
+const MAX_MSGS = Number(process.env.MAX_MSGS_PER_CHAT || 5000)
+const HARD_MSG_CAP = 20000
 // Keep only this many days of messages (HISTORY_DAYS, default 12).
 // How many days of messages are kept. The admin can change it at runtime;
 // it never goes below MIN_HISTORY_DAYS.
@@ -391,10 +392,22 @@ export class Store {
       }))
   }
 
-  messageList(jid, mineJid) {
+  /** Newest `limit` messages, or a page before `beforeId`, or everything from `sinceId` on. */
+  messageList(jid, mineJid, { beforeId, sinceId, limit } = {}) {
     jid = this.canon(jid)
     const group = isGroup(jid)
-    return (this.messages.get(jid) || []).map((m) => ({
+    let list = this.messages.get(jid) || []
+    const n = Math.max(1, Math.min(Number(limit) || 200, 5000))
+    if (sinceId) {
+      const i = list.findIndex((m) => m.id === sinceId)
+      list = i >= 0 ? list.slice(i) : list.slice(-n)
+    } else if (beforeId) {
+      const i = list.findIndex((m) => m.id === beforeId)
+      list = i > 0 ? list.slice(Math.max(0, i - n), i) : []
+    } else if (limit) {
+      list = list.slice(-n)
+    }
+    return list.map((m) => ({
       id: m.id,
       jid: m.jid,
       fromMe: m.fromMe,
