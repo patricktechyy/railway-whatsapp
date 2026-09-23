@@ -4,6 +4,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>__LABEL__ · __BRAND__</title>
 <script>try{if(sessionStorage.getItem('wah-panic')==='1')document.documentElement.dataset.panic='1'}catch(e){}</script>
+<script>try{if(localStorage.getItem('wah-lock-__USER__'))document.documentElement.dataset.locked='1';var bp=JSON.parse(localStorage.getItem('wah-prefs')||'{}');document.documentElement.dataset.blur=bp.blur||'off'}catch(e){}</script>
 <script>try{var p=JSON.parse(localStorage.getItem('wah-prefs')||'{}'),r=document.documentElement;if(p.theme&&p.theme!=='auto')r.dataset.theme=p.theme;if(p.accent&&p.accent!=='green')r.dataset.accent=p.accent;r.dataset.wall=p.wall||'plain';r.dataset.size=p.size||'normal'}catch(e){}</script>
 <style>
 :root{--bg:#f0f2f5;--panel:#fff;--fg:#111b21;--muted:#667781;--line:#e9edef;--accent:#128c7e;
@@ -83,6 +84,41 @@ button{font:inherit;color:inherit;cursor:pointer}
 #aboutDlg h3{margin:0 0 6px;font-size:20px}
 #aboutDlg p{margin:0 0 18px;color:var(--muted)}
 html[data-panic] #app,html[data-panic] .overlay,html[data-panic] #toast,html[data-panic] #tour{visibility:hidden!important}
+html[data-locked] #app,html[data-locked] .overlay,html[data-locked] #toast,html[data-locked] #tour,html[data-locked] #msgMenu{visibility:hidden!important}
+#lock{position:fixed;inset:0;z-index:2147483000;background:var(--bg);display:none;align-items:center;justify-content:center;padding:24px}
+html[data-locked] #lock{display:flex}
+#lock .box{width:100%;max-width:320px;text-align:center}
+#lock .ico{font-size:44px;line-height:1;margin-bottom:10px}
+#lock h2{margin:0 0 4px;font-size:20px}
+#lock p{margin:0 0 18px;color:var(--muted);font-size:14px}
+#lockPin{width:100%;text-align:center;font-size:26px;letter-spacing:10px;padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:var(--field);color:inherit;outline:none}
+#lockPin:focus{border-color:var(--accent)}
+#lock .err{min-height:20px;margin-top:10px;color:var(--danger);font-size:13px}
+#lock .lnk{background:none;border:0;color:var(--muted);text-decoration:underline;font-size:13px;margin-top:14px}
+#lock.shake .box{animation:shake .35s}
+@keyframes shake{25%{transform:translateX(-8px)}50%{transform:translateX(8px)}75%{transform:translateX(-4px)}}
+:root[data-blur="on"] #chats .row .nm,:root[data-blur="on"] #chats .row .pv,:root[data-blur="on"] #chats .row .av{filter:blur(6px);transition:filter .15s}
+:root[data-blur="on"] #chats .row:hover .nm,:root[data-blur="on"] #chats .row:hover .pv,:root[data-blur="on"] #chats .row:hover .av{filter:none}
+.m .mm{position:absolute;top:32px;right:-30px;width:26px;height:26px;border:0;border-radius:50%;background:var(--panel);
+  color:var(--muted);font-size:14px;opacity:0;transition:opacity .15s;box-shadow:0 1px 2px rgba(0,0,0,.15)}
+.m.me .mm{right:auto;left:-30px}
+.m:hover .mm{opacity:1}
+@media (hover:none){.m .mm{opacity:.7}}
+.m .del{font-style:italic;color:var(--muted)}
+.m .edl{font-size:10.5px;font-style:italic;margin-right:5px}
+#msgMenu{position:fixed;z-index:40;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.2);min-width:200px;overflow:hidden}
+#msgMenu button{display:block;width:100%;text-align:left;background:none;border:0;padding:10px 14px;font-size:14px;color:var(--fg)}
+#msgMenu button:hover{background:var(--hover)}
+#msgMenu .danger{color:var(--danger)}
+#delDlg .dlg,#pinDlg .dlg{max-width:340px}
+#delDlg .col{display:flex;flex-direction:column;gap:8px;margin-top:14px}
+#delDlg .col .btn{width:100%}
+#delDlg .col .danger{background:var(--danger);color:#fff}
+#editbar{display:none;align-items:center;gap:10px;padding:8px 12px;background:var(--panel);border-top:1px solid var(--line)}
+#editbar.on{display:flex}
+#editbar .q{flex:1;min-width:0;border-left:3px solid var(--accent);padding:2px 10px;font-size:13px}
+#editbar .q b{display:block;color:var(--accent);font-size:12px}
+#editbar .q span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted)}
 #panic{position:fixed;inset:0;z-index:2147483647;background:#fff;color:#5f6368;overflow:auto;cursor:default;
   font:15px/1.55 system-ui,"Segoe UI",Roboto,Ubuntu,"Helvetica Neue",Arial,sans-serif;-webkit-user-select:none;user-select:none}
 #panic .wrap{max-width:600px;margin:14vh auto 0;padding:0 24px;box-sizing:border-box}
@@ -260,6 +296,7 @@ html[data-panic] #app,html[data-panic] .overlay,html[data-panic] #toast,html[dat
       <span class="dot" id="dot"></span>
       <div class="av sm" id="meAv"></div>
       <div class="me"><b id="meName" data-egg>__LABEL__</b><small id="mePhone">connecting…</small></div>
+      <button class="ib" id="blurBtn" title="Blur the chat list (hover a chat to peek)">👁</button>
       <button class="ib" id="newBtn" title="New chat">✎</button>
       <button class="ib" id="menuBtn" title="Menu">⋮</button>
     </div>
@@ -271,6 +308,7 @@ html[data-panic] #app,html[data-panic] .overlay,html[data-panic] #toast,html[dat
       <button data-m="relink">Re-link WhatsApp</button>
       <button data-m="health">Connection &amp; status</button>
       <button data-m="news">What's new</button>
+      <button data-m="lock" id="lockNowItem" hidden>🔒 Lock now</button>
       <button data-m="tour">Tutorial</button>
       <button data-m="about">About</button>
       <button data-m="out" class="danger">Sign out</button>
@@ -308,6 +346,10 @@ html[data-panic] #app,html[data-panic] .overlay,html[data-panic] #toast,html[dat
       <div id="emojiGrid"></div>
     </div>
     <div id="suggest" hidden></div>
+    <div id="editbar">
+      <div class="q"><b>✏️ Editing message</b><span id="editText"></span></div>
+      <button class="ib" id="editX" title="Cancel editing">✕</button>
+    </div>
     <div id="reply">
       <div class="q"><b id="replyName"></b><span id="replyText"></span></div>
       <button class="ib" id="replyX" title="Cancel reply">✕</button>
@@ -371,6 +413,36 @@ html[data-panic] #app,html[data-panic] .overlay,html[data-panic] #toast,html[dat
     <div class="acts"><button type="button" class="btn" id="newsX">Got it</button></div>
   </div>
 </div>
+<div class="overlay" id="delDlg" style="background:rgba(0,0,0,.45)">
+  <div class="dlg">
+    <h3>Delete message?</h3>
+    <div class="col">
+      <button type="button" class="btn danger" id="delAll">Delete for everyone</button>
+      <button type="button" class="btn ghost" id="delMe">Delete for me</button>
+      <button type="button" class="btn ghost" id="delX">Cancel</button>
+    </div>
+  </div>
+</div>
+<div class="overlay" id="pinDlg" style="background:rgba(0,0,0,.45)">
+  <form class="dlg" id="pinForm">
+    <h3 id="pinTitle">Set a PIN</h3>
+    <div id="pinCurRow"><label>Current PIN</label><input type="password" id="pinCur" inputmode="numeric" autocomplete="off" maxlength="8"></div>
+    <div id="pinNewRows"><label>New PIN (4–8 digits)</label><input type="password" id="pinNew" inputmode="numeric" autocomplete="off" maxlength="8">
+    <label>Repeat new PIN</label><input type="password" id="pinRep" inputmode="numeric" autocomplete="off" maxlength="8"></div>
+    <div class="err" id="pinErr"></div>
+    <div class="acts"><button type="button" class="btn ghost" id="pinX">Cancel</button><button class="btn" id="pinOk">Save</button></div>
+  </form>
+</div>
+<div id="lock">
+  <div class="box">
+    <div class="ico">🔒</div>
+    <h2>__BRAND__</h2>
+    <p>Locked. Enter your PIN to continue.</p>
+    <input type="password" id="lockPin" inputmode="numeric" autocomplete="off" maxlength="8" aria-label="PIN">
+    <div class="err" id="lockErr"></div>
+    <button type="button" class="lnk" id="lockForgot">Forgot PIN? Sign out</button>
+  </div>
+</div>
 <div class="overlay" id="prefs">
   <div class="dlg">
     <h3>Appearance &amp; settings</h3>
@@ -386,7 +458,19 @@ html[data-panic] #app,html[data-panic] .overlay,html[data-panic] #toast,html[dat
     <div class="seg" data-p="size"><button data-v="small">Small</button><button data-v="normal">Normal</button><button data-v="large">Large</button></div>
     <label>Enter key</label>
     <div class="seg" data-p="enter"><button data-v="auto">Auto</button><button data-v="send">Sends</button><button data-v="newline">New line</button></div>
-    <p style="color:var(--muted);font-size:12px;margin:14px 0 0">Auto sends on computers and adds a new line on phones. Saved on this device only.</p>
+    <label>Chat list privacy blur</label>
+    <div class="seg" data-p="blur"><button data-v="off">Off</button><button data-v="on">On</button></div>
+    <label>App lock (this device)</label>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <button type="button" class="btn ghost" id="pinSet">Set PIN</button>
+      <button type="button" class="btn ghost" id="pinRemove" hidden>Remove PIN</button>
+      <span id="pinState" style="color:var(--muted);font-size:12px"></span>
+    </div>
+    <div id="idleRow" hidden>
+      <label>Lock automatically after</label>
+      <div class="seg" data-p="idle"><button data-v="0">Never</button><button data-v="1">1 min</button><button data-v="5">5 min</button><button data-v="15">15 min</button></div>
+    </div>
+    <p style="color:var(--muted);font-size:12px;margin:14px 0 0">Enter "Auto" sends on computers and adds a new line on phones. All of these are saved on this device only.</p>
     <div class="acts"><button type="button" class="btn" id="prefsX">Done</button></div>
   </div>
 </div>
@@ -411,14 +495,16 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&
 
 let replyTo = null;
 let panicOn = false, panicSaved = null;
-const PREF_DEFAULTS = {theme: 'auto', accent: 'green', wall: 'plain', size: 'normal', enter: 'auto'};
+let editing = null, editBackup = '', locked = false;
+const PREF_DEFAULTS = {theme: 'auto', accent: 'green', wall: 'plain', size: 'normal', enter: 'auto', blur: 'off', idle: '0'};
 let prefs = {...PREF_DEFAULTS};
 try { Object.assign(prefs, JSON.parse(localStorage.getItem('wah-prefs') || '{}')); } catch {}
 function applyPrefs() {
   const r = document.documentElement;
   if (prefs.theme === 'auto') delete r.dataset.theme; else r.dataset.theme = prefs.theme;
   if (prefs.accent === 'green') delete r.dataset.accent; else r.dataset.accent = prefs.accent;
-  r.dataset.wall = prefs.wall; r.dataset.size = prefs.size;
+  r.dataset.wall = prefs.wall; r.dataset.size = prefs.size; r.dataset.blur = prefs.blur;
+  const bb = document.getElementById('blurBtn'); if (bb) { bb.textContent = prefs.blur === 'on' ? '🙈' : '👁'; bb.title = prefs.blur === 'on' ? 'Chat list blurred: click to show' : 'Blur the chat list (hover a chat to peek)'; }
   document.querySelectorAll('#prefs .seg').forEach(g =>
     g.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === prefs[g.dataset.p])));
 }
@@ -534,7 +620,7 @@ function renderChats() {
   }).join('') ||
     `<div class="empty">${q ? 'No chats match.' : filter === 'unread' ? 'No unread chats 🎉' : filter === 'groups' ? 'No groups yet.' : filter === 'archived' ? 'No archived chats.' : status === 'connected' ? 'No chats yet. They appear here as history syncs, or start one with ✎.' : 'Waiting for WhatsApp…'}</div>`;
   const n = chats.filter(c => c.unread > 0 && !c.archived).length;
-  if (!panicOn) document.title = (n ? `(${n}) ` : '') + BASE_TITLE;
+  if (!panicOn && !locked) document.title = (n ? `(${n}) ` : '') + BASE_TITLE;
   const na = chats.filter(c => c.archived).length;
   $('#archChip').textContent = na ? `📦 Archived (${na})` : '📦 Archived';
 }
@@ -612,7 +698,10 @@ function bubble(m) {
   const rx = Array.isArray(m.reactions) ? m.reactions : [];
   const pills = rx.map(r => `<button class="rx ${r.mine ? 'mine' : ''}" data-rx-value="${esc(r.emoji)}" data-rx-message="${esc(m.id)}" title="${r.count} reaction${r.count === 1 ? '' : 's'}">${esc(r.emoji)} ${r.count > 1 ? `<span>${r.count}</span>` : ''}</button>`).join('');
   const rxbar = canReact ? `<div class="rxs">${pills}<button class="rxadd" data-rx-add="${esc(m.id)}" title="React">＋</button><span class="rxpick">${REACTIONS.map(e => `<button data-rx-pick="${esc(e)}" data-rx-message="${esc(m.id)}">${e}</button>`).join('')}</span></div>` : '';
-  return `<div class="m ${m.fromMe ? 'me' : ''} ${m.pending ? 'pending' : ''} ${m.failed ? 'failed' : ''}" data-id="${esc(m.id)}">${rp}${who}${q}${body}<span class="t">${fmtTime(m.ts)}${tick}</span>${rxbar}</div>`;
+  if (m.deleted) body = `<span class="del">🚫 ${m.fromMe ? 'You deleted this message' : 'This message was deleted'}</span>`;
+  const mm = m.pending || m.failed || String(m.id).startsWith('tmp') ? '' : `<button class="mm" data-mm="${esc(m.id)}" title="Edit or delete">⋯</button>`;
+  const ed = m.edited && !m.deleted ? '<span class="edl">edited</span>' : '';
+  return `<div class="m ${m.fromMe ? 'me' : ''} ${m.pending ? 'pending' : ''} ${m.failed ? 'failed' : ''}" data-id="${esc(m.id)}">${m.deleted ? '' : rp}${mm}${who}${m.deleted ? '' : q}${body}<span class="t">${ed}${fmtTime(m.ts)}${tick}</span>${m.deleted ? '' : rxbar}</div>`;
 }
 function renderMsgs(stick) {
   const box = $('#msgs');
@@ -640,6 +729,7 @@ function quotePreview(m) {
   return {image: '📷 Photo', video: '🎥 Video', audio: '🎤 Voice message', sticker: 'Sticker'}[m.type] || ('📄 ' + (m.fileName || 'Document'));
 }
 function startReply(id) {
+  cancelEdit();
   const m = msgs.find(x => x.id === id); if (!m) return;
   replyTo = m;
   $('#replyName').textContent = m.fromMe ? 'You' : (m.senderName || $('#title b')?.textContent || '');
@@ -650,6 +740,7 @@ function startReply(id) {
 function cancelReply() { replyTo = null; $('#reply').classList.remove('on'); }
 
 async function openChat(jid, name) {
+  cancelEdit();
   cancelReply();
   if (current) { const t = $('#text').value; if (t.trim()) drafts.set(current, t); else drafts.delete(current); }
   stopTyping();
@@ -699,6 +790,7 @@ function setComposer() {
 }
 async function send() {
   if (!current || status !== 'connected') return;
+  if (editing) return saveEdit();
   const text = $('#text').value.trim();
   if (!text && !attach) return;
   const jid = current;
@@ -870,6 +962,11 @@ function stream() {
       const i = msgs.findIndex(x => x.id === d.id);
       if (i >= 0) { msgs[i] = {...msgs[i], reactions: d.reactions || []}; renderMsgs(false); }
     }
+    else if (d.type === 'message-removed' && d.jid === current) {
+      msgs = msgs.filter(x => x.id !== d.id);
+      if (editing?.id === d.id) cancelEdit();
+      renderMsgs(false);
+    }
     else if (d.type === 'message-status' && d.jid === current) {
       const i = msgs.findIndex(x => x.id === d.id);
       if (i >= 0) { msgs[i] = {...msgs[i], status: d.status, pending: false}; renderMsgs(false); }
@@ -913,7 +1010,7 @@ $('#search').addEventListener('input', renderChats);
 $('#back').addEventListener('click', () => document.body.classList.remove('open'));
 $('#send').addEventListener('click', send);
 $('#text').addEventListener('keydown', e => { if (suggestKey(e)) return; if (e.key === 'Enter' && !e.shiftKey && enterSends()) { e.preventDefault(); send(); } });
-$('#text').addEventListener('input', () => { if (current) drafts.set(current, $('#text').value); noteComposerActivity(); });
+$('#text').addEventListener('input', () => { if (current && !editing) drafts.set(current, $('#text').value); noteComposerActivity(); });
 $('#text').addEventListener('blur', stopTyping);
 function showJump(on) { $('#jump').hidden = !on; $('#jump span').textContent = unseen ? String(unseen) : ''; }
 $('#jump').addEventListener('click', () => { const b = $('#msgs'); b.scrollTo({top: b.scrollHeight, behavior: 'smooth'}); unseen = 0; showJump(false); });
@@ -1101,6 +1198,7 @@ const TOUR = [
      <li>Archived chats don't count towards the unread number.</li></ul>`},
   {ico: '🎨', title: 'Make it yours', target: '#menuBtn',
    body: `<b>⋮ → Appearance &amp; settings</b>: light or dark theme, accent colour, chat background, text size, and what <kbd>Enter</kbd> does.
+     You can also <b>blur the chat list</b> (👁 at the top) and <b>lock the app with a PIN</b> on this device.
      <p class="muted">Saved per device, so your phone and laptop can look different. You can also change your display name from the ⋮ menu.</p>`},
   {ico: '⚠️', title: 'Good to know',
    body: `<ul>
@@ -1251,6 +1349,7 @@ function panic(on) {
   }
 }
 document.addEventListener('keydown', e => {
+  if (locked) return;   // the lock screen takes priority
   const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName) || document.activeElement?.isContentEditable;
   const isP = (e.key === 'p' || e.key === 'P') && !e.ctrlKey && !e.metaKey && !e.altKey;
   if (panicOn) {
@@ -1262,6 +1361,194 @@ document.addEventListener('keydown', e => {
   if (isP && !typing) { e.preventDefault(); e.stopImmediatePropagation(); panic(true); }
 }, true);
 if (document.documentElement.dataset.panic === '1') panic(true);   // refreshed while hidden
+
+
+// -------------------------------------------------------- edit & delete
+const EDIT_WINDOW = 15 * 60, DELETE_ALL_WINDOW = 60 * 3600;
+let menuFor = null, delFor = null;
+function closeMsgMenu() { document.getElementById('msgMenu')?.remove(); menuFor = null; }
+function openMsgMenu(id, btn) {
+  closeMsgMenu();
+  const m = msgs.find(x => x.id === id); if (!m) return;
+  const age = Date.now() / 1000 - m.ts;
+  const items = [];
+  if (!m.deleted && m.fromMe && m.type === 'text' && age < EDIT_WINDOW) items.push(['edit', '✏️ Edit']);
+  if (!m.deleted && m.text) items.push(['copy', '📋 Copy text']);
+  items.push(['delete', '🗑️ Delete', 'danger']);
+  const el = document.createElement('div');
+  el.id = 'msgMenu';
+  el.innerHTML = items.map(([a, t, c]) => `<button data-ma="${a}" class="${c || ''}">${t}</button>`).join('');
+  document.body.appendChild(el);
+  const r = btn.getBoundingClientRect(), w = 210, h = items.length * 42;
+  el.style.left = Math.max(8, Math.min(innerWidth - w - 8, m.fromMe ? r.left - w + r.width : r.left)) + 'px';
+  el.style.top = Math.max(8, Math.min(innerHeight - h - 8, r.bottom + 4)) + 'px';
+  menuFor = m;
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest?.('#msgMenu [data-ma]');
+  if (!b) { if (!e.target.closest?.('#msgMenu')) closeMsgMenu(); return; }
+  const m = menuFor; closeMsgMenu(); if (!m) return;
+  if (b.dataset.ma === 'edit') startEdit(m);
+  else if (b.dataset.ma === 'copy') navigator.clipboard?.writeText(m.text).then(() => toast('Copied'), () => toast('Could not copy'));
+  else if (b.dataset.ma === 'delete') openDelete(m);
+});
+function openDelete(m) {
+  delFor = m;
+  const canAll = m.fromMe && !m.deleted && Date.now() / 1000 - m.ts < DELETE_ALL_WINDOW;
+  $('#delAll').hidden = !canAll;
+  $('#delDlg').classList.add('on');
+}
+async function doDelete(everyone) {
+  const m = delFor; $('#delDlg').classList.remove('on'); delFor = null;
+  if (!m) return;
+  try {
+    const r = await call('POST', '/delete', {jid: current, id: m.id, everyone});
+    if (everyone) upsert(r); else msgs = msgs.filter(x => x.id !== m.id);
+    if (editing?.id === m.id) cancelEdit();
+    renderMsgs(false); loadChats();
+    toast(everyone ? 'Deleted for everyone' : r.synced ? 'Deleted for you' : 'Deleted for you (on this site only)');
+  } catch (x) { toast(x.message); }
+}
+$('#delAll').addEventListener('click', () => doDelete(true));
+$('#delMe').addEventListener('click', () => doDelete(false));
+$('#delX').addEventListener('click', () => { $('#delDlg').classList.remove('on'); delFor = null; });
+$('#delDlg').addEventListener('click', e => { if (e.target.id === 'delDlg') { $('#delDlg').classList.remove('on'); delFor = null; } });
+
+function startEdit(m) {
+  cancelReply();
+  if (!editing) editBackup = $('#text').value;
+  editing = m;
+  $('#editText').textContent = m.text;
+  $('#editbar').classList.add('on');
+  const t = $('#text'); t.value = m.text; t.dispatchEvent(new Event('input'));
+  t.focus(); t.setSelectionRange(t.value.length, t.value.length);
+}
+function cancelEdit() {
+  if (!editing) return;
+  editing = null;
+  $('#editbar').classList.remove('on');
+  const t = $('#text'); t.value = editBackup; editBackup = ''; t.dispatchEvent(new Event('input'));
+}
+async function saveEdit() {
+  const m = editing, text = $('#text').value.trim();
+  if (!text) return toast('The message cannot be empty. Use Delete instead.');
+  cancelEdit();
+  if (text === m.text) return;
+  const before = {...m};
+  upsert({...m, text, edited: true}); renderMsgs(false);
+  try { upsert(await call('POST', '/edit', {jid: current, id: m.id, text})); renderMsgs(false); loadChats(); }
+  catch (x) { upsert(before); renderMsgs(false); toast('Not edited: ' + x.message); }
+}
+$('#editX').addEventListener('click', cancelEdit);
+$('#text').addEventListener('keydown', e => { if (e.key === 'Escape' && editing) cancelEdit(); });
+
+// ------------------------------------------------------------- app lock
+// A PIN kept on this device only (hashed). Locks on open, on demand
+// (⋮ → Lock now, or L), and optionally after being idle.
+const LOCK_KEY = 'wah-lock-' + USER;
+let lockFails = 0, lockUntil = 0, lastActive = Date.now();
+const lockData = () => { try { return JSON.parse(localStorage.getItem(LOCK_KEY) || 'null'); } catch { return null; } };
+async function pinHash(pin, salt) {
+  const data = new TextEncoder().encode(salt + ':' + pin);
+  if (window.crypto?.subtle) {
+    const b = await crypto.subtle.digest('SHA-256', data);
+    return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join('');
+  }
+  let h = 2166136261; for (const c of data) { h ^= c; h = Math.imul(h, 16777619) >>> 0; } return 'f' + h.toString(16);
+}
+async function pinOk(pin) { const d = lockData(); return !!d && (await pinHash(pin, d.salt)) === d.hash; }
+function refreshLockUi() {
+  const has = !!lockData();
+  $('#pinSet').textContent = has ? 'Change PIN' : 'Set PIN';
+  $('#pinRemove').hidden = !has;
+  $('#idleRow').hidden = !has;
+  $('#lockNowItem').hidden = !has;
+  $('#pinState').textContent = has ? 'On. Locks when the site opens.' : 'Off';
+}
+function lockApp() {
+  if (!lockData()) return;
+  locked = true;
+  document.documentElement.dataset.locked = '1';
+  closeMsgMenu(); closeEmoji?.(); $('#menu').classList.remove('on');
+  document.title = '🔒 ' + BASE_TITLE.split(' · ').pop();
+  $('#lockPin').value = ''; $('#lockErr').textContent = '';
+  setTimeout(() => $('#lockPin').focus(), 50);
+}
+function unlockApp() {
+  locked = false; lockFails = 0; lastActive = Date.now();
+  delete document.documentElement.dataset.locked;
+  document.title = BASE_TITLE; renderChats();
+}
+async function tryUnlock() {
+  const v = $('#lockPin').value, d = lockData();
+  if (!d) return unlockApp();
+  if (Date.now() < lockUntil) { $('#lockErr').textContent = `Too many tries. Wait ${Math.ceil((lockUntil - Date.now()) / 1000)}s.`; return; }
+  if (v.length < d.len) return;
+  if (await pinOk(v)) return unlockApp();
+  lockFails++; $('#lockPin').value = '';
+  $('#lock').classList.remove('shake'); void $('#lock').offsetWidth; $('#lock').classList.add('shake');
+  if (lockFails >= 5) { lockUntil = Date.now() + 30000; lockFails = 0; $('#lockErr').textContent = 'Too many tries. Wait 30s.'; }
+  else $('#lockErr').textContent = 'Wrong PIN';
+}
+$('#lockPin').addEventListener('input', () => { $('#lockPin').value = $('#lockPin').value.replace(/\D/g, ''); if ($('#lockPin').value.length >= (lockData()?.len || 99)) tryUnlock(); });
+$('#lockPin').addEventListener('keydown', e => { if (e.key === 'Enter') tryUnlock(); });
+$('#lockForgot').addEventListener('click', () => {
+  if (!confirm('Sign out and remove the PIN from this device?\n\nYou can sign back in with your password.')) return;
+  try { localStorage.removeItem(LOCK_KEY); } catch {}
+  signOut();
+});
+// while locked, keys only reach the PIN box
+document.addEventListener('keydown', e => {
+  if (locked && e.target?.id !== 'lockPin') { e.preventDefault(); e.stopImmediatePropagation(); $('#lockPin').focus(); return; }
+  const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName);
+  if (!locked && !typing && (e.key === 'l' || e.key === 'L') && !e.ctrlKey && !e.metaKey && !e.altKey && lockData()) { e.preventDefault(); lockApp(); }
+}, true);
+for (const ev of ['mousemove', 'keydown', 'touchstart', 'click', 'scroll']) document.addEventListener(ev, () => { lastActive = Date.now(); }, {passive: true, capture: true});
+setInterval(() => {
+  const mins = Number(prefs.idle || 0);
+  if (!locked && mins > 0 && lockData() && Date.now() - lastActive > mins * 60000) lockApp();
+}, 15000);
+
+// set / change / remove
+let pinMode = 'set';
+function openPin(mode) {
+  pinMode = mode;
+  const has = !!lockData();
+  $('#pinTitle').textContent = mode === 'remove' ? 'Remove PIN' : has ? 'Change PIN' : 'Set a PIN';
+  $('#pinCurRow').hidden = !has;
+  $('#pinNewRows').hidden = mode === 'remove';
+  $('#pinOk').textContent = mode === 'remove' ? 'Remove' : 'Save';
+  for (const id of ['pinCur', 'pinNew', 'pinRep']) $('#' + id).value = '';
+  $('#pinErr').textContent = '';
+  $('#pinDlg').classList.add('on');
+  setTimeout(() => $(has ? '#pinCur' : '#pinNew').focus(), 50);
+}
+$('#pinSet').addEventListener('click', () => openPin('set'));
+$('#pinRemove').addEventListener('click', () => openPin('remove'));
+$('#pinX').addEventListener('click', () => $('#pinDlg').classList.remove('on'));
+$('#pinForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const err = (t) => { $('#pinErr').textContent = t; };
+  if (lockData() && !(await pinOk($('#pinCur').value))) return err('Current PIN is wrong');
+  if (pinMode === 'remove') {
+    try { localStorage.removeItem(LOCK_KEY); } catch {}
+    $('#pinDlg').classList.remove('on'); refreshLockUi(); return toast('PIN removed');
+  }
+  const p = $('#pinNew').value;
+  if (!/^\d{4,8}$/.test(p)) return err('Use 4 to 8 digits');
+  if (p !== $('#pinRep').value) return err("The two PINs don't match");
+  const salt = [...crypto.getRandomValues(new Uint8Array(12))].map(x => x.toString(16).padStart(2, '0')).join('');
+  try { localStorage.setItem(LOCK_KEY, JSON.stringify({salt, hash: await pinHash(p, salt), len: p.length})); } catch { return err('Could not save on this device'); }
+  $('#pinDlg').classList.remove('on'); refreshLockUi();
+  toast('PIN set. Lock any time with ⋮ → Lock now, or press L');
+});
+for (const id of ['pinCur', 'pinNew', 'pinRep']) $('#' + id).addEventListener('input', e => { e.target.value = e.target.value.replace(/\D/g, ''); });
+
+// blur toggle in the sidebar header
+$('#blurBtn').addEventListener('click', () => setPref('blur', prefs.blur === 'on' ? 'off' : 'on'));
+
+refreshLockUi();
+if (document.documentElement.dataset.locked === '1') { if (lockData()) lockApp(); else delete document.documentElement.dataset.locked; }
 
 applyPrefs();
 $('#text').addEventListener('input', function () { this.style.height = 'auto'; this.style.height = Math.min(this.scrollHeight, 140) + 'px'; });
@@ -1317,6 +1604,7 @@ $('#msgs').addEventListener('click', async e => {
   if (rx) {
     return reactMessage(rx.dataset.rxMessage, rx.classList.contains('mine') ? '' : rx.dataset.rxValue);
   }
+  const mb = e.target.closest('[data-mm]'); if (mb) { e.stopPropagation(); return openMsgMenu(mb.dataset.mm, mb); }
   const rb = e.target.closest('[data-reply]'); if (rb) return startReply(rb.dataset.reply);
   const qb = e.target.closest('.q[data-qid]');
   if (qb) {
@@ -1367,6 +1655,7 @@ $('#menu').addEventListener('click', async e => {
   if (m === 'prefs') { applyPrefs(); $('#prefs').classList.add('on'); }
   if (m === 'about') $('#about').classList.add('on');
   if (m === 'tour') startTour();
+  if (m === 'lock') lockApp();
   if (m === 'news') { try { showNews(await call('GET', '/changelog'), true); } catch (x) { toast(x.message); } }
   if (m === 'name') {
     const cur = $('#meName').textContent;

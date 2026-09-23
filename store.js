@@ -41,6 +41,7 @@ export class Store {
     this.messages = new Map() // jid -> [msg]
     this.contacts = new Map() // jid -> { name?, notify?, verified? }
     this.alias = new Map() //    lid -> phone jid
+    this.gone = new Set() //     message ids deleted "for me" (never re-added)
     this.dirty = false
     this.load()
     this.timer = setInterval(() => this.flush(), 5000)
@@ -57,6 +58,7 @@ export class Store {
         this.contacts.set(jid, typeof c === 'string' ? { notify: c } : c)
       }
       for (const [lid, pn] of raw.alias || []) this.alias.set(lid, pn)
+      for (const id of raw.gone || []) this.gone.add(id)
       for (const [jid, list] of Object.entries(raw.messages || {})) this.messages.set(jid, list)
     } catch {
       /* first run or unreadable snapshot: start empty */
@@ -83,7 +85,7 @@ export class Store {
       const tmp = this.file + '.tmp'
       fs.writeFileSync(
         tmp,
-        JSON.stringify({ chats, contacts: [...this.contacts], alias: [...this.alias], messages })
+        JSON.stringify({ chats, contacts: [...this.contacts], alias: [...this.alias], messages, gone: [...this.gone].slice(-3000) })
       )
       fs.renameSync(tmp, this.file)
     } catch (e) {
@@ -224,6 +226,7 @@ export class Store {
   }
 
   addMessage(msg, { bumpUnread = false } = {}) {
+    if (this.gone.has(msg.id)) return null // deleted for me: never bring it back
     let list = this.messages.get(msg.jid)
     if (!list) {
       list = []
@@ -232,7 +235,13 @@ export class Store {
     const i = list.findIndex((m) => m.id === msg.id)
     const isNew = i < 0
     if (isNew) list.push(msg)
-    else list[i] = { ...list[i], ...msg }
+    else {
+      const old = list[i]
+      list[i] = { ...old, ...msg }
+      // a re-sync of the original must not undo a delete or an edit
+      if (old.deleted) Object.assign(list[i], { deleted: true, text: '', rm: undefined, quote: undefined })
+      else if (old.edited) Object.assign(list[i], { edited: true, text: old.text })
+    }
     if (isNew && list.length > 1 && list[list.length - 2].ts > msg.ts) {
       list.sort((a, b) => a.ts - b.ts)
     }
@@ -248,6 +257,42 @@ export class Store {
     if (bumpUnread && isNew && !msg.fromMe) chat.unread = (chat.unread || 0) + 1
     this.dirty = true
     return msg
+  }
+
+  refreshPreview(jid) {
+    const chat = this.chats.get(jid)
+    if (!chat) return
+    const last = (this.messages.get(jid) || []).at(-1)
+    chat.preview = last ? previewOf(last, this) : ''
+    this.dirty = true
+  }
+
+  /** Delete for me: gone from this site for good. */
+  removeMessage(jid, id) {
+    jid = this.canon(jid)
+    const list = this.messages.get(jid) || []
+    const next = list.filter((m) => m.id !== id)
+    this.messages.set(jid, next)
+    this.gone.add(id)
+    this.refreshPreview(jid)
+    return next.length !== list.length
+  }
+
+  /** Deleted for everyone (by you or by them): keep a placeholder like WhatsApp. */
+  markDeleted(jid, id) {
+    const m = this.findMessage(jid, id)
+    if (!m) return null
+    Object.assign(m, { deleted: true, text: '', rm: undefined, quote: undefined, reactions: undefined, edited: false })
+    this.refreshPreview(this.canon(jid))
+    return m
+  }
+
+  markEdited(jid, id, text) {
+    const m = this.findMessage(jid, id)
+    if (!m || m.deleted) return null
+    Object.assign(m, { text: String(text), edited: true })
+    this.refreshPreview(this.canon(jid))
+    return m
   }
 
   quoteView(q) {
@@ -342,6 +387,8 @@ export class Store {
       media: !!m.rm,
       fileName: m.fileName,
       quote: this.quoteView(m.quote),
+      deleted: !!m.deleted,
+      edited: !!m.edited,
       senderName: group && !m.fromMe && m.sender ? this.displayName(m.sender) : '',
       reactions: this.reactionView(m, mineJid),
     }))
@@ -388,6 +435,7 @@ function pickDefined(o = {}) {
 }
 
 export function previewOf(msg, store) {
+  if (msg.deleted) return msg.fromMe ? '🚫 You deleted this message' : '🚫 This message was deleted'
   const body =
     msg.text && msg.type !== 'document'
       ? msg.text
