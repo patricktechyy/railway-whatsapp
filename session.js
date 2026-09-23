@@ -1207,6 +1207,59 @@ export class Session extends EventEmitter {
   }
 
   /** Validate a phone number against WhatsApp and return its chat JID. */
+  // --------------------------------------------------------- group members
+  async groupMembers(jid) {
+    this.ensureConnected()
+    jid = this.store.canon(jid)
+    if (!isGroup(jid)) throw Object.assign(new Error('Not a group'), { status: 400 })
+    const md = await this.sock.groupMetadata(jid)
+    this.groupCache.set(jid, md)
+    if (md.subject) this.store.setGroup(jid, md.subject)
+    const meJid = this.store.canon(this.me?.jid || '')
+    const members = (md.participants || []).map((p) => {
+      const ids = [p.id, p.lid, p.phoneNumber, p.jid].filter(Boolean)
+      const lid = ids.find(isLid)
+      const pn = ids.map(toPn).find(Boolean)
+      if (lid && pn) this.store.link(lid, pn)
+      const c = this.store.canon(pn || p.id)
+      return { id: p.id, jid: c, name: this.store.displayName(c), phone: phoneOf(c), admin: p.admin || null, me: c === meJid }
+    })
+    const rank = (m) => (m.me ? 0 : m.admin === 'superadmin' ? 1 : m.admin ? 2 : 3)
+    members.sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name))
+    const mine = members.find((m) => m.me)
+    return { jid, subject: md.subject || this.store.displayName(jid), members, amAdmin: !!mine?.admin }
+  }
+
+  /** Add or remove people. WhatsApp only allows this for group admins. */
+  async groupParticipants(jid, action, ids) {
+    this.ensureConnected()
+    jid = this.store.canon(jid)
+    if (!isGroup(jid)) throw Object.assign(new Error('Not a group'), { status: 400 })
+    if (!['add', 'remove'].includes(action)) throw Object.assign(new Error('Unknown action'), { status: 400 })
+    ids = [...new Set((ids || []).map(String).filter(Boolean))].slice(0, 20)
+    if (!ids.length) throw Object.assign(new Error('Nobody selected'), { status: 400 })
+    const res = await this.sock.groupParticipantsUpdate(jid, ids, action)
+    const text = {
+      200: action === 'add' ? 'Added' : 'Removed',
+      403: "Can't add them: their privacy settings don't allow it. Send them the invite link instead.",
+      408: 'They left recently, so WhatsApp won\'t re-add them yet. Send them the invite link.',
+      409: action === 'add' ? 'Already in the group' : 'Not in the group',
+      401: 'Only group admins can do that',
+      500: 'The group is full',
+    }
+    this.groupCache.delete(jid)
+    return (res || []).map((r) => {
+      const code = Number(r.status)
+      return { id: r.jid || r.id, status: code, ok: code === 200, text: text[code] || `WhatsApp said no (${r.status})` }
+    })
+  }
+
+  async groupInvite(jid) {
+    this.ensureConnected()
+    const code = await this.sock.groupInviteCode(this.store.canon(jid))
+    return { link: `https://chat.whatsapp.com/${code}` }
+  }
+
   async resolveNumber(input) {
     this.ensureConnected()
     const digits = String(input || '').replace(/\D/g, '')
