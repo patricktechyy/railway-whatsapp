@@ -108,8 +108,8 @@ yourself — they'd notice, because it signs them out.)
 | `ADMIN_PASSWORD` | generated | Admin login. The old `PASSWORD` still works. |
 | `BRAND` | `Apa yang Diatas (Whats Up)` | Name on the login page. |
 | `FULL_HISTORY` | `1` | `0` takes only recent history at pairing (lighter on very large accounts). |
-| `HISTORY_DAYS` | `12` | Messages older than this are not saved, and are removed from storage. |
-| `MAX_MSGS_PER_CHAT` | `150` | Messages kept per chat on the server. |
+| `HISTORY_DAYS` | `14` | Recent messages are kept for this many days; the runtime minimum is 7 days. |
+| `MAX_MSGS_PER_CHAT` | *(legacy)* | No longer truncates recent messages; retention is time-based via `HISTORY_DAYS`. |
 | `MAX_CHATS` | `800` | Chats kept. |
 | `MAX_UPLOAD_MB` | `25` | Largest file you can send. |
 | `DATA_DIR` | `/data` | Must match the volume mount. |

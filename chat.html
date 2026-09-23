@@ -1523,9 +1523,15 @@ $('#emojiGrid').addEventListener('click', e => {
   useEmoji(b.dataset.e); insertAtCaret(b.dataset.e);
   if (e.shiftKey === false && innerWidth <= 760) closeEmoji();
 });
+// Keep all interactions inside the picker from bubbling to the global
+// popover-closing handlers. This is especially important for tab buttons: the
+// tab handler re-renders #emojiTabs, which removes the clicked button before
+// the document's click handler runs.
+$('#emojiPanel').addEventListener('pointerdown', e => e.stopPropagation());
+$('#emojiPanel').addEventListener('click', e => e.stopPropagation());
 document.addEventListener('click', e => {
-  if (!$('#emojiPanel').hidden && !e.target.closest('#emojiPanel, #emojiBtn')) closeEmoji();
-  if (!$('#suggest').hidden && !e.target.closest('#suggest, #text')) hideSuggest();
+  if (!$('#emojiPanel').hidden && !e.target?.closest?.('#emojiBtn') && !e.composedPath?.().includes($('#emojiPanel'))) closeEmoji();
+  if (!$('#suggest').hidden && !e.target?.closest?.('#suggest, #text')) hideSuggest();
 });
 
 // :shortcodes  ->  suggestions while typing, auto-replace on the closing colon
@@ -1611,7 +1617,7 @@ const TOUR = [
      <p class="muted">Shortcuts only work when you're not typing in a box.</p>`},
   {ico: '⚠️', title: 'Good to know',
    body: `<ul>
-     <li><b>History:</b> only the last <b>12 days</b> are kept. <b>Load earlier messages</b> asks your phone for more, and it must be online.</li>
+     <li><b>History:</b> the last <b>14 days</b> are kept here (at least 7 days). Recent messages are no longer limited by an arbitrary per-chat count. <b>Load earlier messages</b> only asks your phone for more once the saved history boundary is reached.</li>
      <li><b>Names:</b> some contacts show just a number until they message you. WhatsApp only shares names that way. Use a nickname meanwhile.</li>
      <li><b>Late messages:</b> a message can occasionally take a little while to appear while it's being decrypted.</li>
      <li><b>Media:</b> videos and voice notes are sent as files. Some stickers, polls and other special messages may not show.</li>
@@ -2289,8 +2295,11 @@ document.addEventListener('auxclick', (e) => { const img = e.button === 1 && e.t
 // (some buttons stop their clicks from bubbling, so listen before they can)
 document.addEventListener('pointerdown', (e) => {
   const t = e.target;
-  if (!$('#emojiPanel').hidden && !t.closest('#emojiPanel, #emojiBtn')) closeEmoji();
-  if (!$('#suggest').hidden && !t.closest('#suggest, #text')) hideSuggest();
+  const path = e.composedPath?.() || [];
+  const inEmoji = path.includes($('#emojiPanel')) || t?.closest?.('#emojiPanel, #emojiBtn');
+  const inSuggest = path.includes($('#suggest')) || t?.closest?.('#suggest, #text');
+  if (!$('#emojiPanel').hidden && !inEmoji) closeEmoji();
+  if (!$('#suggest').hidden && !inSuggest) hideSuggest();
   if ($('#chatActs').classList.contains('on') && !t.closest('#chatActs, #chatMore')) $('#chatActs').classList.remove('on');
   if ($('#menu').classList.contains('on') && !t.closest('#menu, #menuBtn, #rMe')) $('#menu').classList.remove('on');
 }, true);

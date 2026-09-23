@@ -1366,7 +1366,7 @@ export class Session extends EventEmitter {
   }
 
   /** Ask the phone for older messages in a chat. They arrive via history.set. */
-  async fetchOlder(jid, count = 50) {
+  async fetchOlder(jid, count = 200) {
     this.ensureConnected()
     const oldest = this.store.oldest(jid)
     if (!oldest) return { requested: false, reason: 'no messages to page back from' }

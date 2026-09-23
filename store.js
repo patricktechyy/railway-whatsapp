@@ -2,14 +2,15 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 const MAX_CHATS = Number(process.env.MAX_CHATS || 800)
-// Messages are kept for the admin's day limit; this per-chat count is only a safety net.
-const MAX_MSGS = Number(process.env.MAX_MSGS_PER_CHAT || 5000)
-const HARD_MSG_CAP = 20000
-// Keep only this many days of messages (HISTORY_DAYS, default 12).
-// How many days of messages are kept. The admin can change it at runtime;
-// it never goes below MIN_HISTORY_DAYS.
-export const MIN_HISTORY_DAYS = 4
-let historyDays = Math.max(MIN_HISTORY_DAYS, Number(process.env.HISTORY_DAYS) || 12)
+// Message retention is time-based so a busy chat cannot evict recent messages
+// simply because it crossed an arbitrary message-count cap. This is especially
+// important for groups where thousands of messages can arrive within a day.
+// HISTORY_DAYS is the actual retention boundary; default 14 gives a full week
+// of scrollback with some breathing room. The admin can change it at runtime,
+// but it never goes below MIN_HISTORY_DAYS.
+export const MIN_HISTORY_DAYS = 7
+const DEFAULT_HISTORY_DAYS = 14
+let historyDays = Math.max(MIN_HISTORY_DAYS, Number(process.env.HISTORY_DAYS) || DEFAULT_HISTORY_DAYS)
 export const getHistoryDays = () => historyDays
 export function setHistoryDays(n) {
   historyDays = Math.min(3650, Math.max(MIN_HISTORY_DAYS, Math.round(Number(n)) || MIN_HISTORY_DAYS))
@@ -88,7 +89,7 @@ export class Store {
         // drop anything past the history window, in memory and on disk
         const fresh = list.filter((m) => m.ts >= cutoff)
         if (fresh.length !== list.length) this.messages.set(jid, fresh)
-        if (keep.has(jid) && fresh.length) messages[jid] = fresh.slice(-(this.chats.get(jid)?.cap || MAX_MSGS))
+        if (keep.has(jid) && fresh.length) messages[jid] = fresh
       }
       fs.mkdirSync(path.dirname(this.file), { recursive: true })
       const tmp = this.file + '.tmp'
@@ -256,8 +257,9 @@ export class Store {
     }
 
     const chat = this.touchChat(msg.jid)
-    const cap = chat.cap || MAX_MSGS
-    if (list.length > cap) list.splice(0, list.length - cap)
+    // Do not cap by message count here. Retention is based on timestamp in
+    // flush(), which guarantees a busy chat keeps at least the configured
+    // number of recent days instead of truncating at an arbitrary count.
 
     if (msg.ts >= (chat.t || 0)) {
       chat.t = msg.ts
@@ -360,8 +362,10 @@ export class Store {
   }
 
   raiseCap(jid, by = 60) {
-    const chat = this.touchChat(jid)
-    chat.cap = Math.min(HARD_MSG_CAP, (chat.cap || MAX_MSGS) + by)
+    // Kept for compatibility with the older fetch-older path. Recent-message
+    // retention is now time-based, so there is no per-chat count cap to raise.
+    this.touchChat(jid)
+    return true
   }
 
   markRead(jid) {
