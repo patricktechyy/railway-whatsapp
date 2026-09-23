@@ -5,16 +5,21 @@
 <title>__LABEL__ · __BRAND__</title>
 <script>try{if(sessionStorage.getItem('wah-panic')==='1')document.documentElement.dataset.panic='1'}catch(e){}</script>
 <script>try{if(localStorage.getItem('wah-lock-__USER__'))document.documentElement.dataset.locked='1';var bp=JSON.parse(localStorage.getItem('wah-prefs')||'{}');document.documentElement.dataset.blur=bp.blur||'off'}catch(e){}</script>
-<script>try{var p=JSON.parse(localStorage.getItem('wah-prefs')||'{}'),r=document.documentElement;if(p.theme&&p.theme!=='auto')r.dataset.theme=p.theme;if(p.accent&&p.accent!=='green')r.dataset.accent=p.accent;r.dataset.wall=p.wall||'plain';r.dataset.size=p.size||'normal'}catch(e){}</script>
+<script>try{var p=JSON.parse(localStorage.getItem('wah-prefs')||'{}'),r=document.documentElement;if(p.theme&&p.theme!=='auto')r.dataset.theme=p.theme;if(p.accent&&p.accent!=='green')r.dataset.accent=p.accent;r.dataset.wall=p.wall||'doodle';r.dataset.size=p.size||'normal'}catch(e){}</script>
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2048%2048%22%20aria-hidden%3D%22true%22%3E%3Cpath%20fill%3D%22%2317805a%22%20d%3D%22M15%203.5%20L22.5%2013%20H33%20A11%2011%200%200%201%2044%2024%20V31%20A11%2011%200%200%201%2033%2042%20H15%20A11%2011%200%200%201%204%2031%20V24%20A11%2011%200%200%201%2011.5%2013.4%20Z%22/%3E%3Cpath%20d%3D%22M16%2031.5%2024%2023.5%2032%2031.5%22%20fill%3D%22none%22%20stroke%3D%22%23ffffff%22%20stroke-width%3D%224.2%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="/ui.css?v=__APPV__">
 <style>
-:root{--bg:#f0f2f5;--panel:#fff;--fg:#111b21;--muted:#667781;--line:#e9edef;--accent:#128c7e;
-  --out:#d9fdd3;--in:#fff;--thread:#efeae2;--field:#f0f2f5;--hover:#f5f6f6;--danger:#d64550;box-sizing:border-box}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#111b21;--panel:#111b21;--fg:#e9edef;
-  --muted:#8696a0;--line:#222e35;--accent:#00a884;--out:#005c4b;--in:#202c33;--thread:#0b141a;--field:#202c33;
-  --hover:#202c33;--danger:#f15c6d}}
+/* colours come from ui.css; only chat-specific surfaces are defined here */
+:root{--bg:var(--paper);--panel:var(--surface);--fg:var(--ink);--accent:var(--leaf);
+  --out:#d6f0e1;--in:#ffffff;--thread:#e8efeb;box-sizing:border-box}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--out:#1b4a39;--in:#1b2c27;--thread:#0b1411}}
 :root{color-scheme:light dark}
 :root[data-theme="light"]{color-scheme:light}
-:root[data-theme="dark"]{color-scheme:dark;--bg:#111b21;--panel:#111b21;--fg:#e9edef;--muted:#8696a0;--line:#222e35;--accent:#00a884;--out:#005c4b;--in:#202c33;--thread:#0b141a;--field:#202c33;--hover:#202c33;--danger:#f15c6d}
+:root[data-theme="dark"]{color-scheme:dark;--out:#1b4a39;--in:#1b2c27;--thread:#0b1411}
+/* the accent setting recolours shared buttons and highlights too */
+:root[data-accent]{--leaf:var(--accent);--leaf-strong:color-mix(in srgb,var(--accent) 82%,#000);--leaf-soft:color-mix(in srgb,var(--accent) 16%,var(--surface))}
 :root[data-accent="blue"]{--accent:#2f80ed}
 :root[data-accent="purple"]{--accent:#8b5cf6}
 :root[data-accent="pink"]{--accent:#e0457b}
@@ -28,7 +33,7 @@
 *{box-sizing:inherit}
 [hidden]{display:none!important}
 html,body{height:100%}
-body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+body{margin:0;background:var(--bg);color:var(--fg);font:400 15px/1.45 var(--font);
   padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 button{font:inherit;color:inherit;cursor:pointer}
 #app{display:flex;height:100%;overflow:hidden;position:relative}
@@ -189,9 +194,6 @@ html[data-locked] #lock{display:flex}
 #suggest .mav{width:26px;height:26px;flex:0 0 26px;border-radius:50%;background:var(--accent);color:#fff;font-size:11px;font-weight:600;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden}
 #suggest .mav img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .m a.lnk{color:var(--accent);word-break:break-all}
-.seg{display:flex;gap:6px;flex-wrap:wrap}
-.seg button{border:1px solid var(--line);background:var(--field);border-radius:8px;padding:6px 12px;font-size:14px}
-.seg button.on{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 15%,var(--field));font-weight:600}
 .seg.sw button{width:30px;height:30px;padding:0;border-radius:50%;background:var(--c);border:0}
 .seg.sw button.on{outline:2px solid var(--fg);outline-offset:2px}
 #prefs{background:rgba(0,0,0,.45)}
@@ -320,12 +322,8 @@ html[data-locked] #lock{display:flex}
 .dlg label{display:block;font-size:13px;font-weight:600;margin:12px 0 5px}
 .dlg input{width:100%;padding:9px 12px;border-radius:8px;border:1px solid var(--line);background:var(--field);color:inherit;font:inherit;outline:none}
 .dlg .acts{display:flex;gap:8px;justify-content:flex-end;margin-top:18px}
-.btn{border:0;border-radius:8px;padding:9px 16px;background:var(--accent);color:#fff;font-weight:600}
-.btn.ghost{background:transparent;color:var(--fg);border:1px solid var(--line)}
 .err{color:var(--danger);font-size:13px;min-height:18px;margin-top:10px}
-#toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:#111b21;color:#fff;padding:10px 16px;border-radius:8px;
-  font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:20;max-width:90vw;text-align:center}
-#toast.on{opacity:1}
+#toast{bottom:92px}
 
 @media (max-width:760px){
   #side{position:absolute;inset:0;width:100%;flex:none;z-index:2}
@@ -334,20 +332,179 @@ html[data-locked] #lock{display:flex}
   #back{display:block}
   #msgs{padding:12px 10px}
 }
+
+/* ================= polish layer: shared look for the chat app ================= */
+@media (min-width:761px){#side{width:384px;flex-basis:384px}}
+#side > .bar{gap:4px}
+#side > .bar .ib{width:34px;height:34px;flex-basis:34px;font-size:16px}
+#side > .bar .me{margin-left:6px}
+.bar{min-height:64px;padding:10px 14px}
+.bar .me b{font-weight:700;letter-spacing:-.01em}
+.ib{width:38px;height:38px;flex-basis:38px;border-radius:12px;font-size:17px;transition:background-color .15s,color .15s}
+.ib:hover{background:var(--hover);color:var(--ink)}
+.search{margin:4px 12px 10px;min-height:40px;padding:9px 14px;border-radius:12px;border:1px solid var(--line);background:var(--field);font-size:14px}
+.search:focus{border-color:var(--leaf);background:var(--surface);box-shadow:var(--ring)}
+#chips{padding:0 12px 10px;gap:6px}
+#chips button{height:30px;padding:0 12px;border-radius:999px;font-weight:600;font-size:12.5px;border:1px solid transparent}
+#chips button:hover{color:var(--ink)}
+#chips button.on{background:var(--leaf-soft);color:var(--leaf);border-color:color-mix(in srgb,var(--leaf) 25%,transparent)}
+.list{padding:2px 8px 10px}
+.row{padding:10px 10px;border-radius:14px;gap:12px;transition:background-color .12s}
+.row:hover{background:var(--hover)}
+.row.sel{background:var(--leaf-soft)}
+.ct{border-bottom:0;padding-bottom:0;margin-bottom:0}
+.nm{font-weight:650;letter-spacing:-.005em}
+.av{background:var(--leaf-soft);color:var(--leaf);font-weight:700}
+.av.g{background:var(--field);color:var(--muted)}
+.badge{background:var(--leaf);color:var(--leaf-ink);font-weight:700;min-width:20px;height:20px;padding:0 6px;display:inline-flex;align-items:center;justify-content:center;font-size:11px}
+#title b{font-weight:700;letter-spacing:-.01em}
+#msgs{padding:18px 6%}
+.m{border-radius:12px;padding:7px 10px 6px;box-shadow:0 1px 1.5px rgba(16,38,31,.08)}
+.m:not(.me){border-top-left-radius:4px}
+.m.me{border-top-right-radius:4px}
+.m.sticker{border-radius:0}
+.day{border-radius:999px;padding:4px 12px;font-weight:600;font-size:11.5px;box-shadow:none;border:1px solid var(--line)}
+.more{border-radius:999px;font-weight:600;padding:6px 14px}
+.more:hover{color:var(--ink)}
+#composer{padding:10px 12px;gap:8px}
+#text{min-height:44px;padding:11px 16px;border-radius:22px;border:1px solid var(--line);font-size:15px}
+#text:focus{border-color:var(--leaf);background:var(--surface);box-shadow:var(--ring)}
+#send{width:44px;height:44px;flex-basis:44px;background:var(--leaf);color:var(--leaf-ink);transition:background-color .15s,transform .05s}
+#send:hover:not(:disabled){background:var(--leaf-strong)}
+#send:active{transform:scale(.96)}
+.overlay{backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}
+.dlg{border-radius:var(--r-lg);padding:26px;box-shadow:var(--shadow);border:1px solid var(--line)}
+.dlg h3{font-size:18px;font-weight:700;margin:0 0 14px;letter-spacing:-.01em}
+.dlg label{font-size:13px;font-weight:600;margin:16px 0 8px}
+.dlg input{min-height:44px;padding:10px 14px;border-radius:var(--r-sm)}
+.dlg input:focus{border-color:var(--leaf);background:var(--surface);box-shadow:var(--ring)}
+.dlg .acts{margin-top:22px}
+.seg.sw{background:none;border:0;padding:0;gap:10px}
+.seg.sw button{width:30px;height:30px;min-height:0;padding:0;border-radius:50%;background:var(--c)!important;box-shadow:none}
+.seg.sw button.on{outline:2px solid var(--ink);outline-offset:2px}
+#menu,#msgMenu,.manage .menu{border-radius:var(--r-md);box-shadow:var(--shadow);padding:6px;border:1px solid var(--line)}
+#menu button,#msgMenu button{border-radius:9px;padding:10px 12px;font-size:14px;font-weight:500}
+#emojiPanel,#suggest{border-radius:var(--r-md);box-shadow:var(--shadow)}
+#gate .mark{width:56px;height:56px}
+#gate h2{font-size:22px;font-weight:700;letter-spacing:-.02em}
+#gate img{border-radius:16px;box-shadow:var(--shadow)}
+#lock .box{max-width:340px}
+#lock h2{font-size:22px;font-weight:700}
+#lockPin{border-radius:var(--r-md);min-height:56px}
+#lockPin:focus{border-color:var(--leaf);box-shadow:var(--ring)}
+.pill{height:34px;padding:0 12px;border-radius:10px;border:1px solid var(--line);background:var(--surface);font-size:13px;font-weight:600;color:var(--ink);
+  display:inline-flex;align-items:center;gap:6px;transition:background-color .15s,border-color .15s}
+.pill:hover{background:var(--hover);border-color:color-mix(in srgb,var(--leaf) 30%,var(--line))}
+#chatActs{display:flex;gap:6px;align-items:center}
+#chatMore{display:none}
+@media (max-width:760px){
+  #chatMore{display:inline-flex;align-items:center;justify-content:center}
+  #chatActs{display:none;position:absolute;right:10px;top:58px;z-index:20;flex-direction:column;align-items:stretch;gap:2px;
+    background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);box-shadow:var(--shadow);padding:6px;min-width:200px}
+  #chatActs.on{display:flex}
+  #chatActs .pill{border:0;background:none;justify-content:flex-start;height:40px;width:100%;border-radius:9px;font-weight:500;font-size:14px}
+  #chatActs .pill:hover{background:var(--hover)}
+  #msgs{padding:12px 10px}
+}
+
+/* ============ WhatsApp Desktop layout (rail · list · conversation) ============ */
+:root{--rail:#f4f6f5;--sel:#eaefec;--thread:#efeae2;--in:#ffffff;--out:#d9fdd3}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--rail:#0d1714;--sel:#20322c;--thread:#0c1411;--in:#1f2c28;--out:#135a43}}
+:root[data-theme="dark"]{--rail:#0d1714;--sel:#20322c;--thread:#0c1411;--in:#1f2c28;--out:#135a43}
+#rail{flex:0 0 64px;display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 0;background:var(--rail);border-right:1px solid var(--line)}
+#rail .grow{flex:1}
+#rail .rsep{width:30px;height:1px;background:var(--line);margin:6px 0}
+.rb{position:relative;width:44px;height:44px;border:0;border-radius:12px;background:none;color:var(--muted);display:flex;align-items:center;justify-content:center;transition:background-color .15s,color .15s}
+.rb:hover{background:var(--hover);color:var(--ink)}
+.rb.on{background:color-mix(in srgb,var(--ink) 9%,transparent);color:var(--ink)}
+.rcount{position:absolute;top:3px;right:1px;min-width:17px;height:17px;padding:0 4px;border-radius:9px;background:var(--leaf);color:var(--leaf-ink);font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.rme{border:0;background:none;padding:0;border-radius:50%}
+.rme .av.sm{width:36px;height:36px;flex-basis:36px;font-size:13px}
+.rme:hover .av{box-shadow:0 0 0 3px var(--hover)}
+#side{background:var(--surface)}
+.sidehead{border-bottom:0;min-height:0;padding:16px 16px 8px;gap:8px}
+.ctitle{font-size:22px;font-weight:800;letter-spacing:-.025em;margin:0}
+.sidehead .grow{flex:1}
+#menuBtn{width:30px;height:30px;flex-basis:30px;border-radius:50%;background:var(--field)}
+#menuBtn svg{width:18px;height:18px}
+.sidehead .ib svg{width:21px;height:21px}
+#menu{left:16px;right:auto;top:54px;min-width:230px}
+#menu.fromRail{position:fixed;left:72px;top:auto;bottom:14px}
+#menu .me{display:block;padding:10px 12px 12px;margin:0 0 4px;border-bottom:1px solid var(--line);line-height:1.3}
+#menu .me b{display:block;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#menu .me small{color:var(--muted);font-size:12.5px}
+.search{margin:4px 14px 10px;padding-left:40px;background:var(--field) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a9993' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='6.5'/%3E%3Cpath d='m20 20-4.2-4.2'/%3E%3C/svg%3E") no-repeat 14px center/17px;border-color:transparent}
+#chips{padding:0 14px 8px}
+.list{padding:0 8px 10px}
+.row{padding:10px 12px;border-radius:12px;gap:14px}
+.row:hover{background:color-mix(in srgb,var(--sel) 60%,transparent)}
+.row.sel{background:var(--sel)}
+.row > .av{width:50px;height:50px;flex-basis:50px;font-size:16px}
+.nm{font-size:15.5px;font-weight:600}
+.pv{font-size:14px;margin-top:2px}
+.tm{font-size:12px}
+.row:has(.badge) .tm{color:var(--leaf);font-weight:600}
+.mob{display:none}
+#main > .bar{background:var(--surface);min-height:64px;border-bottom:1px solid var(--line);padding:10px 16px}
+#tav{width:42px;height:42px;flex-basis:42px}
+#title b{font-size:16px;font-weight:600}
+#title small{font-size:12.5px}
+#chatMore{display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;flex-basis:40px}
+#chatActs{display:none;position:absolute;right:14px;top:60px;z-index:20;flex-direction:column;align-items:stretch;gap:2px;
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);box-shadow:var(--shadow);padding:6px;min-width:210px}
+#chatActs.on{display:flex}
+#chatActs .pill{border:0;background:none;justify-content:flex-start;height:40px;width:100%;border-radius:9px;font-weight:500;font-size:14px}
+#chatActs .pill:hover{background:var(--hover)}
+:root[data-wall="doodle"] #msgs{background-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%22360%22%20height%3D%22360%22%20viewBox%3D%220%200%20360%20360%22%3E%3Cg%20fill%3D%22none%22%20stroke%3D%22%238c7b62%22%20stroke-opacity%3D%220.19%22%20stroke-width%3D%221.25%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cg%20transform%3D%22translate%2814.7%2023.0%29%20rotate%28-2%2012.4%2012.4%29%20scale%281.03%29%22%3E%3Cpath%20d%3D%22M20%2011a8%208%200%200%201-11.6%207.1L4%2019.5l1.3-4.1A8%208%200%201%201%2020%2011z%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%2866.4%206.1%29%20rotate%281%2012.6%2012.6%29%20scale%281.05%29%22%3E%3Cpath%20d%3D%22M4%205.5A2%202%200%200%201%206%204h13v14H6a2%202%200%200%200-2%202z%22/%3E%3Cpath%20d%3D%22M4%2020V5.5M8%208h7%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28121.5%204.0%29%20rotate%28-14%2013.2%2013.2%29%20scale%281.10%29%22%3E%3Ccircle%20cx%3D%2212%22%20cy%3D%2212%22%20r%3D%223.8%22/%3E%3Cpath%20d%3D%22M12%202.5v2.2M12%2019.3v2.2M2.5%2012h2.2M19.3%2012h2.2M5.3%205.3l1.6%201.6M17.1%2017.1l1.6%201.6M5.3%2018.7l1.6-1.6M17.1%206.9l1.6-1.6%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28177.5%2020.1%29%20rotate%28-32%2010.6%2010.6%29%20scale%280.89%29%22%3E%3Crect%20x%3D%223%22%20y%3D%228%22%20width%3D%2218%22%20height%3D%2210%22%20rx%3D%225%22/%3E%3Cpath%20d%3D%22M8%2011v4M6%2013h4%22/%3E%3Cpath%20d%3D%22M15.5%2012h.01M17.5%2014h.01%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28224.7%2013.5%29%20rotate%288%2014.9%2014.9%29%20scale%281.24%29%22%3E%3Cpath%20d%3D%22M5%208h11v6a5%205%200%200%201-5%205h-1a5%205%200%200%201-5-5z%22/%3E%3Cpath%20d%3D%22M16%2010h1.5a2.5%202.5%200%200%201%200%205H16%22/%3E%3Cpath%20d%3D%22M9%203.5c0%201%201%201%201%202M12.5%203.5c0%201%201%201%201%202%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28259.5%2015.5%29%20rotate%28-31%2011.0%2011.0%29%20scale%280.91%29%22%3E%3Cpath%20d%3D%22M15.5%204.5%2019.5%208.5%209%2019H5v-4z%22/%3E%3Cpath%20d%3D%22M13%207l4%204%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28316.7%202.8%29%20rotate%28-3%2011.1%2011.1%29%20scale%280.93%29%22%3E%3Cpath%20d%3D%22M12%2021s-6-5.5-6-11a6%206%200%200%201%2012%200c0%205.5-6%2011-6%2011z%22/%3E%3Ccircle%20cx%3D%2212%22%20cy%3D%2210%22%20r%3D%222.2%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%2846.9%2065.3%29%20rotate%2810%2012.3%2012.3%29%20scale%281.03%29%22%3E%3Cpath%20d%3D%22M7%2018a4%204%200%200%201-.5-8%205.5%205.5%200%200%201%2010.6%201.3A3.4%203.4%200%200%201%2017%2018z%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%2893.9%2063.6%29%20rotate%28-16%2012.6%2012.6%29%20scale%281.05%29%22%3E%3Cpath%20d%3D%22M9%2017.5V5l8-1.5%22/%3E%3Ccircle%20cx%3D%226.5%22%20cy%3D%2217.5%22%20r%3D%222.5%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28147.9%2068.1%29%20rotate%2815%2015.0%2015.0%29%20scale%281.25%29%22%3E%3Cpath%20d%3D%22M20%2011a8%208%200%200%201-11.6%207.1L4%2019.5l1.3-4.1A8%208%200%201%201%2020%2011z%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28187.5%2060.4%29%20rotate%28-30%2011.7%2011.7%29%20scale%280.98%29%22%3E%3Cpath%20d%3D%22M4%205.5A2%202%200%200%201%206%204h13v14H6a2%202%200%200%200-2%202z%22/%3E%3Cpath%20d%3D%22M4%2020V5.5M8%208h7%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28241.3%2070.1%29%20rotate%28-8%2013.9%2013.9%29%20scale%281.16%29%22%3E%3Ccircle%20cx%3D%2212%22%20cy%3D%2212%22%20r%3D%223.8%22/%3E%3Cpath%20d%3D%22M12%202.5v2.2M12%2019.3v2.2M2.5%2012h2.2M19.3%2012h2.2M5.3%205.3l1.6%201.6M17.1%2017.1l1.6%201.6M5.3%2018.7l1.6-1.6M17.1%206.9l1.6-1.6%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28300.0%2053.4%29%20rotate%28-20%2014.8%2014.8%29%20scale%281.23%29%22%3E%3Crect%20x%3D%223%22%20y%3D%228%22%20width%3D%2218%22%20height%3D%2210%22%20rx%3D%225%22/%3E%3Cpath%20d%3D%22M8%2011v4M6%2013h4%22/%3E%3Cpath%20d%3D%22M15.5%2012h.01M17.5%2014h.01%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28344.9%2071.4%29%20rotate%28-7%2014.6%2014.6%29%20scale%281.21%29%22%3E%3Cpath%20d%3D%22M5%208h11v6a5%205%200%200%201-5%205h-1a5%205%200%200%201-5-5z%22/%3E%3Cpath%20d%3D%22M16%2010h1.5a2.5%202.5%200%200%201%200%205H16%22/%3E%3Cpath%20d%3D%22M9%203.5c0%201%201%201%201%202M12.5%203.5c0%201%201%201%201%202%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28-15.1%2071.4%29%20rotate%28-7%2014.6%2014.6%29%20scale%281.21%29%22%3E%3Cpath%20d%3D%22M5%208h11v6a5%205%200%200%201-5%205h-1a5%205%200%200%201-5-5z%22/%3E%3Cpath%20d%3D%22M16%2010h1.5a2.5%202.5%200%200%201%200%205H16%22/%3E%3Cpath%20d%3D%22M9%203.5c0%201%201%201%201%202M12.5%203.5c0%201%201%201%201%202%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%2818.6%20125.4%29%20rotate%28-16%2010.6%2010.6%29%20scale%280.88%29%22%3E%3Ccircle%20cx%3D%226%22%20cy%3D%2212%22%20r%3D%221.2%22/%3E%3Ccircle%20cx%3D%2212%22%20cy%3D%2212%22%20r%3D%221.2%22/%3E%3Ccircle%20cx%3D%2218%22%20cy%3D%2212%22%20r%3D%221.2%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%2862.1%20130.1%29%20rotate%2818%2010.6%2010.6%29%20scale%280.88%29%22%3E%3Cpath%20d%3D%22M12%2020s-7-4.4-7-10a4%204%200%200%201%207-2.6A4%204%200%200%201%2019%2010c0%205.6-7%2010-7%2010z%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28111.2%20107.5%29%20rotate%28-31%2010.8%2010.8%29%20scale%280.90%29%22%3E%3Cpath%20d%3D%22M7%2018a4%204%200%200%201-.5-8%205.5%205.5%200%200%201%2010.6%201.3A3.4%203.4%200%200%201%2017%2018z%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28159.7%20115.7%29%20rotate%28-4%2014.0%2014.0%29%20scale%281.17%29%22%3E%3Cpath%20d%3D%22M9%2017.5V5l8-1.5%22/%3E%3Ccircle%20cx%3D%226.5%22%20cy%3D%2217.5%22%20r%3D%222.5%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28226.2%20108.2%29%20rotate%2810%2011.1%2011.1%29%20scale%280.93%29%22%3E%3Cpath%20d%3D%22M20%2011a8%208%200%200%201-11.6%207.1L4%2019.5l1.3-4.1A8%208%200%201%201%2020%2011z%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28270.0%20110.4%29%20rotate%28-16%2010.8%2010.8%29%20scale%280.90%29%22%3E%3Cpath%20d%3D%22M4%205.5A2%202%200%200%201%206%204h13v14H6a2%202%200%200%200-2%202z%22/%3E%3Cpath%20d%3D%22M4%2020V5.5M8%208h7%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28324.8%20110.2%29%20rotate%2827%2014.9%2014.9%29%20scale%281.24%29%22%3E%3Ccircle%20cx%3D%2212%22%20cy%3D%2212%22%20r%3D%223.8%22/%3E%3Cpath%20d%3D%22M12%202.5v2.2M12%2019.3v2.2M2.5%2012h2.2M19.3%2012h2.2M5.3%205.3l1.6%201.6M17.1%2017.1l1.6%201.6M5.3%2018.7l1.6-1.6M17.1%206.9l1.6-1.6%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%2837.6%20177.7%29%20rotate%2810%2011.2%2011.2%29%20scale%280.93%29%22%3E%3Cpath%20d%3D%22M12%203.5l2.6%205.3%205.9.9-4.3%204.1%201%205.8-5.2-2.8-5.2%202.8%201-5.8-4.3-4.1%205.9-.9z%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28104.9%20161.8%29%20rotate%28-17%2010.7%2010.7%29%20scale%280.89%29%22%3E%3Cpath%20d%3D%22M13%203%205%2013.5h6L10%2021l8-10.5h-6z%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28137.0%20162.1%29%20rotate%28-30%2013.9%2013.9%29%20scale%281.16%29%22%3E%3Ccircle%20cx%3D%226%22%20cy%3D%2212%22%20r%3D%221.2%22/%3E%3Ccircle%20cx%3D%2212%22%20cy%3D%2212%22%20r%3D%221.2%22/%3E%3Ccircle%20cx%3D%2218%22%20cy%3D%2212%22%20r%3D%221.2%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28197.2%20162.6%29%20rotate%287%2010.6%2010.6%29%20scale%280.89%29%22%3E%3Cpath%20d%3D%22M12%2020s-7-4.4-7-10a4%204%200%200%201%207-2.6A4%204%200%200%201%2019%2010c0%205.6-7%2010-7%2010z%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28244.1%20178.8%29%20rotate%28-1%2012.0%2012.0%29%20scale%281.00%29%22%3E%3Cpath%20d%3D%22M7%2018a4%204%200%200%201-.5-8%205.5%205.5%200%200%201%2010.6%201.3A3.4%203.4%200%200%201%2017%2018z%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28303.5%20160.2%29%20rotate%28-24%2013.0%2013.0%29%20scale%281.08%29%22%3E%3Cpath%20d%3D%22M9%2017.5V5l8-1.5%22/%3E%3Ccircle%20cx%3D%226.5%22%20cy%3D%2217.5%22%20r%3D%222.5%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28351.3%20160.9%29%20rotate%28-22%2014.6%2014.6%29%20scale%281.21%29%22%3E%3Cpath%20d%3D%22M20%2011a8%208%200%200%201-11.6%207.1L4%2019.5l1.3-4.1A8%208%200%201%201%2020%2011z%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28-8.7%20160.9%29%20rotate%28-22%2014.6%2014.6%29%20scale%281.21%29%22%3E%3Cpath%20d%3D%22M20%2011a8%208%200%200%201-11.6%207.1L4%2019.5l1.3-4.1A8%208%200%201%201%2020%2011z%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%2820.7%20211.6%29%20rotate%2832%2013.7%2013.7%29%20scale%281.15%29%22%3E%3Crect%20x%3D%223.5%22%20y%3D%227%22%20width%3D%2217%22%20height%3D%2212%22%20rx%3D%222.5%22/%3E%3Ccircle%20cx%3D%2212%22%20cy%3D%2213%22%20r%3D%223.3%22/%3E%3Cpath%20d%3D%22M9%207l1.3-2.5h3.4L15%207%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%2864.6%20215.5%29%20rotate%28-28%2014.4%2014.4%29%20scale%281.20%29%22%3E%3Cpath%20d%3D%22M12%204v5M12%2015v5M4%2012h5M15%2012h5%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28130.5%20214.1%29%20rotate%2814%2010.4%2010.4%29%20scale%280.87%29%22%3E%3Cpath%20d%3D%22M12%203.5l2.6%205.3%205.9.9-4.3%204.1%201%205.8-5.2-2.8-5.2%202.8%201-5.8-4.3-4.1%205.9-.9z%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28176.5%20222.4%29%20rotate%28-14%2011.4%2011.4%29%20scale%280.95%29%22%3E%3Cpath%20d%3D%22M13%203%205%2013.5h6L10%2021l8-10.5h-6z%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28226.0%20209.5%29%20rotate%28-19%2011.0%2011.0%29%20scale%280.92%29%22%3E%3Ccircle%20cx%3D%226%22%20cy%3D%2212%22%20r%3D%221.2%22/%3E%3Ccircle%20cx%3D%2212%22%20cy%3D%2212%22%20r%3D%221.2%22/%3E%3Ccircle%20cx%3D%2218%22%20cy%3D%2212%22%20r%3D%221.2%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28277.6%20221.0%29%20rotate%28-15%2012.9%2012.9%29%20scale%281.07%29%22%3E%3Cpath%20d%3D%22M12%2020s-7-4.4-7-10a4%204%200%200%201%207-2.6A4%204%200%200%201%2019%2010c0%205.6-7%2010-7%2010z%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28314.3%20208.0%29%20rotate%28-16%2014.6%2014.6%29%20scale%281.22%29%22%3E%3Cpath%20d%3D%22M7%2018a4%204%200%200%201-.5-8%205.5%205.5%200%200%201%2010.6%201.3A3.4%203.4%200%200%201%2017%2018z%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%2829.1%20263.2%29%20rotate%28-9%2012.3%2012.3%29%20scale%281.03%29%22%3E%3Cpath%20d%3D%22M12%2015c-3.5%200-6-3-6-6.5a6%206%200%200%201%2012%200C18%2012%2015.5%2015%2012%2015z%22/%3E%3Cpath%20d%3D%22M12%2015l-1%202h2l-1-2M12%2017c0%202-2%202-2%204%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%2882.0%20266.9%29%20rotate%2827%2012.9%2012.9%29%20scale%281.08%29%22%3E%3Cpath%20d%3D%22M9%2018V6l10-2v12%22/%3E%3Ccircle%20cx%3D%226.5%22%20cy%3D%2218%22%20r%3D%222.5%22/%3E%3Ccircle%20cx%3D%2216.5%22%20cy%3D%2216%22%20r%3D%222.5%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28142.1%20271.3%29%20rotate%286%2014.9%2014.9%29%20scale%281.24%29%22%3E%3Crect%20x%3D%223.5%22%20y%3D%227%22%20width%3D%2217%22%20height%3D%2212%22%20rx%3D%222.5%22/%3E%3Ccircle%20cx%3D%2212%22%20cy%3D%2213%22%20r%3D%223.3%22/%3E%3Cpath%20d%3D%22M9%207l1.3-2.5h3.4L15%207%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28182.9%20259.6%29%20rotate%2829%2010.9%2010.9%29%20scale%280.91%29%22%3E%3Cpath%20d%3D%22M12%204v5M12%2015v5M4%2012h5M15%2012h5%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28253.0%20259.6%29%20rotate%2810%2013.6%2013.6%29%20scale%281.13%29%22%3E%3Cpath%20d%3D%22M12%203.5l2.6%205.3%205.9.9-4.3%204.1%201%205.8-5.2-2.8-5.2%202.8%201-5.8-4.3-4.1%205.9-.9z%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28301.2%20266.3%29%20rotate%2835%2012.5%2012.5%29%20scale%281.04%29%22%3E%3Cpath%20d%3D%22M13%203%205%2013.5h6L10%2021l8-10.5h-6z%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28350.7%20278.5%29%20rotate%2828%2010.6%2010.6%29%20scale%280.88%29%22%3E%3Ccircle%20cx%3D%226%22%20cy%3D%2212%22%20r%3D%221.2%22/%3E%3Ccircle%20cx%3D%2212%22%20cy%3D%2212%22%20r%3D%221.2%22/%3E%3Ccircle%20cx%3D%2218%22%20cy%3D%2212%22%20r%3D%221.2%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28-9.3%20278.5%29%20rotate%2828%2010.6%2010.6%29%20scale%280.88%29%22%3E%3Ccircle%20cx%3D%226%22%20cy%3D%2212%22%20r%3D%221.2%22/%3E%3Ccircle%20cx%3D%2212%22%20cy%3D%2212%22%20r%3D%221.2%22/%3E%3Ccircle%20cx%3D%2218%22%20cy%3D%2212%22%20r%3D%221.2%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%2816.0%20326.4%29%20rotate%2829%2013.7%2013.7%29%20scale%281.14%29%22%3E%3Cpath%20d%3D%22M3%2011.5%2021%204l-7.5%2017-2.3-7.2z%22/%3E%3Cpath%20d%3D%22M11.2%2013.8%2021%204%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%2869.6%20331.9%29%20rotate%2826%2011.9%2011.9%29%20scale%280.99%29%22%3E%3Cpath%20d%3D%22M5%2019c0-8%205-13%2014-14%200%209-5%2014-13%2014z%22/%3E%3Cpath%20d%3D%22M5%2019%2013%2011%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28123.1%20330.5%29%20rotate%285%2012.2%2012.2%29%20scale%281.02%29%22%3E%3Cpath%20d%3D%22M12%2015c-3.5%200-6-3-6-6.5a6%206%200%200%201%2012%200C18%2012%2015.5%2015%2012%2015z%22/%3E%3Cpath%20d%3D%22M12%2015l-1%202h2l-1-2M12%2017c0%202-2%202-2%204%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28164.3%20322.8%29%20rotate%288%2013.2%2013.2%29%20scale%281.10%29%22%3E%3Cpath%20d%3D%22M9%2018V6l10-2v12%22/%3E%3Ccircle%20cx%3D%226.5%22%20cy%3D%2218%22%20r%3D%222.5%22/%3E%3Ccircle%20cx%3D%2216.5%22%20cy%3D%2216%22%20r%3D%222.5%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28224.5%20336.7%29%20rotate%2827%2010.6%2010.6%29%20scale%280.88%29%22%3E%3Crect%20x%3D%223.5%22%20y%3D%227%22%20width%3D%2217%22%20height%3D%2212%22%20rx%3D%222.5%22/%3E%3Ccircle%20cx%3D%2212%22%20cy%3D%2213%22%20r%3D%223.3%22/%3E%3Cpath%20d%3D%22M9%207l1.3-2.5h3.4L15%207%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28266.9%20325.3%29%20rotate%286%2013.7%2013.7%29%20scale%281.14%29%22%3E%3Cpath%20d%3D%22M12%204v5M12%2015v5M4%2012h5M15%2012h5%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28329.7%20312.5%29%20rotate%2818%2012.3%2012.3%29%20scale%281.03%29%22%3E%3Cpath%20d%3D%22M12%203.5l2.6%205.3%205.9.9-4.3%204.1%201%205.8-5.2-2.8-5.2%202.8%201-5.8-4.3-4.1%205.9-.9z%22/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");background-size:360px}
+:root[data-theme="dark"][data-wall="doodle"] #msgs{background-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%22360%22%20height%3D%22360%22%20viewBox%3D%220%200%20360%20360%22%3E%3Cg%20fill%3D%22none%22%20stroke%3D%22%23ffffff%22%20stroke-opacity%3D%220.05%22%20stroke-width%3D%221.25%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cg%20transform%3D%22translate%2814.7%2023.0%29%20rotate%28-2%2012.4%2012.4%29%20scale%281.03%29%22%3E%3Cpath%20d%3D%22M20%2011a8%208%200%200%201-11.6%207.1L4%2019.5l1.3-4.1A8%208%200%201%201%2020%2011z%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%2866.4%206.1%29%20rotate%281%2012.6%2012.6%29%20scale%281.05%29%22%3E%3Cpath%20d%3D%22M4%205.5A2%202%200%200%201%206%204h13v14H6a2%202%200%200%200-2%202z%22/%3E%3Cpath%20d%3D%22M4%2020V5.5M8%208h7%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28121.5%204.0%29%20rotate%28-14%2013.2%2013.2%29%20scale%281.10%29%22%3E%3Ccircle%20cx%3D%2212%22%20cy%3D%2212%22%20r%3D%223.8%22/%3E%3Cpath%20d%3D%22M12%202.5v2.2M12%2019.3v2.2M2.5%2012h2.2M19.3%2012h2.2M5.3%205.3l1.6%201.6M17.1%2017.1l1.6%201.6M5.3%2018.7l1.6-1.6M17.1%206.9l1.6-1.6%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28177.5%2020.1%29%20rotate%28-32%2010.6%2010.6%29%20scale%280.89%29%22%3E%3Crect%20x%3D%223%22%20y%3D%228%22%20width%3D%2218%22%20height%3D%2210%22%20rx%3D%225%22/%3E%3Cpath%20d%3D%22M8%2011v4M6%2013h4%22/%3E%3Cpath%20d%3D%22M15.5%2012h.01M17.5%2014h.01%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28224.7%2013.5%29%20rotate%288%2014.9%2014.9%29%20scale%281.24%29%22%3E%3Cpath%20d%3D%22M5%208h11v6a5%205%200%200%201-5%205h-1a5%205%200%200%201-5-5z%22/%3E%3Cpath%20d%3D%22M16%2010h1.5a2.5%202.5%200%200%201%200%205H16%22/%3E%3Cpath%20d%3D%22M9%203.5c0%201%201%201%201%202M12.5%203.5c0%201%201%201%201%202%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28259.5%2015.5%29%20rotate%28-31%2011.0%2011.0%29%20scale%280.91%29%22%3E%3Cpath%20d%3D%22M15.5%204.5%2019.5%208.5%209%2019H5v-4z%22/%3E%3Cpath%20d%3D%22M13%207l4%204%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28316.7%202.8%29%20rotate%28-3%2011.1%2011.1%29%20scale%280.93%29%22%3E%3Cpath%20d%3D%22M12%2021s-6-5.5-6-11a6%206%200%200%201%2012%200c0%205.5-6%2011-6%2011z%22/%3E%3Ccircle%20cx%3D%2212%22%20cy%3D%2210%22%20r%3D%222.2%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%2846.9%2065.3%29%20rotate%2810%2012.3%2012.3%29%20scale%281.03%29%22%3E%3Cpath%20d%3D%22M7%2018a4%204%200%200%201-.5-8%205.5%205.5%200%200%201%2010.6%201.3A3.4%203.4%200%200%201%2017%2018z%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%2893.9%2063.6%29%20rotate%28-16%2012.6%2012.6%29%20scale%281.05%29%22%3E%3Cpath%20d%3D%22M9%2017.5V5l8-1.5%22/%3E%3Ccircle%20cx%3D%226.5%22%20cy%3D%2217.5%22%20r%3D%222.5%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28147.9%2068.1%29%20rotate%2815%2015.0%2015.0%29%20scale%281.25%29%22%3E%3Cpath%20d%3D%22M20%2011a8%208%200%200%201-11.6%207.1L4%2019.5l1.3-4.1A8%208%200%201%201%2020%2011z%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28187.5%2060.4%29%20rotate%28-30%2011.7%2011.7%29%20scale%280.98%29%22%3E%3Cpath%20d%3D%22M4%205.5A2%202%200%200%201%206%204h13v14H6a2%202%200%200%200-2%202z%22/%3E%3Cpath%20d%3D%22M4%2020V5.5M8%208h7%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28241.3%2070.1%29%20rotate%28-8%2013.9%2013.9%29%20scale%281.16%29%22%3E%3Ccircle%20cx%3D%2212%22%20cy%3D%2212%22%20r%3D%223.8%22/%3E%3Cpath%20d%3D%22M12%202.5v2.2M12%2019.3v2.2M2.5%2012h2.2M19.3%2012h2.2M5.3%205.3l1.6%201.6M17.1%2017.1l1.6%201.6M5.3%2018.7l1.6-1.6M17.1%206.9l1.6-1.6%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28300.0%2053.4%29%20rotate%28-20%2014.8%2014.8%29%20scale%281.23%29%22%3E%3Crect%20x%3D%223%22%20y%3D%228%22%20width%3D%2218%22%20height%3D%2210%22%20rx%3D%225%22/%3E%3Cpath%20d%3D%22M8%2011v4M6%2013h4%22/%3E%3Cpath%20d%3D%22M15.5%2012h.01M17.5%2014h.01%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28344.9%2071.4%29%20rotate%28-7%2014.6%2014.6%29%20scale%281.21%29%22%3E%3Cpath%20d%3D%22M5%208h11v6a5%205%200%200%201-5%205h-1a5%205%200%200%201-5-5z%22/%3E%3Cpath%20d%3D%22M16%2010h1.5a2.5%202.5%200%200%201%200%205H16%22/%3E%3Cpath%20d%3D%22M9%203.5c0%201%201%201%201%202M12.5%203.5c0%201%201%201%201%202%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28-15.1%2071.4%29%20rotate%28-7%2014.6%2014.6%29%20scale%281.21%29%22%3E%3Cpath%20d%3D%22M5%208h11v6a5%205%200%200%201-5%205h-1a5%205%200%200%201-5-5z%22/%3E%3Cpath%20d%3D%22M16%2010h1.5a2.5%202.5%200%200%201%200%205H16%22/%3E%3Cpath%20d%3D%22M9%203.5c0%201%201%201%201%202M12.5%203.5c0%201%201%201%201%202%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%2818.6%20125.4%29%20rotate%28-16%2010.6%2010.6%29%20scale%280.88%29%22%3E%3Ccircle%20cx%3D%226%22%20cy%3D%2212%22%20r%3D%221.2%22/%3E%3Ccircle%20cx%3D%2212%22%20cy%3D%2212%22%20r%3D%221.2%22/%3E%3Ccircle%20cx%3D%2218%22%20cy%3D%2212%22%20r%3D%221.2%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%2862.1%20130.1%29%20rotate%2818%2010.6%2010.6%29%20scale%280.88%29%22%3E%3Cpath%20d%3D%22M12%2020s-7-4.4-7-10a4%204%200%200%201%207-2.6A4%204%200%200%201%2019%2010c0%205.6-7%2010-7%2010z%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28111.2%20107.5%29%20rotate%28-31%2010.8%2010.8%29%20scale%280.90%29%22%3E%3Cpath%20d%3D%22M7%2018a4%204%200%200%201-.5-8%205.5%205.5%200%200%201%2010.6%201.3A3.4%203.4%200%200%201%2017%2018z%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28159.7%20115.7%29%20rotate%28-4%2014.0%2014.0%29%20scale%281.17%29%22%3E%3Cpath%20d%3D%22M9%2017.5V5l8-1.5%22/%3E%3Ccircle%20cx%3D%226.5%22%20cy%3D%2217.5%22%20r%3D%222.5%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28226.2%20108.2%29%20rotate%2810%2011.1%2011.1%29%20scale%280.93%29%22%3E%3Cpath%20d%3D%22M20%2011a8%208%200%200%201-11.6%207.1L4%2019.5l1.3-4.1A8%208%200%201%201%2020%2011z%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28270.0%20110.4%29%20rotate%28-16%2010.8%2010.8%29%20scale%280.90%29%22%3E%3Cpath%20d%3D%22M4%205.5A2%202%200%200%201%206%204h13v14H6a2%202%200%200%200-2%202z%22/%3E%3Cpath%20d%3D%22M4%2020V5.5M8%208h7%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28324.8%20110.2%29%20rotate%2827%2014.9%2014.9%29%20scale%281.24%29%22%3E%3Ccircle%20cx%3D%2212%22%20cy%3D%2212%22%20r%3D%223.8%22/%3E%3Cpath%20d%3D%22M12%202.5v2.2M12%2019.3v2.2M2.5%2012h2.2M19.3%2012h2.2M5.3%205.3l1.6%201.6M17.1%2017.1l1.6%201.6M5.3%2018.7l1.6-1.6M17.1%206.9l1.6-1.6%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%2837.6%20177.7%29%20rotate%2810%2011.2%2011.2%29%20scale%280.93%29%22%3E%3Cpath%20d%3D%22M12%203.5l2.6%205.3%205.9.9-4.3%204.1%201%205.8-5.2-2.8-5.2%202.8%201-5.8-4.3-4.1%205.9-.9z%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28104.9%20161.8%29%20rotate%28-17%2010.7%2010.7%29%20scale%280.89%29%22%3E%3Cpath%20d%3D%22M13%203%205%2013.5h6L10%2021l8-10.5h-6z%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28137.0%20162.1%29%20rotate%28-30%2013.9%2013.9%29%20scale%281.16%29%22%3E%3Ccircle%20cx%3D%226%22%20cy%3D%2212%22%20r%3D%221.2%22/%3E%3Ccircle%20cx%3D%2212%22%20cy%3D%2212%22%20r%3D%221.2%22/%3E%3Ccircle%20cx%3D%2218%22%20cy%3D%2212%22%20r%3D%221.2%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28197.2%20162.6%29%20rotate%287%2010.6%2010.6%29%20scale%280.89%29%22%3E%3Cpath%20d%3D%22M12%2020s-7-4.4-7-10a4%204%200%200%201%207-2.6A4%204%200%200%201%2019%2010c0%205.6-7%2010-7%2010z%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28244.1%20178.8%29%20rotate%28-1%2012.0%2012.0%29%20scale%281.00%29%22%3E%3Cpath%20d%3D%22M7%2018a4%204%200%200%201-.5-8%205.5%205.5%200%200%201%2010.6%201.3A3.4%203.4%200%200%201%2017%2018z%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28303.5%20160.2%29%20rotate%28-24%2013.0%2013.0%29%20scale%281.08%29%22%3E%3Cpath%20d%3D%22M9%2017.5V5l8-1.5%22/%3E%3Ccircle%20cx%3D%226.5%22%20cy%3D%2217.5%22%20r%3D%222.5%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28351.3%20160.9%29%20rotate%28-22%2014.6%2014.6%29%20scale%281.21%29%22%3E%3Cpath%20d%3D%22M20%2011a8%208%200%200%201-11.6%207.1L4%2019.5l1.3-4.1A8%208%200%201%201%2020%2011z%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28-8.7%20160.9%29%20rotate%28-22%2014.6%2014.6%29%20scale%281.21%29%22%3E%3Cpath%20d%3D%22M20%2011a8%208%200%200%201-11.6%207.1L4%2019.5l1.3-4.1A8%208%200%201%201%2020%2011z%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%2820.7%20211.6%29%20rotate%2832%2013.7%2013.7%29%20scale%281.15%29%22%3E%3Crect%20x%3D%223.5%22%20y%3D%227%22%20width%3D%2217%22%20height%3D%2212%22%20rx%3D%222.5%22/%3E%3Ccircle%20cx%3D%2212%22%20cy%3D%2213%22%20r%3D%223.3%22/%3E%3Cpath%20d%3D%22M9%207l1.3-2.5h3.4L15%207%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%2864.6%20215.5%29%20rotate%28-28%2014.4%2014.4%29%20scale%281.20%29%22%3E%3Cpath%20d%3D%22M12%204v5M12%2015v5M4%2012h5M15%2012h5%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28130.5%20214.1%29%20rotate%2814%2010.4%2010.4%29%20scale%280.87%29%22%3E%3Cpath%20d%3D%22M12%203.5l2.6%205.3%205.9.9-4.3%204.1%201%205.8-5.2-2.8-5.2%202.8%201-5.8-4.3-4.1%205.9-.9z%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28176.5%20222.4%29%20rotate%28-14%2011.4%2011.4%29%20scale%280.95%29%22%3E%3Cpath%20d%3D%22M13%203%205%2013.5h6L10%2021l8-10.5h-6z%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28226.0%20209.5%29%20rotate%28-19%2011.0%2011.0%29%20scale%280.92%29%22%3E%3Ccircle%20cx%3D%226%22%20cy%3D%2212%22%20r%3D%221.2%22/%3E%3Ccircle%20cx%3D%2212%22%20cy%3D%2212%22%20r%3D%221.2%22/%3E%3Ccircle%20cx%3D%2218%22%20cy%3D%2212%22%20r%3D%221.2%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28277.6%20221.0%29%20rotate%28-15%2012.9%2012.9%29%20scale%281.07%29%22%3E%3Cpath%20d%3D%22M12%2020s-7-4.4-7-10a4%204%200%200%201%207-2.6A4%204%200%200%201%2019%2010c0%205.6-7%2010-7%2010z%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28314.3%20208.0%29%20rotate%28-16%2014.6%2014.6%29%20scale%281.22%29%22%3E%3Cpath%20d%3D%22M7%2018a4%204%200%200%201-.5-8%205.5%205.5%200%200%201%2010.6%201.3A3.4%203.4%200%200%201%2017%2018z%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%2829.1%20263.2%29%20rotate%28-9%2012.3%2012.3%29%20scale%281.03%29%22%3E%3Cpath%20d%3D%22M12%2015c-3.5%200-6-3-6-6.5a6%206%200%200%201%2012%200C18%2012%2015.5%2015%2012%2015z%22/%3E%3Cpath%20d%3D%22M12%2015l-1%202h2l-1-2M12%2017c0%202-2%202-2%204%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%2882.0%20266.9%29%20rotate%2827%2012.9%2012.9%29%20scale%281.08%29%22%3E%3Cpath%20d%3D%22M9%2018V6l10-2v12%22/%3E%3Ccircle%20cx%3D%226.5%22%20cy%3D%2218%22%20r%3D%222.5%22/%3E%3Ccircle%20cx%3D%2216.5%22%20cy%3D%2216%22%20r%3D%222.5%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28142.1%20271.3%29%20rotate%286%2014.9%2014.9%29%20scale%281.24%29%22%3E%3Crect%20x%3D%223.5%22%20y%3D%227%22%20width%3D%2217%22%20height%3D%2212%22%20rx%3D%222.5%22/%3E%3Ccircle%20cx%3D%2212%22%20cy%3D%2213%22%20r%3D%223.3%22/%3E%3Cpath%20d%3D%22M9%207l1.3-2.5h3.4L15%207%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28182.9%20259.6%29%20rotate%2829%2010.9%2010.9%29%20scale%280.91%29%22%3E%3Cpath%20d%3D%22M12%204v5M12%2015v5M4%2012h5M15%2012h5%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28253.0%20259.6%29%20rotate%2810%2013.6%2013.6%29%20scale%281.13%29%22%3E%3Cpath%20d%3D%22M12%203.5l2.6%205.3%205.9.9-4.3%204.1%201%205.8-5.2-2.8-5.2%202.8%201-5.8-4.3-4.1%205.9-.9z%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28301.2%20266.3%29%20rotate%2835%2012.5%2012.5%29%20scale%281.04%29%22%3E%3Cpath%20d%3D%22M13%203%205%2013.5h6L10%2021l8-10.5h-6z%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28350.7%20278.5%29%20rotate%2828%2010.6%2010.6%29%20scale%280.88%29%22%3E%3Ccircle%20cx%3D%226%22%20cy%3D%2212%22%20r%3D%221.2%22/%3E%3Ccircle%20cx%3D%2212%22%20cy%3D%2212%22%20r%3D%221.2%22/%3E%3Ccircle%20cx%3D%2218%22%20cy%3D%2212%22%20r%3D%221.2%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28-9.3%20278.5%29%20rotate%2828%2010.6%2010.6%29%20scale%280.88%29%22%3E%3Ccircle%20cx%3D%226%22%20cy%3D%2212%22%20r%3D%221.2%22/%3E%3Ccircle%20cx%3D%2212%22%20cy%3D%2212%22%20r%3D%221.2%22/%3E%3Ccircle%20cx%3D%2218%22%20cy%3D%2212%22%20r%3D%221.2%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%2816.0%20326.4%29%20rotate%2829%2013.7%2013.7%29%20scale%281.14%29%22%3E%3Cpath%20d%3D%22M3%2011.5%2021%204l-7.5%2017-2.3-7.2z%22/%3E%3Cpath%20d%3D%22M11.2%2013.8%2021%204%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%2869.6%20331.9%29%20rotate%2826%2011.9%2011.9%29%20scale%280.99%29%22%3E%3Cpath%20d%3D%22M5%2019c0-8%205-13%2014-14%200%209-5%2014-13%2014z%22/%3E%3Cpath%20d%3D%22M5%2019%2013%2011%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28123.1%20330.5%29%20rotate%285%2012.2%2012.2%29%20scale%281.02%29%22%3E%3Cpath%20d%3D%22M12%2015c-3.5%200-6-3-6-6.5a6%206%200%200%201%2012%200C18%2012%2015.5%2015%2012%2015z%22/%3E%3Cpath%20d%3D%22M12%2015l-1%202h2l-1-2M12%2017c0%202-2%202-2%204%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28164.3%20322.8%29%20rotate%288%2013.2%2013.2%29%20scale%281.10%29%22%3E%3Cpath%20d%3D%22M9%2018V6l10-2v12%22/%3E%3Ccircle%20cx%3D%226.5%22%20cy%3D%2218%22%20r%3D%222.5%22/%3E%3Ccircle%20cx%3D%2216.5%22%20cy%3D%2216%22%20r%3D%222.5%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28224.5%20336.7%29%20rotate%2827%2010.6%2010.6%29%20scale%280.88%29%22%3E%3Crect%20x%3D%223.5%22%20y%3D%227%22%20width%3D%2217%22%20height%3D%2212%22%20rx%3D%222.5%22/%3E%3Ccircle%20cx%3D%2212%22%20cy%3D%2213%22%20r%3D%223.3%22/%3E%3Cpath%20d%3D%22M9%207l1.3-2.5h3.4L15%207%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28266.9%20325.3%29%20rotate%286%2013.7%2013.7%29%20scale%281.14%29%22%3E%3Cpath%20d%3D%22M12%204v5M12%2015v5M4%2012h5M15%2012h5%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28329.7%20312.5%29%20rotate%2818%2012.3%2012.3%29%20scale%281.03%29%22%3E%3Cpath%20d%3D%22M12%203.5l2.6%205.3%205.9.9-4.3%204.1%201%205.8-5.2-2.8-5.2%202.8%201-5.8-4.3-4.1%205.9-.9z%22/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"])[data-wall="doodle"] #msgs{background-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%22360%22%20height%3D%22360%22%20viewBox%3D%220%200%20360%20360%22%3E%3Cg%20fill%3D%22none%22%20stroke%3D%22%23ffffff%22%20stroke-opacity%3D%220.05%22%20stroke-width%3D%221.25%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cg%20transform%3D%22translate%2814.7%2023.0%29%20rotate%28-2%2012.4%2012.4%29%20scale%281.03%29%22%3E%3Cpath%20d%3D%22M20%2011a8%208%200%200%201-11.6%207.1L4%2019.5l1.3-4.1A8%208%200%201%201%2020%2011z%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%2866.4%206.1%29%20rotate%281%2012.6%2012.6%29%20scale%281.05%29%22%3E%3Cpath%20d%3D%22M4%205.5A2%202%200%200%201%206%204h13v14H6a2%202%200%200%200-2%202z%22/%3E%3Cpath%20d%3D%22M4%2020V5.5M8%208h7%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28121.5%204.0%29%20rotate%28-14%2013.2%2013.2%29%20scale%281.10%29%22%3E%3Ccircle%20cx%3D%2212%22%20cy%3D%2212%22%20r%3D%223.8%22/%3E%3Cpath%20d%3D%22M12%202.5v2.2M12%2019.3v2.2M2.5%2012h2.2M19.3%2012h2.2M5.3%205.3l1.6%201.6M17.1%2017.1l1.6%201.6M5.3%2018.7l1.6-1.6M17.1%206.9l1.6-1.6%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28177.5%2020.1%29%20rotate%28-32%2010.6%2010.6%29%20scale%280.89%29%22%3E%3Crect%20x%3D%223%22%20y%3D%228%22%20width%3D%2218%22%20height%3D%2210%22%20rx%3D%225%22/%3E%3Cpath%20d%3D%22M8%2011v4M6%2013h4%22/%3E%3Cpath%20d%3D%22M15.5%2012h.01M17.5%2014h.01%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28224.7%2013.5%29%20rotate%288%2014.9%2014.9%29%20scale%281.24%29%22%3E%3Cpath%20d%3D%22M5%208h11v6a5%205%200%200%201-5%205h-1a5%205%200%200%201-5-5z%22/%3E%3Cpath%20d%3D%22M16%2010h1.5a2.5%202.5%200%200%201%200%205H16%22/%3E%3Cpath%20d%3D%22M9%203.5c0%201%201%201%201%202M12.5%203.5c0%201%201%201%201%202%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28259.5%2015.5%29%20rotate%28-31%2011.0%2011.0%29%20scale%280.91%29%22%3E%3Cpath%20d%3D%22M15.5%204.5%2019.5%208.5%209%2019H5v-4z%22/%3E%3Cpath%20d%3D%22M13%207l4%204%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28316.7%202.8%29%20rotate%28-3%2011.1%2011.1%29%20scale%280.93%29%22%3E%3Cpath%20d%3D%22M12%2021s-6-5.5-6-11a6%206%200%200%201%2012%200c0%205.5-6%2011-6%2011z%22/%3E%3Ccircle%20cx%3D%2212%22%20cy%3D%2210%22%20r%3D%222.2%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%2846.9%2065.3%29%20rotate%2810%2012.3%2012.3%29%20scale%281.03%29%22%3E%3Cpath%20d%3D%22M7%2018a4%204%200%200%201-.5-8%205.5%205.5%200%200%201%2010.6%201.3A3.4%203.4%200%200%201%2017%2018z%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%2893.9%2063.6%29%20rotate%28-16%2012.6%2012.6%29%20scale%281.05%29%22%3E%3Cpath%20d%3D%22M9%2017.5V5l8-1.5%22/%3E%3Ccircle%20cx%3D%226.5%22%20cy%3D%2217.5%22%20r%3D%222.5%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28147.9%2068.1%29%20rotate%2815%2015.0%2015.0%29%20scale%281.25%29%22%3E%3Cpath%20d%3D%22M20%2011a8%208%200%200%201-11.6%207.1L4%2019.5l1.3-4.1A8%208%200%201%201%2020%2011z%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28187.5%2060.4%29%20rotate%28-30%2011.7%2011.7%29%20scale%280.98%29%22%3E%3Cpath%20d%3D%22M4%205.5A2%202%200%200%201%206%204h13v14H6a2%202%200%200%200-2%202z%22/%3E%3Cpath%20d%3D%22M4%2020V5.5M8%208h7%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28241.3%2070.1%29%20rotate%28-8%2013.9%2013.9%29%20scale%281.16%29%22%3E%3Ccircle%20cx%3D%2212%22%20cy%3D%2212%22%20r%3D%223.8%22/%3E%3Cpath%20d%3D%22M12%202.5v2.2M12%2019.3v2.2M2.5%2012h2.2M19.3%2012h2.2M5.3%205.3l1.6%201.6M17.1%2017.1l1.6%201.6M5.3%2018.7l1.6-1.6M17.1%206.9l1.6-1.6%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28300.0%2053.4%29%20rotate%28-20%2014.8%2014.8%29%20scale%281.23%29%22%3E%3Crect%20x%3D%223%22%20y%3D%228%22%20width%3D%2218%22%20height%3D%2210%22%20rx%3D%225%22/%3E%3Cpath%20d%3D%22M8%2011v4M6%2013h4%22/%3E%3Cpath%20d%3D%22M15.5%2012h.01M17.5%2014h.01%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28344.9%2071.4%29%20rotate%28-7%2014.6%2014.6%29%20scale%281.21%29%22%3E%3Cpath%20d%3D%22M5%208h11v6a5%205%200%200%201-5%205h-1a5%205%200%200%201-5-5z%22/%3E%3Cpath%20d%3D%22M16%2010h1.5a2.5%202.5%200%200%201%200%205H16%22/%3E%3Cpath%20d%3D%22M9%203.5c0%201%201%201%201%202M12.5%203.5c0%201%201%201%201%202%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28-15.1%2071.4%29%20rotate%28-7%2014.6%2014.6%29%20scale%281.21%29%22%3E%3Cpath%20d%3D%22M5%208h11v6a5%205%200%200%201-5%205h-1a5%205%200%200%201-5-5z%22/%3E%3Cpath%20d%3D%22M16%2010h1.5a2.5%202.5%200%200%201%200%205H16%22/%3E%3Cpath%20d%3D%22M9%203.5c0%201%201%201%201%202M12.5%203.5c0%201%201%201%201%202%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%2818.6%20125.4%29%20rotate%28-16%2010.6%2010.6%29%20scale%280.88%29%22%3E%3Ccircle%20cx%3D%226%22%20cy%3D%2212%22%20r%3D%221.2%22/%3E%3Ccircle%20cx%3D%2212%22%20cy%3D%2212%22%20r%3D%221.2%22/%3E%3Ccircle%20cx%3D%2218%22%20cy%3D%2212%22%20r%3D%221.2%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%2862.1%20130.1%29%20rotate%2818%2010.6%2010.6%29%20scale%280.88%29%22%3E%3Cpath%20d%3D%22M12%2020s-7-4.4-7-10a4%204%200%200%201%207-2.6A4%204%200%200%201%2019%2010c0%205.6-7%2010-7%2010z%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28111.2%20107.5%29%20rotate%28-31%2010.8%2010.8%29%20scale%280.90%29%22%3E%3Cpath%20d%3D%22M7%2018a4%204%200%200%201-.5-8%205.5%205.5%200%200%201%2010.6%201.3A3.4%203.4%200%200%201%2017%2018z%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28159.7%20115.7%29%20rotate%28-4%2014.0%2014.0%29%20scale%281.17%29%22%3E%3Cpath%20d%3D%22M9%2017.5V5l8-1.5%22/%3E%3Ccircle%20cx%3D%226.5%22%20cy%3D%2217.5%22%20r%3D%222.5%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28226.2%20108.2%29%20rotate%2810%2011.1%2011.1%29%20scale%280.93%29%22%3E%3Cpath%20d%3D%22M20%2011a8%208%200%200%201-11.6%207.1L4%2019.5l1.3-4.1A8%208%200%201%201%2020%2011z%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28270.0%20110.4%29%20rotate%28-16%2010.8%2010.8%29%20scale%280.90%29%22%3E%3Cpath%20d%3D%22M4%205.5A2%202%200%200%201%206%204h13v14H6a2%202%200%200%200-2%202z%22/%3E%3Cpath%20d%3D%22M4%2020V5.5M8%208h7%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28324.8%20110.2%29%20rotate%2827%2014.9%2014.9%29%20scale%281.24%29%22%3E%3Ccircle%20cx%3D%2212%22%20cy%3D%2212%22%20r%3D%223.8%22/%3E%3Cpath%20d%3D%22M12%202.5v2.2M12%2019.3v2.2M2.5%2012h2.2M19.3%2012h2.2M5.3%205.3l1.6%201.6M17.1%2017.1l1.6%201.6M5.3%2018.7l1.6-1.6M17.1%206.9l1.6-1.6%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%2837.6%20177.7%29%20rotate%2810%2011.2%2011.2%29%20scale%280.93%29%22%3E%3Cpath%20d%3D%22M12%203.5l2.6%205.3%205.9.9-4.3%204.1%201%205.8-5.2-2.8-5.2%202.8%201-5.8-4.3-4.1%205.9-.9z%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28104.9%20161.8%29%20rotate%28-17%2010.7%2010.7%29%20scale%280.89%29%22%3E%3Cpath%20d%3D%22M13%203%205%2013.5h6L10%2021l8-10.5h-6z%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28137.0%20162.1%29%20rotate%28-30%2013.9%2013.9%29%20scale%281.16%29%22%3E%3Ccircle%20cx%3D%226%22%20cy%3D%2212%22%20r%3D%221.2%22/%3E%3Ccircle%20cx%3D%2212%22%20cy%3D%2212%22%20r%3D%221.2%22/%3E%3Ccircle%20cx%3D%2218%22%20cy%3D%2212%22%20r%3D%221.2%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28197.2%20162.6%29%20rotate%287%2010.6%2010.6%29%20scale%280.89%29%22%3E%3Cpath%20d%3D%22M12%2020s-7-4.4-7-10a4%204%200%200%201%207-2.6A4%204%200%200%201%2019%2010c0%205.6-7%2010-7%2010z%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28244.1%20178.8%29%20rotate%28-1%2012.0%2012.0%29%20scale%281.00%29%22%3E%3Cpath%20d%3D%22M7%2018a4%204%200%200%201-.5-8%205.5%205.5%200%200%201%2010.6%201.3A3.4%203.4%200%200%201%2017%2018z%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28303.5%20160.2%29%20rotate%28-24%2013.0%2013.0%29%20scale%281.08%29%22%3E%3Cpath%20d%3D%22M9%2017.5V5l8-1.5%22/%3E%3Ccircle%20cx%3D%226.5%22%20cy%3D%2217.5%22%20r%3D%222.5%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28351.3%20160.9%29%20rotate%28-22%2014.6%2014.6%29%20scale%281.21%29%22%3E%3Cpath%20d%3D%22M20%2011a8%208%200%200%201-11.6%207.1L4%2019.5l1.3-4.1A8%208%200%201%201%2020%2011z%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28-8.7%20160.9%29%20rotate%28-22%2014.6%2014.6%29%20scale%281.21%29%22%3E%3Cpath%20d%3D%22M20%2011a8%208%200%200%201-11.6%207.1L4%2019.5l1.3-4.1A8%208%200%201%201%2020%2011z%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%2820.7%20211.6%29%20rotate%2832%2013.7%2013.7%29%20scale%281.15%29%22%3E%3Crect%20x%3D%223.5%22%20y%3D%227%22%20width%3D%2217%22%20height%3D%2212%22%20rx%3D%222.5%22/%3E%3Ccircle%20cx%3D%2212%22%20cy%3D%2213%22%20r%3D%223.3%22/%3E%3Cpath%20d%3D%22M9%207l1.3-2.5h3.4L15%207%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%2864.6%20215.5%29%20rotate%28-28%2014.4%2014.4%29%20scale%281.20%29%22%3E%3Cpath%20d%3D%22M12%204v5M12%2015v5M4%2012h5M15%2012h5%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28130.5%20214.1%29%20rotate%2814%2010.4%2010.4%29%20scale%280.87%29%22%3E%3Cpath%20d%3D%22M12%203.5l2.6%205.3%205.9.9-4.3%204.1%201%205.8-5.2-2.8-5.2%202.8%201-5.8-4.3-4.1%205.9-.9z%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28176.5%20222.4%29%20rotate%28-14%2011.4%2011.4%29%20scale%280.95%29%22%3E%3Cpath%20d%3D%22M13%203%205%2013.5h6L10%2021l8-10.5h-6z%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28226.0%20209.5%29%20rotate%28-19%2011.0%2011.0%29%20scale%280.92%29%22%3E%3Ccircle%20cx%3D%226%22%20cy%3D%2212%22%20r%3D%221.2%22/%3E%3Ccircle%20cx%3D%2212%22%20cy%3D%2212%22%20r%3D%221.2%22/%3E%3Ccircle%20cx%3D%2218%22%20cy%3D%2212%22%20r%3D%221.2%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28277.6%20221.0%29%20rotate%28-15%2012.9%2012.9%29%20scale%281.07%29%22%3E%3Cpath%20d%3D%22M12%2020s-7-4.4-7-10a4%204%200%200%201%207-2.6A4%204%200%200%201%2019%2010c0%205.6-7%2010-7%2010z%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28314.3%20208.0%29%20rotate%28-16%2014.6%2014.6%29%20scale%281.22%29%22%3E%3Cpath%20d%3D%22M7%2018a4%204%200%200%201-.5-8%205.5%205.5%200%200%201%2010.6%201.3A3.4%203.4%200%200%201%2017%2018z%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%2829.1%20263.2%29%20rotate%28-9%2012.3%2012.3%29%20scale%281.03%29%22%3E%3Cpath%20d%3D%22M12%2015c-3.5%200-6-3-6-6.5a6%206%200%200%201%2012%200C18%2012%2015.5%2015%2012%2015z%22/%3E%3Cpath%20d%3D%22M12%2015l-1%202h2l-1-2M12%2017c0%202-2%202-2%204%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%2882.0%20266.9%29%20rotate%2827%2012.9%2012.9%29%20scale%281.08%29%22%3E%3Cpath%20d%3D%22M9%2018V6l10-2v12%22/%3E%3Ccircle%20cx%3D%226.5%22%20cy%3D%2218%22%20r%3D%222.5%22/%3E%3Ccircle%20cx%3D%2216.5%22%20cy%3D%2216%22%20r%3D%222.5%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28142.1%20271.3%29%20rotate%286%2014.9%2014.9%29%20scale%281.24%29%22%3E%3Crect%20x%3D%223.5%22%20y%3D%227%22%20width%3D%2217%22%20height%3D%2212%22%20rx%3D%222.5%22/%3E%3Ccircle%20cx%3D%2212%22%20cy%3D%2213%22%20r%3D%223.3%22/%3E%3Cpath%20d%3D%22M9%207l1.3-2.5h3.4L15%207%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28182.9%20259.6%29%20rotate%2829%2010.9%2010.9%29%20scale%280.91%29%22%3E%3Cpath%20d%3D%22M12%204v5M12%2015v5M4%2012h5M15%2012h5%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28253.0%20259.6%29%20rotate%2810%2013.6%2013.6%29%20scale%281.13%29%22%3E%3Cpath%20d%3D%22M12%203.5l2.6%205.3%205.9.9-4.3%204.1%201%205.8-5.2-2.8-5.2%202.8%201-5.8-4.3-4.1%205.9-.9z%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28301.2%20266.3%29%20rotate%2835%2012.5%2012.5%29%20scale%281.04%29%22%3E%3Cpath%20d%3D%22M13%203%205%2013.5h6L10%2021l8-10.5h-6z%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28350.7%20278.5%29%20rotate%2828%2010.6%2010.6%29%20scale%280.88%29%22%3E%3Ccircle%20cx%3D%226%22%20cy%3D%2212%22%20r%3D%221.2%22/%3E%3Ccircle%20cx%3D%2212%22%20cy%3D%2212%22%20r%3D%221.2%22/%3E%3Ccircle%20cx%3D%2218%22%20cy%3D%2212%22%20r%3D%221.2%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28-9.3%20278.5%29%20rotate%2828%2010.6%2010.6%29%20scale%280.88%29%22%3E%3Ccircle%20cx%3D%226%22%20cy%3D%2212%22%20r%3D%221.2%22/%3E%3Ccircle%20cx%3D%2212%22%20cy%3D%2212%22%20r%3D%221.2%22/%3E%3Ccircle%20cx%3D%2218%22%20cy%3D%2212%22%20r%3D%221.2%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%2816.0%20326.4%29%20rotate%2829%2013.7%2013.7%29%20scale%281.14%29%22%3E%3Cpath%20d%3D%22M3%2011.5%2021%204l-7.5%2017-2.3-7.2z%22/%3E%3Cpath%20d%3D%22M11.2%2013.8%2021%204%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%2869.6%20331.9%29%20rotate%2826%2011.9%2011.9%29%20scale%280.99%29%22%3E%3Cpath%20d%3D%22M5%2019c0-8%205-13%2014-14%200%209-5%2014-13%2014z%22/%3E%3Cpath%20d%3D%22M5%2019%2013%2011%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28123.1%20330.5%29%20rotate%285%2012.2%2012.2%29%20scale%281.02%29%22%3E%3Cpath%20d%3D%22M12%2015c-3.5%200-6-3-6-6.5a6%206%200%200%201%2012%200C18%2012%2015.5%2015%2012%2015z%22/%3E%3Cpath%20d%3D%22M12%2015l-1%202h2l-1-2M12%2017c0%202-2%202-2%204%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28164.3%20322.8%29%20rotate%288%2013.2%2013.2%29%20scale%281.10%29%22%3E%3Cpath%20d%3D%22M9%2018V6l10-2v12%22/%3E%3Ccircle%20cx%3D%226.5%22%20cy%3D%2218%22%20r%3D%222.5%22/%3E%3Ccircle%20cx%3D%2216.5%22%20cy%3D%2216%22%20r%3D%222.5%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28224.5%20336.7%29%20rotate%2827%2010.6%2010.6%29%20scale%280.88%29%22%3E%3Crect%20x%3D%223.5%22%20y%3D%227%22%20width%3D%2217%22%20height%3D%2212%22%20rx%3D%222.5%22/%3E%3Ccircle%20cx%3D%2212%22%20cy%3D%2213%22%20r%3D%223.3%22/%3E%3Cpath%20d%3D%22M9%207l1.3-2.5h3.4L15%207%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28266.9%20325.3%29%20rotate%286%2013.7%2013.7%29%20scale%281.14%29%22%3E%3Cpath%20d%3D%22M12%204v5M12%2015v5M4%2012h5M15%2012h5%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%28329.7%20312.5%29%20rotate%2818%2012.3%2012.3%29%20scale%281.03%29%22%3E%3Cpath%20d%3D%22M12%203.5l2.6%205.3%205.9.9-4.3%204.1%201%205.8-5.2-2.8-5.2%202.8%201-5.8-4.3-4.1%205.9-.9z%22/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")}}
+#msgs{padding:20px 7%;gap:4px}
+.m{font-size:15.5px;border-radius:14px;padding:8px 12px 7px}
+.m:not(.me),.m.me{border-top-left-radius:14px;border-top-right-radius:14px}
+.m .t{font-size:11px}
+.day{background:var(--surface);border:0;box-shadow:0 1px 1px rgba(0,0,0,.06);color:var(--muted)}
+#composer{background:var(--surface);border-top:1px solid var(--line);padding:10px 16px;gap:10px;align-items:flex-end}
+#attach{width:42px;height:42px;flex-basis:42px;border-radius:50%}
+#attach svg{width:24px;height:24px}
+.cwrap{flex:1;position:relative;display:flex;min-width:0}
+.cwrap #text{flex:1;padding-right:48px}
+.cwrap #emojiBtn{position:absolute;right:3px;bottom:3px;width:38px;height:38px;flex-basis:38px;border-radius:50%}
+#send{display:flex;align-items:center;justify-content:center}
+#send svg{width:21px;height:21px;margin-left:-2px}
+#emojiPanel{left:auto;right:74px}
+@media (min-width:761px){#archChip{display:none}}
+@media (max-width:760px){
+  #rail{display:none}
+  .mob{display:inline-flex;align-items:center;justify-content:center}
+  #menu{position:absolute;left:12px;top:54px}
+  #msgs{padding:12px 10px}
+  #emojiPanel{right:10px}
+}
 </style>
 
 <div id="app">
+  <nav id="rail" aria-label="Main">
+    <button class="rb on" id="rChats" title="Chats"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 11.5a8.5 8.5 0 0 1-12.3 7.6L3.5 20.5l1.4-4.5a8.5 8.5 0 1 1 15.6-4.5z"/></svg></button>
+    <button class="rb" id="rArch" title="Archived chats"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="4.5" rx="1.2"/><path d="M5 8.5V19a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 19 19V8.5"/><path d="M10 12.5h4"/></svg><span class="rcount" id="rArchN" hidden></span></button>
+    <span class="grow"></span>
+    <button class="rb" id="rLock" title="Lock now (L)"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="10.5" width="15" height="10" rx="2.2"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/></svg></button>
+    <button class="rb" id="rBlur" title="Blur the chat list"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.8"/></svg></button>
+    <button class="rb" id="rPrefs" title="Appearance &amp; settings"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h9M17 7h3M4 12h3M11 12h9M4 17h11M19 17h1"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="17" r="2"/></svg></button>
+    <span class="rsep"></span>
+    <button class="rme" id="rMe" title="Your account"><div class="av sm" id="meAv"></div></button>
+  </nav>
   <aside id="side">
-    <div class="bar">
-      <span class="dot" id="dot"></span>
-      <div class="av sm" id="meAv"></div>
-      <div class="me"><b id="meName" data-egg>__LABEL__</b><small id="mePhone">connecting…</small></div>
-      <button class="ib" id="lockBtn" title="Lock now (L)">🔒</button>
-      <button class="ib" id="blurBtn" title="Blur the chat list (hover a chat to peek)">👁</button>
-      <button class="ib" id="newBtn" title="New chat">✎</button>
-      <button class="ib" id="menuBtn" title="Menu">⋮</button>
+    <div class="bar sidehead">
+      <h1 class="ctitle" data-egg>Chats</h1>
+      <span class="dot" id="dot" title="WhatsApp connection"></span>
+      <button class="ib" id="menuBtn" title="Menu"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="12" r="1.1" fill="currentColor"/><circle cx="12" cy="12" r="1.1" fill="currentColor"/><circle cx="18" cy="12" r="1.1" fill="currentColor"/></svg></button>
+      <span class="grow"></span>
+      <button class="ib mob" id="lockBtn" title="Lock now (L)"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="10.5" width="15" height="10" rx="2.2"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/></svg></button>
+      <button class="ib mob" id="blurBtn" title="Blur the chat list (hover a chat to peek)">👁</button>
+      <button class="ib" id="newBtn" title="New chat"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4.5H6.5a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V13"/><path d="M17.8 3.7a1.9 1.9 0 0 1 2.7 2.7L12 14.9l-3.5.8.8-3.5z"/></svg></button>
     </div>
     <div id="menu">
+      <div class="me"><b id="meName" data-egg>__LABEL__</b><small id="mePhone">connecting…</small></div>
       <button data-m="new">New chat</button>
       <button data-m="prefs">Appearance &amp; settings</button>
       <button data-m="name">Change display name</button>
@@ -360,7 +517,7 @@ html[data-locked] #lock{display:flex}
       <button data-m="out" class="danger">Sign out</button>
     </div>
     <div id="sync">Syncing your chats…</div>
-    <input class="search" id="search" placeholder="Search chats  ( / )" autocomplete="off">
+    <input class="search" id="search" placeholder="Search chats" autocomplete="off">
     <div id="chips"><button data-f="all" class="on">All</button><button data-f="unread">Unread</button><button data-f="groups">Groups</button><button data-f="archived" id="archChip">📦 Archived</button></div>
     <div class="list" id="chats"><div class="empty">Loading…</div></div>
 
@@ -380,10 +537,13 @@ html[data-locked] #lock{display:flex}
       <button class="ib" id="back">←</button>
       <div class="av sm" id="tav" hidden></div>
       <div id="title"><b>Select a chat</b><small></small></div>
+      <div id="chatActs">
       <button class="pill" id="grpBtn" title="See, add or remove people in this group" hidden>👥 Members</button>
       <button class="pill" id="nickBtn" title="Give this chat a nickname that only you see on this site" hidden>✏️ Nickname</button>
       <button class="pill" id="pinBtn" title="Pin this chat to the top on this site (your phone isn't affected)" hidden>📌 Pin</button>
       <button class="pill" id="archBtn" title="Archive or unarchive this chat on this site (your phone isn't affected)" hidden>📦 Archive</button>
+      </div>
+      <button class="ib" id="chatMore" title="Chat options" aria-haspopup="true" hidden><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="8" cy="12" r=".9" fill="currentColor"/><circle cx="12" cy="12" r=".9" fill="currentColor"/><circle cx="16" cy="12" r=".9" fill="currentColor"/></svg></button>
     </div>
     <div id="msgs"><div class="empty">Pick a conversation, or start a new one with ✎.</div></div>
     <button id="jump" title="Jump to latest" hidden>↓<span></span></button>
@@ -407,17 +567,20 @@ html[data-locked] #lock{display:flex}
       <button class="ib" id="attX" title="Remove">✕</button>
     </div>
     <div id="composer">
-      <button class="ib" id="emojiBtn" title="Emoji (or type : and a name, like :cool)" disabled>😊</button>
-      <button class="ib" id="attach" title="Attach photo or file" disabled>📎</button>
+      <button class="ib" id="attach" title="Attach photo or file" disabled><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
       <input type="file" id="file" hidden>
-      <textarea id="text" rows="1" placeholder="Type a message" disabled></textarea>
-      <button id="send" disabled>➤</button>
+      <div class="cwrap">
+        <textarea id="text" rows="1" placeholder="Type a message" disabled></textarea>
+        <button class="ib" id="emojiBtn" title="Emoji (or type : and a name, like :cool)" disabled><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.8"/><path d="M8.6 14.2a4.6 4.6 0 0 0 6.8 0"/><path d="M9.2 9.6h.01M14.8 9.6h.01" stroke-width="2.4"/></svg></button>
+      </div>
+      <button id="send" title="Send" disabled><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12 20 4.5l-5.2 15.5-3-6.2z"/><path d="M11.8 13.8 20 4.5"/></svg></button>
     </div>
     <div id="drop">Drop to attach</div>
   </main>
 </div>
 
 <div class="overlay" id="gate">
+  <span class="mark"><svg viewBox="0 0 48 48" aria-hidden="true"><path fill="var(--leaf)" d="M15 3.5 L22.5 13 H33 A11 11 0 0 1 44 24 V31 A11 11 0 0 1 33 42 H15 A11 11 0 0 1 4 31 V24 A11 11 0 0 1 11.5 13.4 Z"/><path d="M16 31.5 24 23.5 32 31.5" fill="none" stroke="var(--leaf-ink)" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
   <h2 id="gt">Connecting…</h2>
   <img id="qr" alt="QR code" hidden>
   <p id="gp">Starting your session.</p>
@@ -517,7 +680,7 @@ html[data-locked] #lock{display:flex}
       <button data-v="green" style="--c:#00a884" title="Green"></button><button data-v="blue" style="--c:#2f80ed" title="Blue"></button><button data-v="purple" style="--c:#8b5cf6" title="Purple"></button><button data-v="pink" style="--c:#e0457b" title="Pink"></button><button data-v="orange" style="--c:#e8870e" title="Orange"></button>
     </div>
     <label>Chat background</label>
-    <div class="seg" data-p="wall"><button data-v="plain">Plain</button><button data-v="dots">Dots</button><button data-v="none">None</button></div>
+    <div class="seg" data-p="wall"><button data-v="doodle">Doodles</button><button data-v="plain">Plain</button><button data-v="dots">Dots</button><button data-v="none">None</button></div>
     <label>Text size</label>
     <div class="seg" data-p="size"><button data-v="small">Small</button><button data-v="normal">Normal</button><button data-v="large">Large</button></div>
     <label>Enter key</label>
@@ -561,7 +724,7 @@ let replyTo = null;
 let panicOn = false, panicSaved = null;
 let editing = null, editBackup = '', locked = false;
 let mentionMode = false, composerMentions = [];
-const PREF_DEFAULTS = {theme: 'auto', accent: 'green', wall: 'plain', size: 'normal', enter: 'auto', blur: 'off', idle: '0'};
+const PREF_DEFAULTS = {theme: 'auto', accent: 'green', wall: 'doodle', size: 'normal', enter: 'auto', blur: 'off', idle: '0'};
 let prefs = {...PREF_DEFAULTS};
 try { Object.assign(prefs, JSON.parse(localStorage.getItem('wah-prefs') || '{}')); } catch {}
 function applyPrefs() {
@@ -688,6 +851,7 @@ function renderChats() {
   if (!panicOn && !locked) document.title = (n ? `(${n}) ` : '') + BASE_TITLE;
   const na = chats.filter(c => c.archived).length;
   $('#archChip').textContent = na ? `📦 Archived (${na})` : '📦 Archived';
+  if (typeof syncRail === 'function') syncRail();
 }
 const loadChats = throttle(async () => {
   try { chats = await call('GET', '/chats'); renderChats(); updateTitle(); } catch {}
@@ -708,6 +872,7 @@ function updateTitle() {
   $('#title').innerHTML = `<b>${esc(name)}</b><small id="presenceLabel">${esc(extra || sub.join(' · '))}</small>`;
   $('#nickBtn').hidden = false;
   $('#archBtn').hidden = false;
+  $('#chatMore').hidden = false;
   $('#grpBtn').hidden = !(c?.group || String(current).endsWith('@g.us'));
   $('#pinBtn').hidden = false;
   $('#pinBtn').textContent = c?.pinned ? '📌 Unpin' : '📌 Pin';
@@ -1264,18 +1429,18 @@ const TOUR = [
      <li>📎 sends photos and files. You can also paste or drag them in.</li>
      <li>Hover a message (or tap ↩ on phones) to <b>reply</b>.</li>
      <li>Unsent text is kept as a <b>Draft</b> when you switch chats.</li></ul>`},
-  {ico: '✏️', title: 'Nicknames', target: '#nickBtn',
-   body: `Open a chat and press <b>✏️ Nickname</b> to name it however you like.
+  {ico: '✏️', title: 'Nicknames', target: '#chatMore',
+   body: `Open a chat, press <b>⋯</b> at the top right, then <b>✏️ Nickname</b> to name it however you like.
      <ul><li>Only <b>you</b> see it, only on this site. It's never sent to WhatsApp.</li>
      <li>A name shown as <b>~Budi</b> is the name that person set on their own WhatsApp.</li></ul>`},
-  {ico: '📌', title: 'Pin & archive (this site only)', target: '#pinBtn',
-   body: `<b>📌 Pin</b> keeps a chat at the top of your list. <b>📦 Archive</b> tucks it into the <b>Archived</b> filter.
+  {ico: '📌', title: 'Pin & archive (this site only)', target: '#rArch',
+   body: `From a chat's <b>⋯</b> menu, <b>📌 Pin</b> keeps it at the top of your list and <b>📦 Archive</b> tucks it away. Archived chats live behind the box icon on the left (the <b>Archived</b> filter on phones).
      <ul><li>Both are <b>local to this site</b>. Your phone isn't affected, and pins or archives on your phone don't carry over.</li>
      <li>Archiving a chat unpins it, and pinning an archived chat brings it back.</li>
      <li>Archived chats don't count towards the unread number.</li></ul>`},
-  {ico: '🎨', title: 'Make it yours', target: '#menuBtn',
-   body: `<b>⋮ → Appearance &amp; settings</b>: light or dark theme, accent colour, chat background, text size, and what <kbd>Enter</kbd> does.
-     You can also <b>blur the chat list</b> (👁 at the top) and <b>lock the app with a PIN</b> on this device.
+  {ico: '🎨', title: 'Make it yours', target: '#rPrefs',
+   body: `The <b>settings icon</b> on the left (or <b>⋯ → Appearance &amp; settings</b>): light or dark theme, accent colour, chat background, text size, and what <kbd>Enter</kbd> does.
+     You can also <b>blur the chat list</b> with the eye icon and <b>lock the app with a PIN</b> with the lock icon.
      <p class="muted">Saved per device, so your phone and laptop can look different. You can also change your display name from the ⋮ menu.</p>`},
   {ico: '⚠️', title: 'Good to know',
    body: `<ul>
@@ -1288,7 +1453,7 @@ const TOUR = [
      <li><b>Stuck on "Reconnecting…"</b>? Give it a minute. If it lasts, use <b>⋮ → Re-link WhatsApp</b>.</li>
      <li>If your phone is <b>offline for ~14 days</b>, WhatsApp unlinks this site and you'll scan the QR again.</li></ul>`},
   {ico: '🎉', title: "You're all set",
-   body: `Open this again any time from <b>⋮ → Tutorial</b>. Selamat ngobrol!`},
+   body: `Open this again any time from <b>⋯ → Tutorial</b>. Selamat ngobrol!`},
 ];
 let tourStep = -1, tourHl = null;
 function tourDone() { try { localStorage.setItem('wah-tour', '1'); } catch {} }
@@ -1619,7 +1784,7 @@ $('#pinForm').addEventListener('submit', async e => {
   const salt = [...crypto.getRandomValues(new Uint8Array(12))].map(x => x.toString(16).padStart(2, '0')).join('');
   try { localStorage.setItem(LOCK_KEY, JSON.stringify({salt, hash: await pinHash(p, salt), len: p.length})); } catch { return err('Could not save on this device'); }
   $('#pinDlg').classList.remove('on'); refreshLockUi();
-  toast('PIN set. Lock any time with 🔒 at the top, or press L');
+  toast('PIN set. Lock any time with 🔒 on the left, or press L');
 });
 for (const id of ['pinCur', 'pinNew', 'pinRep']) $('#' + id).addEventListener('input', e => { e.target.value = e.target.value.replace(/\D/g, ''); });
 
@@ -1796,6 +1961,38 @@ function scheduleRead() {
   }, 400);
 }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && chats.find(x => x.jid === current)?.unread) scheduleRead(); });
+
+
+// ------------------------------------------------ header actions on phones
+// On small screens Members / Nickname / Pin / Archive live behind ⋮.
+$('#chatMore').addEventListener('click', e => { e.stopPropagation(); $('#chatActs').classList.toggle('on'); });
+document.addEventListener('click', e => {
+  if (!e.target.closest('#chatActs, #chatMore') || e.target.closest('#chatActs .pill')) $('#chatActs').classList.remove('on');
+});
+
+
+// ------------------------------------------------------------------ rail
+function syncRail() {
+  const arch = typeof filter !== 'undefined' && filter === 'archived';
+  $('#rChats').classList.toggle('on', !arch);
+  $('#rArch').classList.toggle('on', arch);
+  const n = (typeof chats !== 'undefined' ? chats : []).filter(c => c.archived).length;
+  $('#rArchN').hidden = !n; $('#rArchN').textContent = n > 99 ? '99+' : n;
+  const bl = document.documentElement.dataset.blur === 'on';
+  $('#rBlur').classList.toggle('on', bl);
+  $('#rBlur').title = bl ? 'Chat list blurred. Click to show it' : 'Blur the chat list';
+}
+const railGo = (f) => (e) => { e.stopPropagation(); closeNew(); $(`#chips [data-f="${f}"]`).click(); syncRail(); };
+$('#rChats').addEventListener('click', railGo('all'));
+$('#rArch').addEventListener('click', (e) => railGo(filter === 'archived' ? 'all' : 'archived')(e));
+$('#rLock').addEventListener('click', (e) => { e.stopPropagation(); $('#lockBtn').click(); });
+$('#rBlur').addEventListener('click', (e) => { e.stopPropagation(); setPref('blur', prefs.blur === 'on' ? 'off' : 'on'); syncRail(); });
+$('#rPrefs').addEventListener('click', (e) => { e.stopPropagation(); applyPrefs(); $('#prefs').classList.add('on'); });
+$('#rMe').addEventListener('click', (e) => { e.stopPropagation(); const m = $('#menu'); const opening = !m.classList.contains('on'); m.classList.add('fromRail'); m.classList.toggle('on', opening); });
+$('#menuBtn').addEventListener('click', () => $('#menu').classList.remove('fromRail'));
+$('#chips').addEventListener('click', () => setTimeout(syncRail));
+if (window.MutationObserver) new MutationObserver(syncRail).observe(document.documentElement, {attributes: true, attributeFilter: ['data-blur']});
+syncRail();
 
 applyPrefs();
 $('#text').addEventListener('input', function () { this.style.height = 'auto'; this.style.height = Math.min(this.scrollHeight, 140) + 'px'; });

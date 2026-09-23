@@ -4,21 +4,45 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Status · __BRAND__</title>
 <script>try{var p=JSON.parse(localStorage.getItem('wah-prefs')||'{}');if(p.theme&&p.theme!=='auto')document.documentElement.dataset.theme=p.theme}catch(e){}</script>
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2048%2048%22%20aria-hidden%3D%22true%22%3E%3Cpath%20fill%3D%22%2317805a%22%20d%3D%22M15%203.5%20L22.5%2013%20H33%20A11%2011%200%200%201%2044%2024%20V31%20A11%2011%200%200%201%2033%2042%20H15%20A11%2011%200%200%201%204%2031%20V24%20A11%2011%200%200%201%2011.5%2013.4%20Z%22/%3E%3Cpath%20d%3D%22M16%2031.5%2024%2023.5%2032%2031.5%22%20fill%3D%22none%22%20stroke%3D%22%23ffffff%22%20stroke-width%3D%224.2%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="/ui.css?v=__APPV__">
 <style>
-:root{--bg:#f0f2f5;--panel:#fff;--fg:#111b21;--muted:#667781;--line:#e3e6e8;--accent:#128c7e;--danger:#d64550;--warn:#d99c2b;--ok:#128c7e;--field:#f5f6f7;box-sizing:border-box}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0b141a;--panel:#111b21;--fg:#e9edef;--muted:#8696a0;--line:#2a3942;--accent:#00a884;--danger:#f15c6d;--warn:#f0b429;--ok:#00a884;--field:#202c33}}
-:root[data-theme="dark"]{color-scheme:dark;--bg:#0b141a;--panel:#111b21;--fg:#e9edef;--muted:#8696a0;--line:#2a3942;--accent:#00a884;--danger:#f15c6d;--warn:#f0b429;--ok:#00a884;--field:#202c33}
-*{box-sizing:inherit} body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
-a{color:inherit}.wrap{max-width:980px;margin:0 auto;padding:18px}.top{display:flex;align-items:center;gap:12px;margin-bottom:16px}.back{border:1px solid var(--line);background:var(--panel);border-radius:9px;padding:8px 12px;text-decoration:none}.top h1{margin:0;font-size:22px}.top small{display:block;color:var(--muted)}
-.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;box-shadow:0 1px 2px rgba(0,0,0,.05)}.card.wide{grid-column:1/-1}.card h2{font-size:15px;margin:0 0 12px}.state{display:flex;align-items:center;gap:10px}.dot{width:12px;height:12px;border-radius:50%;background:var(--muted);flex:0 0 12px}.dot.ok{background:var(--ok)}.dot.warn{background:var(--warn)}.dot.bad{background:var(--danger)}.big{font-size:18px;font-weight:700}.muted{color:var(--muted)}.row{display:flex;justify-content:space-between;gap:16px;padding:7px 0;border-bottom:1px solid var(--line)}.row:last-child{border-bottom:0}.row b{font-weight:600}.mono{font:12px ui-monospace,SFMono-Regular,Menlo,monospace;word-break:break-word}.bar{height:8px;background:var(--field);border-radius:99px;overflow:hidden}.bar i{display:block;height:100%;background:var(--accent);width:0}.hint{margin-top:9px;color:var(--muted);font-size:12px}.err{color:var(--danger)}.foot{margin-top:15px;color:var(--muted);font-size:12px;text-align:center}.btn{border:1px solid var(--line);background:var(--panel);color:inherit;border-radius:8px;padding:7px 11px;cursor:pointer}.actions{display:flex;gap:8px;margin-left:auto}
-@media(max-width:700px){.wrap{padding:12px}.grid{grid-template-columns:1fr}.card.wide{grid-column:auto}.top{align-items:flex-start}.actions{flex-wrap:wrap}}
+.wrap { max-width: 1040px; margin: 0 auto; padding: 24px 24px 56px; }
+.top { display: flex; align-items: center; gap: 14px; margin-bottom: 20px; }
+.top .mark { width: 38px; height: 38px; }
+.top h1 { font-size: var(--t-xl); letter-spacing: -.02em; }
+.top small { display: block; color: var(--muted); font-size: var(--t-sm); margin-top: 2px; }
+.top .actions { display: flex; gap: 8px; margin-left: auto; }
+.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.card.wide { grid-column: 1 / -1; }
+.card h2 { font-size: var(--t-md); margin: 0 0 12px; }
+.state { display: flex; align-items: center; gap: 12px; }
+.dot { width: 12px; height: 12px; border-radius: 50%; background: var(--muted); flex: 0 0 12px; }
+.dot.ok { background: var(--leaf); box-shadow: 0 0 0 4px var(--leaf-soft); }
+.dot.warn { background: var(--warn); box-shadow: 0 0 0 4px var(--warn-soft); }
+.dot.bad { background: var(--danger); box-shadow: 0 0 0 4px var(--danger-soft); }
+.big { font-size: var(--t-lg); font-weight: 700; }
+.muted { color: var(--muted); }
+.row { display: flex; justify-content: space-between; gap: 16px; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: var(--t-sm); }
+.row:last-child { border-bottom: 0; }
+.row span { color: var(--muted); }
+.row b { font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; }
+.mono { font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; word-break: break-word; }
+.bar { height: 8px; background: var(--field); border-radius: 99px; overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--leaf); width: 0; }
+.hint { margin-top: 9px; color: var(--muted); font-size: var(--t-xs); }
+.err { color: var(--danger); }
+.foot { margin-top: 18px; color: var(--muted); font-size: var(--t-xs); text-align: center; }
+@media (max-width: 700px) { .wrap { padding: 16px; } .grid { grid-template-columns: 1fr; } .card.wide { grid-column: auto; } .top { flex-wrap: wrap; } }
 </style>
 <body>
 <div class="wrap">
   <div class="top">
-    <a class="back" href="/u/__USER__/">← Chat</a>
-    <div><h1>Connection &amp; system status</h1><small>__LABEL__ · live diagnostics</small></div>
-    <div class="actions"><button class="btn" id="refresh">Refresh</button></div>
+    <span class="mark"><svg viewBox="0 0 48 48" aria-hidden="true"><path fill="var(--leaf)" d="M15 3.5 L22.5 13 H33 A11 11 0 0 1 44 24 V31 A11 11 0 0 1 33 42 H15 A11 11 0 0 1 4 31 V24 A11 11 0 0 1 11.5 13.4 Z"/><path d="M16 31.5 24 23.5 32 31.5" fill="none" stroke="var(--leaf-ink)" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+    <div><h1>Connection status</h1><small>Live diagnostics for __LABEL__</small></div>
+    <div class="actions"><a class="btn ghost" href="/u/__USER__/">Back to chats</a><button class="btn" id="refresh">Refresh</button></div>
   </div>
   <div class="grid">
     <section class="card">

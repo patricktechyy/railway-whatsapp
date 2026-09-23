@@ -2,54 +2,104 @@
 <html lang="en">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Set your password · __BRAND__</title>
+<meta name="theme-color" content="#17805a">
+<title>Set up your account · __BRAND__</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2048%2048%22%20aria-hidden%3D%22true%22%3E%3Cpath%20fill%3D%22%2317805a%22%20d%3D%22M15%203.5%20L22.5%2013%20H33%20A11%2011%200%200%201%2044%2024%20V31%20A11%2011%200%200%201%2033%2042%20H15%20A11%2011%200%200%201%204%2031%20V24%20A11%2011%200%200%201%2011.5%2013.4%20Z%22/%3E%3Cpath%20d%3D%22M16%2031.5%2024%2023.5%2032%2031.5%22%20fill%3D%22none%22%20stroke%3D%22%23ffffff%22%20stroke-width%3D%224.2%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
 <script>try{var p=JSON.parse(localStorage.getItem('wah-prefs')||'{}');if(p.theme&&p.theme!=='auto')document.documentElement.dataset.theme=p.theme}catch(e){}</script>
-<style>:root{--bg:#f0f2f5;--panel:#fff;--fg:#111b21;--muted:#667781;--line:#e3e6e8;--accent:#128c7e;--accent-fg:#fff;--danger:#d64550;--field:#f5f6f7;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0b141a;--panel:#111b21;--fg:#e9edef;--muted:#8696a0;--line:#2a3942;--accent:#00a884;--accent-fg:#fff;--danger:#f15c6d;--field:#202c33}}
-:root[data-theme="dark"]{color-scheme:dark;--bg:#0b141a;--panel:#111b21;--fg:#e9edef;--muted:#8696a0;--line:#2a3942;--accent:#00a884;--accent-fg:#fff;--danger:#f15c6d;--field:#202c33}
-*{box-sizing:inherit}
-body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
-.center{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
-.box{width:100%;max-width:380px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:28px}
-h1{font-size:21px;margin:0 0 4px}
-.sub{color:var(--muted);font-size:14px;margin:0 0 22px}
-label{display:block;font-size:13px;font-weight:600;margin:14px 0 6px}
-input{width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--line);background:var(--field);color:inherit;font:inherit;outline:none}
-input:focus{border-color:var(--accent)}
-button{font:inherit;cursor:pointer}
-.btn{border:0;border-radius:8px;padding:10px 16px;background:var(--accent);color:var(--accent-fg);font-weight:600}
-.btn:disabled{opacity:.5;cursor:default}
-.btn.full{width:100%;margin-top:20px}
-.btn.ghost{background:transparent;color:var(--fg);border:1px solid var(--line)}
-.btn.danger{background:transparent;color:var(--danger);border:1px solid var(--line)}
-.err{color:var(--danger);font-size:13px;min-height:20px;margin-top:12px}
-.hint{color:var(--muted);font-size:12px;margin-top:6px}</style>
-<div class="center">
-  <div class="box" data-state="__STATE__" id="box">
-    <div id="ok">
-      <h1 data-egg>Hi __NAME__</h1>
-      <p class="sub">Your username is <b>__USERNAME__</b> — you'll type it to sign in.
-      Now choose a password. Only you will know it.</p>
-      <form id="f">
+<link rel="stylesheet" href="/ui.css?v=__APPV__">
+<style>
+#box[data-state="ok"] .when-bad, #box[data-state="invalid"] .when-ok { display: none; }
+.steps { list-style: none; margin: 26px 0 0; padding: 0; display: grid; gap: 10px; max-width: 34ch; }
+.steps li { display: flex; gap: 12px; align-items: baseline; font-size: var(--t-md); opacity: .92; }
+.steps b { flex: 0 0 26px; height: 26px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+  background: rgba(243,247,245,.16); font-size: var(--t-xs); }
+.steps li.now { opacity: 1; font-weight: 600; }
+.steps li.now b { background: #f3f7f5; color: #17805a; }
+.meter { display: flex; gap: 4px; margin-top: 8px; }
+.meter i { flex: 1; height: 4px; border-radius: 4px; background: var(--line); transition: background-color .2s; }
+.meter[data-l="1"] i:nth-child(-n+1) { background: var(--danger); }
+.meter[data-l="2"] i:nth-child(-n+2) { background: var(--warn); }
+.meter[data-l="3"] i:nth-child(-n+3) { background: var(--leaf); }
+.meter[data-l="4"] i { background: var(--leaf); }
+.match { font-size: var(--t-xs); margin-top: 6px; min-height: 18px; color: var(--muted); }
+.match.ok { color: var(--leaf); } .match.no { color: var(--danger); }
+@media (max-width: 820px) { .steps { display: none; } }
+</style>
+<body>
+<main class="auth" id="box" data-state="__STATE__">
+  <section class="auth-brand">
+    <div class="bubbles" aria-hidden="true">
+      <i style="left:16%;--s:40px;--d:7s;--w:.2s;--h:-74vh"></i>
+      <i style="left:46%;--s:26px;--d:6s;--w:.8s;--h:-62vh"></i>
+      <i style="left:72%;--s:54px;--d:8s;--w:.4s;--h:-84vh"></i>
+    </div>
+    <span class="mark"><svg viewBox="0 0 48 48" aria-hidden="true"><path fill="#f3f7f5" d="M15 3.5 L22.5 13 H33 A11 11 0 0 1 44 24 V31 A11 11 0 0 1 33 42 H15 A11 11 0 0 1 4 31 V24 A11 11 0 0 1 11.5 13.4 Z"/><path d="M16 31.5 24 23.5 32 31.5" fill="none" stroke="#17805a" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+    <div class="spacer"></div>
+    <div>
+      <h1 class="word when-ok" data-egg>Hi, __NAME__</h1>
+      <h1 class="word when-bad">Apa yang Diatas<small>Whats Up</small></h1>
+      <ol class="steps when-ok">
+        <li class="now"><b>1</b>Choose your password</li>
+        <li><b>2</b>Link your WhatsApp with a QR code</li>
+        <li><b>3</b>Your chats appear here</li>
+      </ol>
+    </div>
+    <div class="foot">Solusi buat anak IPLU</div>
+  </section>
+  <section class="auth-main">
+    <div class="auth-form when-ok">
+      <h1>Choose a password</h1>
+      <p class="lede">You'll sign in with the username below and the password you pick here. Only you will know it.</p>
+      <span class="chip">@__USERNAME__</span>
+      <form id="f" novalidate>
         <input type="text" autocomplete="username" value="__USERNAME__" hidden>
-        <label for="p1">New password</label>
-        <input id="p1" type="password" autocomplete="new-password" minlength="__MIN__" required autofocus>
-        <div class="hint">At least __MIN__ characters.</div>
-        <label for="p2">Repeat it</label>
-        <input id="p2" type="password" autocomplete="new-password" required>
-        <button class="btn full" id="go">Save and continue</button>
-        <div class="err" id="err"></div>
+        <label class="field"><span>New password</span>
+          <span class="input-wrap"><input id="p1" type="password" autocomplete="new-password" minlength="__MIN__" required autofocus>
+          <button type="button" class="reveal" data-reveal="p1" aria-label="Show password">Show</button></span>
+          <span class="meter" id="meter" data-l="0" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+          <span class="help" id="strength">At least __MIN__ characters. Longer is stronger.</span></label>
+        <label class="field"><span>Type it again</span>
+          <span class="input-wrap"><input id="p2" type="password" autocomplete="new-password" required>
+          <button type="button" class="reveal" data-reveal="p2" aria-label="Show password">Show</button></span>
+          <span class="match" id="match"></span></label>
+        <button class="btn lg full" id="go">Save and continue</button>
+        <div class="error" id="err" role="alert"></div>
       </form>
     </div>
-    <div id="bad">
-      <h1>Link expired</h1>
-      <p class="sub">This setup link has already been used or is more than 7 days old.
-      Ask whoever runs __BRAND__ to send you a new one.</p>
-      <a class="btn" href="/" style="display:inline-block;text-decoration:none">Go to sign in</a>
+    <div class="auth-form when-bad">
+      <h1>This link has expired</h1>
+      <p class="lede">Setup links work once and last 7 days. Ask your admin to send you a new one, or sign in if you've already set up your account.</p>
+      <a class="btn lg full" href="/">Go to sign in</a>
     </div>
-  </div>
-</div>
-<style>#box[data-state="ok"] #bad,#box[data-state="invalid"] #ok{display:none}</style>
+  </section>
+</main>
+<div id="toast"></div>
+<script>
+const MIN = Number('__MIN__') || 8;
+document.querySelectorAll('[data-reveal]').forEach(b => b.addEventListener('click', () => {
+  const i = document.getElementById(b.dataset.reveal), show = i.type === 'password';
+  i.type = show ? 'text' : 'password'; b.textContent = show ? 'Hide' : 'Show';
+  b.setAttribute('aria-label', show ? 'Hide password' : 'Show password'); i.focus();
+}));
+function rate(v) {
+  if (!v) return [0, `At least ${MIN} characters. Longer is stronger.`];
+  if (v.length < MIN) return [1, `${MIN - v.length} more character${MIN - v.length === 1 ? '' : 's'} to go`];
+  const kinds = [/[a-z]/, /[A-Z]/, /\d/, /[^A-Za-z0-9]/].filter(r => r.test(v)).length;
+  const score = (v.length >= 14 ? 2 : v.length >= 10 ? 1 : 0) + (kinds >= 3 ? 1 : 0);
+  return score >= 2 ? [4, 'Strong password'] : score === 1 ? [3, 'Good password'] : [2, 'Okay. A longer one would be stronger'];
+}
+function check() {
+  const a = document.getElementById('p1').value, b = document.getElementById('p2').value;
+  const [l, t] = rate(a);
+  document.getElementById('meter').dataset.l = l; document.getElementById('strength').textContent = t;
+  const m = document.getElementById('match');
+  m.className = 'match' + (b ? (a === b ? ' ok' : ' no') : '');
+  m.textContent = b ? (a === b ? 'Passwords match' : "Passwords don't match yet") : '';
+}
+['p1', 'p2'].forEach(id => document.getElementById(id)?.addEventListener('input', check));
+</script>
 <script>
 const f = document.getElementById('f');
 f && f.addEventListener('submit', async (e) => {
