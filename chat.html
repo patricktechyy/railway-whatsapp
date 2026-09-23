@@ -745,9 +745,10 @@ function bubble(m) {
   else if (m.pending) tick = ' <span class="tick">🕓</span>';
   else if (m.fromMe) {
     const st = Number.isFinite(Number(m.status)) ? Number(m.status) : 2;
-    if (st >= 4) tick = ' <span class="tick read">✓✓</span>';
-    else if (st >= 3) tick = ' <span class="tick">✓✓</span>';
-    else tick = ' <span class="tick">✓</span>';
+    const tip = m.rsum ? ` title="Read by ${m.rsum.read} of ${m.rsum.total} · delivered to ${m.rsum.delivered} of ${m.rsum.total}"` : '';
+    if (st >= 4) tick = ` <span class="tick read"${tip}>✓✓</span>`;
+    else if (st >= 3) tick = ` <span class="tick"${tip}>✓✓</span>`;
+    else tick = ` <span class="tick"${tip}>✓</span>`;
   }
   const q = m.quote ? `<span class="q" data-qid="${esc(m.quote.id)}"><b>${esc(m.quote.name || '')}</b>${esc(m.quote.text || '')}</span>` : '';
   const rp = m.pending || m.failed || String(m.id).startsWith('tmp') ? '' : `<button class="rp" data-reply="${esc(m.id)}" title="Reply">↩</button>`;
@@ -1028,7 +1029,7 @@ function stream() {
     }
     else if (d.type === 'message-status' && d.jid === current) {
       const i = msgs.findIndex(x => x.id === d.id);
-      if (i >= 0) { msgs[i] = {...msgs[i], status: d.status, pending: false}; renderMsgs(false); }
+      if (i >= 0) { msgs[i] = {...msgs[i], status: d.status, pending: false, ...(d.rsum ? {rsum: d.rsum} : {})}; renderMsgs(false); }
     }
     else if (d.type === 'message' && d.message.jid === current) {
       const m = d.message;
@@ -1041,6 +1042,7 @@ function stream() {
       const away = box.scrollHeight - box.scrollTop - box.clientHeight > 150;
       upsert(m); renderMsgs(false);
       if (away && !m.fromMe) { unseen++; showJump(true); }
+      if (!m.fromMe) scheduleRead();
     }
   };
 }
@@ -1538,6 +1540,7 @@ function unlockApp() {
   locked = false; lockFails = 0; lastActive = Date.now();
   delete document.documentElement.dataset.locked;
   document.title = BASE_TITLE; renderChats();
+  if (chats.find(x => x.jid === current)?.unread) scheduleRead();
 }
 async function tryUnlock() {
   const v = $('#lockPin').value, d = lockData();
@@ -1755,6 +1758,28 @@ function pickMention(i) {
   composerMentions.push({name: x.name, id: x.id});
   insertAtCaret('@' + x.name + ' ', suggFrom, t.selectionStart);
 }
+
+
+// ------------------------------------------------ read while you're looking
+// A message arriving in the open chat is read if you can actually see it:
+// tab visible, not locked/panicked, and (on phones) the chat is on screen.
+let readTimer = null;
+function chatVisible() {
+  return !!current && document.visibilityState !== 'hidden' && !locked && !panicOn &&
+    (innerWidth > 760 || document.body.classList.contains('open'));
+}
+function scheduleRead() {
+  if (!chatVisible()) return;
+  clearTimeout(readTimer);
+  const jid = current;
+  readTimer = setTimeout(() => {
+    if (!chatVisible() || current !== jid) return;
+    const c = chats.find(x => x.jid === jid);
+    if (c && c.unread) { c.unread = 0; renderChats(); }
+    call('POST', '/read', {jid}).catch(() => {});
+  }, 400);
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && chats.find(x => x.jid === current)?.unread) scheduleRead(); });
 
 applyPrefs();
 $('#text').addEventListener('input', function () { this.style.height = 'auto'; this.style.height = Math.min(this.scrollHeight, 140) + 'px'; });

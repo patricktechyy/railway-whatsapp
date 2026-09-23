@@ -602,6 +602,9 @@ export class Session extends EventEmitter {
           // Only our own messages need outgoing tick state.
           const rj = entry.key.remoteJid
           const jid = rj ? this.store.canon(rj) : null
+          // In groups one person's receipt must not tick the whole message;
+          // per-member receipts (below) decide delivered/read there.
+          if (jid && isGroup(jid) && status >= 3) continue
           const existing = jid ? this.store.findMessage(jid, id) : null
           if (!existing?.fromMe) continue
           const next = Math.max(messageStatusValue(existing.status) ?? 2, status)
@@ -629,9 +632,14 @@ export class Session extends EventEmitter {
           const existing = jid ? this.store.findMessage(jid, id) : null
           if (!existing?.fromMe) continue
           let status = null
-          if (receipt.readTimestamp || receipt.readTimestampMs) status = 4
+          if (receipt.readTimestamp || receipt.readTimestampMs || receipt.playedTimestamp) status = 4
           else if (receipt.receiptTimestamp || receipt.receiptTimestampMs) status = 3
           if (status == null) continue
+          if (isGroup(jid)) {
+            const who = receipt.userJid || entry?.key?.participant
+            if (who) this.recordGroupReceipt(jid, existing, who, status)
+            continue
+          }
           const next = Math.max(messageStatusValue(existing.status) ?? 2, status)
           if (next === (messageStatusValue(existing.status) ?? 2)) continue
           existing.status = next
@@ -1004,6 +1012,7 @@ export class Session extends EventEmitter {
       jid: m.jid,
       fromMe: m.fromMe,
       status: m.fromMe ? (messageStatusValue(m.status) ?? 2) : undefined,
+      rsum: m.fromMe && m.rsum ? m.rsum : undefined,
       ts: m.ts,
       type: m.type,
       text: m.text,
@@ -1218,6 +1227,61 @@ export class Session extends EventEmitter {
   }
 
   /** Validate a phone number against WhatsApp and return its chat JID. */
+  // ------------------------------------------------ group read receipts
+  // WhatsApp: ✓✓ once EVERY member has received it, blue once EVERY member read it.
+  recordGroupReceipt(jid, msg, who, status) {
+    const p = this.store.canon(who)
+    if (!p || p === this.store.canon(this.me?.jid || '')) return
+    msg.rcpt ??= {}
+    if ((msg.rcpt[p] || 0) >= status) return
+    msg.rcpt[p] = status
+    this.store.dirty = true
+    this.updateGroupTick(jid, msg)
+  }
+
+  groupRecipients(jid) {
+    const md = this.groupCache.get(jid)
+    if (!md?.participants) return null
+    const me = this.store.canon(this.me?.jid || '')
+    const set = new Set()
+    for (const p of md.participants) {
+      const ids = [p.id, p.lid, p.phoneNumber, p.jid].filter(Boolean)
+      const lid = ids.find(isLid), pn = ids.map(toPn).find(Boolean)
+      if (lid && pn) this.store.link(lid, pn)
+      const c = this.store.canon(pn || p.id)
+      if (c !== me) set.add(c)
+    }
+    return set
+  }
+
+  updateGroupTick(jid, msg) {
+    const members = this.groupRecipients(jid)
+    if (!members) {
+      // don't know who's in the group yet: fetch once, then recount
+      if (!this.gmFetching?.has(jid) && this.sock?.groupMetadata) {
+        (this.gmFetching ??= new Set()).add(jid)
+        this.sock.groupMetadata(jid)
+          .then((md) => { this.groupCache.set(jid, md); this.updateGroupTick(jid, msg) })
+          .catch(() => {})
+          .finally(() => this.gmFetching.delete(jid))
+      }
+      return
+    }
+    const total = members.size
+    let delivered = 0, read = 0
+    for (const m of members) {
+      const r = msg.rcpt?.[this.store.canon(m)] || 0
+      if (r >= 3) delivered++
+      if (r >= 4) read++
+    }
+    msg.rsum = { total, delivered, read }
+    const status = total && read >= total ? 4 : total && delivered >= total ? 3 : 2
+    // always tell the page, so the "Read by x of y" counts stay current
+    msg.status = status
+    this.store.dirty = true
+    this.emit('event', { type: 'message-status', jid, id: msg.id, status, rsum: msg.rsum })
+  }
+
   // --------------------------------------------------------- group members
   async groupMembers(jid) {
     this.ensureConnected()
