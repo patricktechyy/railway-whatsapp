@@ -861,7 +861,12 @@ export class Session extends EventEmitter {
       }
     }
 
+    // who this message @mentions (text holds "@<number>", WhatsApp lists the people)
+    const mctx = Object.values(c).find((v) => v && typeof v === 'object' && v.contextInfo?.mentionedJid?.length)?.contextInfo
+    const mentions = (mctx?.mentionedJid || []).slice(0, 50).map((j) => ({ t: String(j).split('@')[0].split(':')[0], j: this.store.canon(j) }))
+
     const msg = {
+      mentions: mentions.length ? mentions : undefined,
       quote,
       id: k.id,
       jid,
@@ -1009,6 +1014,7 @@ export class Session extends EventEmitter {
       edited: !!m.edited,
       senderName: isGroup(m.jid) && !m.fromMe && m.sender ? this.store.displayName(m.sender) : '',
       reactions: this.store.reactionView(m, this.me?.jid),
+      mentions: this.store.mentionView(m, this.me?.jid),
     }
   }
 
@@ -1165,11 +1171,16 @@ export class Session extends EventEmitter {
     return { key, message }
   }
 
-  async send(jid, text, replyTo) {
+  async send(jid, text, replyTo, mentions) {
     this.ensureConnected()
     const target = await this.sendJid(jid)
     const quoted = this.quotedFor(jid, replyTo)
-    const sent = await this.sock.sendMessage(target, { text }, quoted ? { quoted } : undefined)
+    const content = { text }
+    const ms = [...new Set((Array.isArray(mentions) ? mentions : []).map(String))]
+      .filter((j) => /^\d+(:\d+)?@(s\.whatsapp\.net|lid)$/.test(j) && text.includes('@' + j.split('@')[0].split(':')[0]))
+      .slice(0, 50)
+    if (ms.length) content.mentions = ms
+    const sent = await this.sock.sendMessage(target, content, quoted ? { quoted } : undefined)
     const msg = this.ingest(sent, { bumpUnread: false })
     this.metrics.messagesOut++
     this.metrics.lastOutboundAt = Date.now()
