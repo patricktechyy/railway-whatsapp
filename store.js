@@ -5,8 +5,16 @@ const MAX_CHATS = Number(process.env.MAX_CHATS || 800)
 const MAX_MSGS = Number(process.env.MAX_MSGS_PER_CHAT || 150)
 const HARD_MSG_CAP = 1000
 // Keep only this many days of messages (HISTORY_DAYS, default 12).
-const HISTORY_DAYS = Math.max(1, Number(process.env.HISTORY_DAYS) || 12)
-export const historyCutoff = () => Math.floor(Date.now() / 1000) - HISTORY_DAYS * 86400
+// How many days of messages are kept. The admin can change it at runtime;
+// it never goes below MIN_HISTORY_DAYS.
+export const MIN_HISTORY_DAYS = 4
+let historyDays = Math.max(MIN_HISTORY_DAYS, Number(process.env.HISTORY_DAYS) || 12)
+export const getHistoryDays = () => historyDays
+export function setHistoryDays(n) {
+  historyDays = Math.min(3650, Math.max(MIN_HISTORY_DAYS, Math.round(Number(n)) || MIN_HISTORY_DAYS))
+  return historyDays
+}
+export const historyCutoff = () => Math.floor(Date.now() / 1000) - historyDays * 86400
 
 export const isLid = (j) => typeof j === 'string' && j.endsWith('@lid')
 export const isPn = (j) => typeof j === 'string' && j.endsWith('@s.whatsapp.net')
@@ -401,6 +409,7 @@ export class Store {
       deleted: !!m.deleted,
       edited: !!m.edited,
       senderName: group && !m.fromMe && m.sender ? this.displayName(m.sender) : '',
+      sender: group && !m.fromMe ? m.sender : undefined,
       reactions: this.reactionView(m, mineJid),
       mentions: this.mentionView(m, mineJid),
     }))
