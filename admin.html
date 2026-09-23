@@ -81,6 +81,7 @@ details.older summary { cursor: pointer; color: var(--muted); font-size: var(--t
 <header class="topbar"><div class="in">
   <span class="mark" style="width:34px;height:34px"><svg viewBox="0 0 48 48" aria-hidden="true"><path fill="var(--leaf)" d="M15 3.5 L22.5 13 H33 A11 11 0 0 1 44 24 V31 A11 11 0 0 1 33 42 H15 A11 11 0 0 1 4 31 V24 A11 11 0 0 1 11.5 13.4 Z"/><path d="M16 31.5 24 23.5 32 31.5" fill="none" stroke="var(--leaf-ink)" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
   <div class="brand"><b data-egg>__BRAND__</b><span>Admin</span></div>
+  <a class="btn ghost" id="backChats" href="/" hidden>Back to chats</a>
   <button class="btn ghost" id="logout">Sign out</button>
 </div></header>
 
@@ -141,6 +142,7 @@ details.older summary { cursor: pointer; color: var(--muted); font-size: var(--t
 <div id="toast"></div>
 
 <script>
+const ME = '__ME__';
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const STATUS = {
@@ -200,15 +202,16 @@ async function load() {
       <div class="av">${esc((u.name || u.username).split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase())}</div>
       <div class="who">
         <div class="l1"><b>${esc(u.name)}</b><span>@${esc(u.username)}</span>${u.phone ? `<span>${esc(u.phone)}</span>` : ''}</div>
-        <div class="tags">${presence}<span class="badge ${tone}">${esc(st)}</span><span class="badge ${pw[1]}">${pw[0]}</span></div>
+        <div class="tags">${u.isAdmin ? '<span class="badge ok">Admin</span>' : ''}${presence}<span class="badge ${tone}">${esc(st)}</span><span class="badge ${pw[1]}">${pw[0]}</span></div>
         ${meta.length ? `<div class="meta">${meta.map(m => `<span>${esc(m)}</span>`).join('')}</div>` : ''}
         ${u.error && u.status !== 'connected' ? `<div class="err">${esc(u.error)}</div>` : ''}
       </div>
       <details class="manage"${openRow === u.username ? ' open' : ''}><summary class="btn ghost">Manage</summary><div class="menu">
         <button data-a="link">${u.hasPassword ? 'Reset password' : 'New setup link'}</button>
         <button data-a="rename">Rename</button>
+        <button data-a="admin">${u.isAdmin ? 'Remove admin' : 'Make admin'}</button>
         <button data-a="unlink" ${u.linked || u.status === 'connected' ? '' : 'disabled'}>Unlink phone</button>
-        <hr><button data-a="delete" class="risky">Remove account</button>
+        ${u.username === ME ? '' : '<hr><button data-a="delete" class="risky">Remove account</button>'}
       </div></details>
     </div>`;
   }).join('');
@@ -241,6 +244,16 @@ $('#list').addEventListener('click', async (e) => {
       if (hasPw && !confirm(`Reset ${n}'s password?\n\nThey'll be signed out and must choose a new one using the link. Their WhatsApp stays linked.`)) return;
       const d = await call('POST', url + '/reset', {});
       showLink(d.setupUrl, n, true);
+    } else if (a === 'admin') {
+      const makeIt = b.textContent.trim() === 'Make admin';
+      const self = u === ME;
+      const msg = makeIt
+        ? `Make ${n} an admin?\n\nThey'll be able to open this admin page from their own account: add and remove people, reset passwords and change settings. They still can't read anyone's chats.`
+        : self ? `Remove your own admin access?\n\nYou'll lose this page until another admin (or the ADMIN_PASSWORD login) gives it back.` : `Remove admin access for ${n}?`;
+      if (!confirm(msg)) return;
+      await call('POST', url + '/admin', {admin: makeIt});
+      toast(makeIt ? `${n} is now an admin` : `${n} is no longer an admin`);
+      if (self && !makeIt) { location.href = '/'; return; }
     } else if (a === 'rename') {
       const name = prompt(`Display name for @${u} (the username stays the same):`, n);
       if (name === null || !name.trim() || name.trim() === n) return;
@@ -316,6 +329,7 @@ $('#histSave').addEventListener('click', async () => {
   catch (x) { toast(x.message); }
 });
 loadHist();
+if (ME && ME !== 'admin') { $('#backChats').hidden = false; $('#backChats').href = '/u/' + encodeURIComponent(ME) + '/'; }
 loadChangelog();
 loadEgg();
 function dur(ms) {

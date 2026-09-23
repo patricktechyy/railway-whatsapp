@@ -216,6 +216,7 @@ export class Auth {
       hasPassword: !!this.storedPassword(u),
       setupPending: !!(u.setup && u.setup.exp > Date.now()),
       createdAt: u.createdAt,
+      isAdmin: !!u.isAdmin,
     }
   }
 
@@ -262,6 +263,15 @@ export class Auth {
     const now = Date.now()
     u.lastActiveAt = now
     if (now - (u.lastActiveSavedAt || 0) > 5 * 60e3) { u.lastActiveSavedAt = now; this.save() }
+  }
+
+  /** Let a person's own account open the admin page too (the ADMIN_PASSWORD login stays as the backup). */
+  setAdmin(username, on) {
+    const u = this.get(username)
+    if (!u) throw new HttpError(404, 'No such user')
+    u.isAdmin = !!on
+    this.save()
+    return u
   }
 
   markSeen(username, version) {

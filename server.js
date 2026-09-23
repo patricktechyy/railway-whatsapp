@@ -268,10 +268,12 @@ async function route(req, res) {
   // --------------------------------------------------------------- admin
   if (p === '/admin' || p.startsWith('/admin/')) {
     const c = whoami(req)
-    const isAdmin = c?.k === 'admin'
+    // the ADMIN_PASSWORD login, or any account the admin has marked as an admin
+    const isAdmin = c?.k === 'admin' || (c?.k === 'user' && !!auth.get(c.u)?.isAdmin)
+    const actor = c?.k === 'admin' ? 'admin' : c?.u
     if (p === '/admin' || p === '/admin/') {
       if (!isAdmin) return redirect(res, '/')
-      return page(res, render('admin.html', { ADMIN_ENV: auth.adminFromEnv ? '1' : '0' }))
+      return page(res, render('admin.html', { ADMIN_ENV: auth.adminFromEnv ? '1' : '0', ME: actor }))
     }
     if (!isAdmin) throw new HttpError(401, 'Admin login required')
 
@@ -368,11 +370,19 @@ async function route(req, res) {
         return json(res, eggMessages())
       }
     }
-    m = p.match(/^\/admin\/api\/users\/([^/]+)(?:\/(reset|unlink|rename))?$/)
+    m = p.match(/^\/admin\/api\/users\/([^/]+)(?:\/(reset|unlink|rename|admin))?$/)
     if (m) {
       const username = decodeURIComponent(m[1])
       const action = m[2]
       if (!auth.get(username)) throw new HttpError(404, 'No such user')
+      if (!action && M === 'DELETE' && username === actor) throw new HttpError(400, "You can't remove your own account from here")
+      if (action === 'admin' && M === 'POST') {
+        requireJson(req)
+        const { admin } = await readJson(req)
+        auth.setAdmin(username, !!admin)
+        console.log(`[admin] ${actor} ${admin ? 'made' : 'removed'} ${username} ${admin ? 'an admin' : 'as admin'}`)
+        return json(res, { ok: true, isAdmin: !!admin })
+      }
       if (!action && M === 'DELETE') {
         const s = sessions.get(username)
         sessions.delete(username)
@@ -414,7 +424,7 @@ async function route(req, res) {
     if (rest === '') return redirect(res, `/u/${username}/`)
     const u = auth.get(username)
     sessions.get(username)?.wake()
-    return page(res, render('chat.html', { USER: username, LABEL: u.name }))
+    return page(res, render('chat.html', { USER: username, LABEL: u.name, IS_ADMIN: u.isAdmin ? '1' : '' }))
   }
   if (rest === '/status' || rest === '/status/') {
     if (!allowed) return redirect(res, '/')
@@ -453,8 +463,9 @@ async function route(req, res) {
   }
   if (api === '/messages') {
     if (!jid) throw new HttpError(400, 'jid required')
-    s.markRead(jid)
-    return json(res, s.store.messageList(jid, s.me?.jid))
+    const q = { beforeId: url.searchParams.get('beforeId'), sinceId: url.searchParams.get('sinceId'), limit: url.searchParams.get('limit') }
+    if (!q.beforeId) s.markRead(jid)
+    return json(res, s.store.messageList(jid, s.me?.jid, q))
   }
   if (api === '/media') {
     const out = await s.media(jid, url.searchParams.get('id'))
