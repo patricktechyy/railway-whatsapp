@@ -400,6 +400,7 @@ export class Session extends EventEmitter {
           phone: phoneOf(pn),
           name: sock.user?.name || sock.user?.verifiedName || sock.user?.notify || '',
         }
+        this.connectedAt = Date.now()
         this.setStatus('connected')
         this.log('connected as', this.me.phone || pn)
         this.loadGroups(sock)
@@ -653,6 +654,8 @@ export class Session extends EventEmitter {
   }
 
   async onClose(B, u, sock) {
+    this.connectedAt = null
+    this.reconnects = (this.reconnects || 0) + 1
     const DR = B.DisconnectReason || {}
     const err = u.lastDisconnect?.error
     const code = err?.output?.statusCode

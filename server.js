@@ -63,6 +63,27 @@ function changelogHistory() {
   return Object.keys(e).sort((a, b) => semverCmp(b, a)).map((version) => ({ version, notes: e[version] }))
 }
 
+// Storage used per account on the volume (cached, recomputed every 10 minutes)
+const storageCache = new Map()
+function dirSize(dir) {
+  let n = 0
+  try {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, e.name)
+      if (e.isDirectory()) n += dirSize(p)
+      else { try { n += fs.statSync(p).size } catch {} }
+    }
+  } catch {}
+  return n
+}
+function storageOf(u) {
+  const c = storageCache.get(u.username)
+  if (c && Date.now() - c.at < 10 * 60e3) return c.bytes
+  const bytes = dirSize(path.join(DATA_DIR, u.dir))
+  storageCache.set(u.username, { at: Date.now(), bytes })
+  return bytes
+}
+
 const MAX_UPLOAD = Number(process.env.MAX_UPLOAD_MB || 25) * 1024 * 1024
 
 fs.mkdirSync(DATA_DIR, { recursive: true })
@@ -255,9 +276,31 @@ async function route(req, res) {
             phone: s?.me?.phone || '',
             error: info.error ? [info.error.text, info.error.detail].filter(Boolean).join(' — ') : '',
             linked: !!info.linked,
+            // activity only: never message counts, contacts or content
+            online: (s?.viewers?.() || 0) > 0,
+            tabs: s?.viewers?.() || 0,
+            lastActiveAt: u.lastActiveAt || null,
+            lastLoginAt: u.lastLoginAt || null,
+            connectedSince: s?.connectedAt || null,
+            reconnects: s?.reconnects || 0,
+            storageBytes: storageOf(u),
           }
         })
       )
+    }
+    if (p === '/admin/api/stats' && M === 'GET') {
+      const list = auth.users.map((u) => sessions.get(u.username))
+      const mem = process.memoryUsage()
+      return json(res, {
+        version: VERSION,
+        users: auth.users.length,
+        onlineNow: list.filter((s) => (s?.viewers?.() || 0) > 0).length,
+        whatsappConnected: list.filter((s) => s?.status === 'connected').length,
+        uptimeSec: Math.round(process.uptime()),
+        memoryMB: Math.round(mem.rss / 1048576),
+        storageBytes: auth.users.reduce((n, u) => n + storageOf(u), 0),
+        node: process.version,
+      })
     }
     if (p === '/admin/api/users' && M === 'POST') {
       requireJson(req)
@@ -356,6 +399,7 @@ async function route(req, res) {
     return page(res, render('status.html', { USER: username, LABEL: u.name }))
   }
   if (!allowed) throw new HttpError(401, 'Please sign in again')
+  auth.touch(username)
   const s = sessions.get(username)
   if (!s) throw new HttpError(404, 'Session not found')
   const api = rest.replace(/^\/api/, '')

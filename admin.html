@@ -36,6 +36,11 @@ button{font:inherit;cursor:pointer}
 .link.on{display:block}
 .link .row{display:flex;gap:8px;margin-top:8px}
 .link input{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px}
+.stat{background:var(--field);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.stat b{display:block;font-size:20px;line-height:1.2}
+.stat span{color:var(--muted);font-size:12px}
+.who .meta{display:block;margin-top:4px;color:var(--muted);font-size:12px}
 .user{display:flex;gap:14px;align-items:center;padding:14px 0;border-top:1px solid var(--line);flex-wrap:wrap}
 .user:first-child{border-top:0;padding-top:0}
 .av{flex:0 0 40px;height:40px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600}
@@ -74,6 +79,12 @@ button{font:inherit;cursor:pointer}
         <button class="btn" id="copy">Copy</button>
       </div>
     </div>
+  </div>
+
+  <div class="card">
+    <h2>Overview</h2>
+    <div class="stats" id="stats"><div class="empty">Loading…</div></div>
+    <div class="hint" style="margin-top:10px">Activity only: who's online here and when. Messages, contacts and chats are never visible to the admin.</div>
   </div>
 
   <div class="card">
@@ -160,7 +171,8 @@ async function load() {
       <div class="who">
         <b>${esc(u.name)}</b>
         <small>@${esc(u.username)}${u.phone ? ' · ' + esc(u.phone) : ''}</small>
-        <div class="tags"><span class="tag ${cls}">${esc(st)}</span><span class="tag ${pw[1]}">${pw[0]}</span></div>
+        <div class="tags">${u.online ? `<span class="tag ok">🟢 Online now${u.tabs > 1 ? ` · ${u.tabs} tabs` : ''}</span>` : `<span class="tag">${u.lastActiveAt ? 'Last active ' + ago(u.lastActiveAt) : 'Not used yet'}</span>`}<span class="tag ${cls}">${esc(st)}</span><span class="tag ${pw[1]}">${pw[0]}</span></div>
+        <small class="meta">${[u.connectedSince ? 'WhatsApp connected ' + dur(Date.now() - u.connectedSince) : '', u.reconnects ? `${u.reconnects} reconnect${u.reconnects === 1 ? '' : 's'} since server start` : '', u.lastLoginAt ? 'signed in ' + ago(u.lastLoginAt) : '', mb(u.storageBytes)].filter(Boolean).join(' · ')}</small>
         ${u.error && u.status !== 'connected' ? `<small style="display:block;margin-top:4px;color:var(--danger)">${esc(u.error)}</small>` : ''}
       </div>
       <div class="acts">
@@ -261,6 +273,30 @@ $('#clsave').addEventListener('click', async () => {
 });
 loadChangelog();
 loadEgg();
+function dur(ms) {
+  const m = Math.floor(ms / 60000), h = Math.floor(m / 60), d = Math.floor(h / 24);
+  return d ? `${d}d ${h % 24}h` : h ? `${h}h ${m % 60}m` : `${Math.max(1, m)}m`;
+}
+function ago(t) {
+  const s = (Date.now() - t) / 1000;
+  if (s < 60) return 'just now';
+  if (s < 3600) return `${Math.floor(s / 60)} min ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  if (s < 7 * 86400) return `${Math.floor(s / 86400)}d ago`;
+  return new Date(t).toLocaleDateString();
+}
+const mb = (b) => b == null ? '' : b < 1048576 ? `${Math.max(1, Math.round(b / 1024))} KB` : `${(b / 1048576).toFixed(1)} MB`;
+async function loadStats() {
+  try {
+    const s = await call('GET', '/admin/api/stats');
+    const box = (v, l) => `<div class="stat"><b>${esc(String(v))}</b><span>${l}</span></div>`;
+    $('#stats').innerHTML =
+      box(s.onlineNow, 'online now') + box(`${s.whatsappConnected}/${s.users}`, 'WhatsApp connected') +
+      box(dur(s.uptimeSec * 1000), 'server uptime') + box(`${s.memoryMB} MB`, 'memory in use') +
+      box(mb(s.storageBytes), 'storage used') + box('v' + s.version.split(' ')[0], 'version');
+  } catch {}
+}
+loadStats(); setInterval(loadStats, 15000);
 load(); setInterval(load, 5000);
 </script>
 
