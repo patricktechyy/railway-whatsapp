@@ -5,10 +5,8 @@
 <title>__LABEL__ · __BRAND__</title>
 <script>try{if(sessionStorage.getItem('wah-panic')==='1')document.documentElement.dataset.panic='1'}catch(e){}</script>
 <script>try{if(localStorage.getItem('wah-lock-__USER__'))document.documentElement.dataset.locked='1';var bp=JSON.parse(localStorage.getItem('wah-prefs')||'{}');document.documentElement.dataset.blur=bp.blur||'off'}catch(e){}</script>
-<script>try{var p=JSON.parse(localStorage.getItem('wah-prefs')||'{}'),r=document.documentElement;if(p.theme&&p.theme!=='auto')r.dataset.theme=p.theme;if(p.accent&&p.accent!=='green')r.dataset.accent=p.accent;r.dataset.wall=p.wall||'doodle';r.dataset.size=p.size||'normal'}catch(e){}</script>
+<script>try{var p=JSON.parse(localStorage.getItem('wah-prefs')||'{}'),r=document.documentElement;if(p.theme&&p.theme!=='auto')r.dataset.theme=p.theme;if(p.accent&&p.accent!=='green')r.dataset.accent=p.accent;r.dataset.wall=p.wall||'doodle';r.dataset.rail=p.rail||'show';r.dataset.size=p.size||'normal'}catch(e){}</script>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2048%2048%22%20aria-hidden%3D%22true%22%3E%3Cpath%20fill%3D%22%2317805a%22%20d%3D%22M15%203.5%20L22.5%2013%20H33%20A11%2011%200%200%201%2044%2024%20V31%20A11%2011%200%200%201%2033%2042%20H15%20A11%2011%200%200%201%204%2031%20V24%20A11%2011%200%200%201%2011.5%2013.4%20Z%22/%3E%3Cpath%20d%3D%22M16%2031.5%2024%2023.5%2032%2031.5%22%20fill%3D%22none%22%20stroke%3D%22%23ffffff%22%20stroke-width%3D%224.2%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22/%3E%3C/svg%3E">
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
 <link rel="stylesheet" href="/ui.css?v=__APPV__">
 <style>
 /* colours come from ui.css; only chat-specific surfaces are defined here */
@@ -480,9 +478,38 @@ html[data-locked] #lock{display:flex}
   #msgs{padding:12px 10px}
   #emojiPanel{right:10px}
 }
+
+/* ---- system font on the chat page (sign-in and admin keep the brand font) */
+:root{--font:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+/* ---- WhatsApp bubble shape: tight corners + a tail on the first of each run */
+#msgs{gap:2px}
+.m,.m:not(.me),.m.me{border-radius:8px}
+.m.tail{margin-top:8px}
+.m.tail:not(.me):not(.sticker){border-top-left-radius:0}
+.m.tail.me:not(.sticker){border-top-right-radius:0}
+.m.tail:not(.sticker)::after{content:"";position:absolute;top:0;width:8px;height:13px;pointer-events:none}
+.m.tail:not(.me):not(.sticker)::after{left:-8px;background:var(--in);clip-path:polygon(0 0,100% 0,100% 100%)}
+.m.tail.me:not(.sticker)::after{right:-8px;background:var(--out);clip-path:polygon(0 0,100% 0,0 100%)}
+.m .q{border-radius:6px}
+/* ---- PIN field takes letters now */
+#lockPin{letter-spacing:4px;font-size:22px}
+/* ---- left bar auto-hide: slides in from the edge on hover */
+#railHot{display:none}
+:root[data-rail="auto"] #railHot{display:block;position:fixed;left:0;top:0;bottom:0;width:8px;z-index:31}
+:root[data-rail="auto"] #rail{position:fixed;left:0;top:0;bottom:0;z-index:32;transform:translateX(-100%);transition:transform .18s ease,box-shadow .18s ease}
+:root[data-rail="auto"] #rail.peek,:root[data-rail="auto"] #rail:has(:focus-visible){transform:none;box-shadow:var(--shadow)}
+@media (prefers-reduced-motion:reduce){:root[data-rail="auto"] #rail{transition:none}}
+@media (max-width:760px){#railHot{display:none!important}}
+
+/* ---- lock screen: neutral, nothing identifying */
+#lock h2{font-size:20px;font-weight:600;margin:0 0 18px}
+#lock p{margin:0 0 20px;font-size:14px}
+#lockPin{letter-spacing:4px}
+#lockPin::placeholder{letter-spacing:normal;color:var(--muted)}
 </style>
 
 <div id="app">
+  <div id="railHot" aria-hidden="true"></div>
   <nav id="rail" aria-label="Main">
     <button class="rb on" id="rChats" title="Chats"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 11.5a8.5 8.5 0 0 1-12.3 7.6L3.5 20.5l1.4-4.5a8.5 8.5 0 1 1 15.6-4.5z"/></svg></button>
     <button class="rb" id="rArch" title="Archived chats"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="4.5" rx="1.2"/><path d="M5 8.5V19a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 19 19V8.5"/><path d="M10 12.5h4"/></svg><span class="rcount" id="rArchN" hidden></span></button>
@@ -490,6 +517,7 @@ html[data-locked] #lock{display:flex}
     <button class="rb" id="rLock" title="Lock now (L)"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="10.5" width="15" height="10" rx="2.2"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/></svg></button>
     <button class="rb" id="rBlur" title="Blur the chat list"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.8"/></svg></button>
     <button class="rb" id="rPrefs" title="Appearance &amp; settings"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h9M17 7h3M4 12h3M11 12h9M4 17h11M19 17h1"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="17" r="2"/></svg></button>
+    <button class="rb" id="rDock" title="Auto-hide this bar"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="4" width="17" height="16" rx="2.5"/><path d="M9.5 4v16"/><path d="M16 10l-2 2 2 2"/></svg></button>
     <span class="rsep"></span>
     <button class="rme" id="rMe" title="Your account"><div class="av sm" id="meAv"></div></button>
   </nav>
@@ -517,7 +545,7 @@ html[data-locked] #lock{display:flex}
       <button data-m="out" class="danger">Sign out</button>
     </div>
     <div id="sync">Syncing your chats…</div>
-    <input class="search" id="search" placeholder="Search chats" autocomplete="off">
+    <input class="search" id="search" data-gramm="false" data-gramm_editor="false" data-enable-grammarly="false" placeholder="Search chats" autocomplete="off">
     <div id="chips"><button data-f="all" class="on">All</button><button data-f="unread">Unread</button><button data-f="groups">Groups</button><button data-f="archived" id="archChip">📦 Archived</button></div>
     <div class="list" id="chats"><div class="empty">Loading…</div></div>
 
@@ -545,7 +573,7 @@ html[data-locked] #lock{display:flex}
       </div>
       <button class="ib" id="chatMore" title="Chat options" aria-haspopup="true" hidden><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="8" cy="12" r=".9" fill="currentColor"/><circle cx="12" cy="12" r=".9" fill="currentColor"/><circle cx="16" cy="12" r=".9" fill="currentColor"/></svg></button>
     </div>
-    <div id="msgs"><div class="empty">Pick a conversation, or start a new one with ✎.</div></div>
+    <div id="msgs"><div class="empty">Pick a conversation, or start a new one with <svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align:-3px" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4.5H6.5a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V13"/><path d="M17.8 3.7a1.9 1.9 0 0 1 2.7 2.7L12 14.9l-3.5.8.8-3.5z"/></svg>.</div></div>
     <button id="jump" title="Jump to latest" hidden>↓<span></span></button>
     <div id="emojiPanel" hidden>
       <input id="emojiSearch" placeholder="Search emoji (e.g. cool, love, fire)" autocomplete="off">
@@ -570,7 +598,7 @@ html[data-locked] #lock{display:flex}
       <button class="ib" id="attach" title="Attach photo or file" disabled><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
       <input type="file" id="file" hidden>
       <div class="cwrap">
-        <textarea id="text" rows="1" placeholder="Type a message" disabled></textarea>
+        <textarea id="text" data-gramm="false" data-gramm_editor="false" data-enable-grammarly="false" rows="1" placeholder="Type a message" disabled></textarea>
         <button class="ib" id="emojiBtn" title="Emoji (or type : and a name, like :cool)" disabled><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.8"/><path d="M8.6 14.2a4.6 4.6 0 0 0 6.8 0"/><path d="M9.2 9.6h.01M14.8 9.6h.01" stroke-width="2.4"/></svg></button>
       </div>
       <button id="send" title="Send" disabled><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12 20 4.5l-5.2 15.5-3-6.2z"/><path d="M11.8 13.8 20 4.5"/></svg></button>
@@ -653,19 +681,17 @@ html[data-locked] #lock{display:flex}
 <div class="overlay" id="pinDlg" style="background:rgba(0,0,0,.45)">
   <form class="dlg" id="pinForm">
     <h3 id="pinTitle">Set a PIN</h3>
-    <div id="pinCurRow"><label>Current PIN</label><input type="password" id="pinCur" inputmode="numeric" autocomplete="off" maxlength="8"></div>
-    <div id="pinNewRows"><label>New PIN (4–8 digits)</label><input type="password" id="pinNew" inputmode="numeric" autocomplete="off" maxlength="8">
-    <label>Repeat new PIN</label><input type="password" id="pinRep" inputmode="numeric" autocomplete="off" maxlength="8"></div>
+    <div id="pinCurRow"><label>Current PIN</label><input type="password" id="pinCur" autocomplete="off" maxlength="64"></div>
+    <div id="pinNewRows"><label>New PIN (4 or more characters: letters, numbers or symbols)</label><input type="password" id="pinNew" autocomplete="off" maxlength="64">
+    <label>Repeat new PIN</label><input type="password" id="pinRep" autocomplete="off" maxlength="64"></div>
     <div class="err" id="pinErr"></div>
     <div class="acts"><button type="button" class="btn ghost" id="pinX">Cancel</button><button class="btn" id="pinOk">Save</button></div>
   </form>
 </div>
 <div id="lock">
   <div class="box">
-    <div class="ico">🔒</div>
-    <h2>__BRAND__</h2>
-    <p>Locked. Enter your PIN to continue.</p>
-    <input type="password" id="lockPin" inputmode="numeric" autocomplete="off" maxlength="8" aria-label="PIN">
+    <h2>Enter PIN to continue</h2>
+    <input type="password" id="lockPin" autocomplete="off" maxlength="64" aria-label="PIN" placeholder="PIN">
     <div class="err" id="lockErr"></div>
     <button type="button" class="lnk" id="lockForgot">Forgot PIN? Sign out</button>
   </div>
@@ -685,6 +711,8 @@ html[data-locked] #lock{display:flex}
     <div class="seg" data-p="size"><button data-v="small">Small</button><button data-v="normal">Normal</button><button data-v="large">Large</button></div>
     <label>Enter key</label>
     <div class="seg" data-p="enter"><button data-v="auto">Auto</button><button data-v="send">Sends</button><button data-v="newline">New line</button></div>
+    <label>Left bar</label>
+    <div class="seg" data-p="rail"><button data-v="show">Always show</button><button data-v="auto">Auto-hide</button></div>
     <label>Chat list privacy blur</label>
     <div class="seg" data-p="blur"><button data-v="off">Off</button><button data-v="on">On</button></div>
     <label>App lock (this device)</label>
@@ -723,15 +751,16 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&
 let replyTo = null;
 let panicOn = false, panicSaved = null;
 let editing = null, editBackup = '', locked = false;
+let keyTrail = '', keyTrailAt = 0, lockFav = null;
 let mentionMode = false, composerMentions = [];
-const PREF_DEFAULTS = {theme: 'auto', accent: 'green', wall: 'doodle', size: 'normal', enter: 'auto', blur: 'off', idle: '0'};
+const PREF_DEFAULTS = {theme: 'auto', accent: 'green', wall: 'doodle', size: 'normal', enter: 'auto', blur: 'off', idle: '0', rail: 'show'};
 let prefs = {...PREF_DEFAULTS};
 try { Object.assign(prefs, JSON.parse(localStorage.getItem('wah-prefs') || '{}')); } catch {}
 function applyPrefs() {
   const r = document.documentElement;
   if (prefs.theme === 'auto') delete r.dataset.theme; else r.dataset.theme = prefs.theme;
   if (prefs.accent === 'green') delete r.dataset.accent; else r.dataset.accent = prefs.accent;
-  r.dataset.wall = prefs.wall; r.dataset.size = prefs.size; r.dataset.blur = prefs.blur;
+  r.dataset.wall = prefs.wall; r.dataset.size = prefs.size; r.dataset.blur = prefs.blur; r.dataset.rail = prefs.rail;
   const bb = document.getElementById('blurBtn'); if (bb) { bb.textContent = prefs.blur === 'on' ? '🙈' : '👁'; bb.title = prefs.blur === 'on' ? 'Chat list blurred: click to show' : 'Blur the chat list (hover a chat to peek)'; }
   document.querySelectorAll('#prefs .seg').forEach(g =>
     g.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === prefs[g.dataset.p])));
@@ -846,7 +875,7 @@ function renderChats() {
     const d = c.jid !== current && drafts.get(c.jid);
     return row(c, d ? `<span class="draft">Draft:</span> ${esc(d)}` : '');
   }).join('') ||
-    `<div class="empty">${q ? 'No chats match.' : filter === 'unread' ? 'No unread chats 🎉' : filter === 'groups' ? 'No groups yet.' : filter === 'archived' ? 'No archived chats.' : status === 'connected' ? 'No chats yet. They appear here as history syncs, or start one with ✎.' : 'Waiting for WhatsApp…'}</div>`;
+    `<div class="empty">${q ? 'No chats match.' : filter === 'unread' ? 'No unread chats 🎉' : filter === 'groups' ? 'No groups yet.' : filter === 'archived' ? 'No archived chats.' : status === 'connected' ? 'No chats yet. They appear here as history syncs, or start one with <svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align:-3px" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4.5H6.5a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V13"/><path d="M17.8 3.7a1.9 1.9 0 0 1 2.7 2.7L12 14.9l-3.5.8.8-3.5z"/></svg>.' : 'Waiting for WhatsApp…'}</div>`;
   const n = chats.filter(c => c.unread > 0 && !c.archived).length;
   if (!panicOn && !locked) document.title = (n ? `(${n}) ` : '') + BASE_TITLE;
   const na = chats.filter(c => c.archived).length;
@@ -947,11 +976,15 @@ function renderMsgs(stick) {
   const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 150;
   const prevH = box.scrollHeight, prevTop = box.scrollTop;
   let html = msgs.length && status === 'connected' ? '<button class="more" id="more">Load earlier messages</button>' : '';
-  let day = '';
+  let day = '', prevKey = null;
   for (const m of msgs) {
     const d = new Date(m.ts * 1000).toDateString();
-    if (d !== day) { day = d; html += `<div class="day">${fmtDay(m.ts)}</div>`; }
-    html += bubble(m);
+    if (d !== day) { day = d; html += `<div class="day">${fmtDay(m.ts)}</div>`; prevKey = null; }
+    // WhatsApp-style tail on the first bubble of each run from the same sender
+    const key = m.fromMe ? 'me' : 'in:' + (m.senderName || '');
+    const b = bubble(m);
+    html += key !== prevKey ? b.replace('<div class="m ', '<div class="m tail ') : b;
+    prevKey = key;
   }
   box.innerHTML = html || '<div class="empty">No messages here yet. Say hi 👋</div>';
   if (stick === 'keep') box.scrollTop = prevTop + (box.scrollHeight - prevH);
@@ -1442,6 +1475,10 @@ const TOUR = [
    body: `The <b>settings icon</b> on the left (or <b>⋯ → Appearance &amp; settings</b>): light or dark theme, accent colour, chat background, text size, and what <kbd>Enter</kbd> does.
      You can also <b>blur the chat list</b> with the eye icon and <b>lock the app with a PIN</b> with the lock icon.
      <p class="muted">Saved per device, so your phone and laptop can look different. You can also change your display name from the ⋮ menu.</p>`},
+  {ico: '⌨️', title: 'Keyboard shortcuts',
+   body: `<ul><li><kbd>/</kbd> jump to search</li><li><kbd>Esc</kbd> close the open chat (or whatever menu is open)</li>
+     <li><kbd>B</kbd> blur or unblur the chat list</li><li><kbd>L</kbd> lock the app, once you've set a PIN</li></ul>
+     <p class="muted">Shortcuts only work when you're not typing in a box.</p>`},
   {ico: '⚠️', title: 'Good to know',
    body: `<ul>
      <li><b>History:</b> only the last <b>12 days</b> are kept. <b>Load earlier messages</b> asks your phone for more, and it must be online.</li>
@@ -1713,13 +1750,16 @@ function lockApp() {
   locked = true;
   document.documentElement.dataset.locked = '1';
   closeMsgMenu(); closeEmoji?.(); $('#menu').classList.remove('on');
-  document.title = '🔒 ' + BASE_TITLE.split(' · ').pop();
+  document.title = 'Locked';
+  const fav = document.querySelector('link[rel~="icon"]');
+  if (fav && !lockFav) { lockFav = fav.href; fav.href = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.5" fill="none" stroke="#888" stroke-width="1.4"/></svg>'); }
   $('#lockPin').value = ''; $('#lockErr').textContent = '';
   setTimeout(() => $('#lockPin').focus(), 50);
 }
 function unlockApp() {
   locked = false; lockFails = 0; lastActive = Date.now();
   delete document.documentElement.dataset.locked;
+  const fav = document.querySelector('link[rel~="icon"]'); if (fav && lockFav) fav.href = lockFav; lockFav = null;
   document.title = BASE_TITLE; renderChats();
   if (chats.find(x => x.jid === current)?.unread) scheduleRead();
 }
@@ -1734,7 +1774,7 @@ async function tryUnlock() {
   if (lockFails >= 5) { lockUntil = Date.now() + 30000; lockFails = 0; $('#lockErr').textContent = 'Too many tries. Wait 30s.'; }
   else $('#lockErr').textContent = 'Wrong PIN';
 }
-$('#lockPin').addEventListener('input', () => { $('#lockPin').value = $('#lockPin').value.replace(/\D/g, ''); if ($('#lockPin').value.length >= (lockData()?.len || 99)) tryUnlock(); });
+$('#lockPin').addEventListener('input', () => { if ($('#lockPin').value.length >= (lockData()?.len || 99)) tryUnlock(); });
 $('#lockPin').addEventListener('keydown', e => { if (e.key === 'Enter') tryUnlock(); });
 $('#lockForgot').addEventListener('click', () => {
   if (!confirm('Sign out and remove the PIN from this device?\n\nYou can sign back in with your password.')) return;
@@ -1745,7 +1785,8 @@ $('#lockForgot').addEventListener('click', () => {
 document.addEventListener('keydown', e => {
   if (locked && e.target?.id !== 'lockPin') { e.preventDefault(); e.stopImmediatePropagation(); $('#lockPin').focus(); return; }
   const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName);
-  if (!locked && !typing && (e.key === 'l' || e.key === 'L') && !e.ctrlKey && !e.metaKey && !e.altKey && lockData()) { e.preventDefault(); lockApp(); }
+  if (e.key.length === 1) { keyTrail = (Date.now() - keyTrailAt > 2000 ? '' : keyTrail).slice(-8) + e.key.toLowerCase(); keyTrailAt = Date.now(); }
+  if (!locked && !typing && (e.key === 'l' || e.key === 'L') && !keyTrail.endsWith('hanzel') && !e.ctrlKey && !e.metaKey && !e.altKey && lockData()) { e.preventDefault(); lockApp(); }
 }, true);
 for (const ev of ['mousemove', 'keydown', 'touchstart', 'click', 'scroll']) document.addEventListener(ev, () => { lastActive = Date.now(); }, {passive: true, capture: true});
 setInterval(() => {
@@ -1779,14 +1820,14 @@ $('#pinForm').addEventListener('submit', async e => {
     $('#pinDlg').classList.remove('on'); refreshLockUi(); return toast('PIN removed');
   }
   const p = $('#pinNew').value;
-  if (!/^\d{4,8}$/.test(p)) return err('Use 4 to 8 digits');
+  if (p.length < 4) return err('Use at least 4 characters');
+  if (/^\s|\s$/.test(p)) return err('No spaces at the start or end');
   if (p !== $('#pinRep').value) return err("The two PINs don't match");
   const salt = [...crypto.getRandomValues(new Uint8Array(12))].map(x => x.toString(16).padStart(2, '0')).join('');
   try { localStorage.setItem(LOCK_KEY, JSON.stringify({salt, hash: await pinHash(p, salt), len: p.length})); } catch { return err('Could not save on this device'); }
   $('#pinDlg').classList.remove('on'); refreshLockUi();
   toast('PIN set. Lock any time with 🔒 on the left, or press L');
 });
-for (const id of ['pinCur', 'pinNew', 'pinRep']) $('#' + id).addEventListener('input', e => { e.target.value = e.target.value.replace(/\D/g, ''); });
 
 // 🔒 in the sidebar header: lock now, or set a PIN first
 $('#lockBtn').addEventListener('click', () => { if (lockData()) lockApp(); else openPin('set'); });
@@ -1993,6 +2034,76 @@ $('#menuBtn').addEventListener('click', () => $('#menu').classList.remove('fromR
 $('#chips').addEventListener('click', () => setTimeout(syncRail));
 if (window.MutationObserver) new MutationObserver(syncRail).observe(document.documentElement, {attributes: true, attributeFilter: ['data-blur']});
 syncRail();
+
+
+// ------------------------------------------ keys: C, B, Esc (not while typing)
+const EMPTY_CHAT = document.getElementById('msgs').innerHTML;
+let lastArrowAt = 0;
+function somethingOpen() {
+  return !!(document.querySelector('.overlay.on') || $('#menu').classList.contains('on') || $('#chatActs').classList.contains('on') ||
+    document.getElementById('msgMenu') || !$('#emojiPanel').hidden || !$('#suggest').hidden || $('#newchat').classList.contains('on') ||
+    replyTo || editing || tourStep >= 0 || document.getElementById('egg') || document.querySelector('.rxpick.on'));
+}
+function closeChat() {
+  if (!current) return false;
+  const t = $('#text').value; if (t.trim()) drafts.set(current, t); else drafts.delete(current);
+  current = null; currentName = ''; msgs = []; unseen = 0;
+  $('#text').value = ''; $('#text').style.height = 'auto';
+  $('#msgs').innerHTML = EMPTY_CHAT;
+  $('#title').innerHTML = '<b>Select a chat</b><small></small>';
+  for (const id of ['tav', 'grpBtn', 'nickBtn', 'pinBtn', 'archBtn', 'chatMore']) $('#' + id).hidden = true;
+  $('#chatActs').classList.remove('on');
+  document.body.classList.remove('open');
+  showJump(false); setComposer(); renderChats();
+  return true;
+}
+document.addEventListener('keydown', e => {
+  if (e.key.startsWith('Arrow')) lastArrowAt = Date.now();
+  if (locked || panicOn) return;
+  const ae = document.activeElement;
+  const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(ae?.tagName) || ae?.isContentEditable;
+  const mod = e.ctrlKey || e.metaKey || e.altKey;
+  const k = (e.key || '').toLowerCase();
+  if (!typing && !mod && k === 'c') {
+    // panic: straight to Classroom; replace() so Back doesn't return here
+    e.preventDefault(); e.stopImmediatePropagation();
+    location.replace('https://classroom.google.com');
+    return;
+  }
+  if (!typing && !mod && k === 'b' && Date.now() - lastArrowAt > 2500) {   // not mid-Konami
+    e.preventDefault();
+    setPref('blur', prefs.blur === 'on' ? 'off' : 'on');
+    toast(prefs.blur === 'on' ? 'Chat list blurred (B)' : 'Chat list visible (B)');
+    return;
+  }
+  if (e.key === 'Escape' && !mod && !somethingOpen() && closeChat()) e.preventDefault();
+}, true);
+
+// ----------------------------------------------- left bar: auto-hide on/off
+const DOCK_HIDE = `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="4" width="17" height="16" rx="2.5"/><path d="M9.5 4v16"/><path d="M16 10l-2 2 2 2"/></svg>`, DOCK_PIN = `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="4" width="17" height="16" rx="2.5"/><path d="M9.5 4v16"/><path d="M14 10l2 2-2 2"/></svg>`;
+let railT;
+function railPeek(on) {
+  clearTimeout(railT);
+  if (on) $('#rail').classList.add('peek');
+  else railT = setTimeout(() => { if (!$('#menu').classList.contains('on') && !$('#rail').matches(':hover')) $('#rail').classList.remove('peek'); }, 350);
+}
+function syncDock() {
+  const auto = prefs.rail === 'auto';
+  $('#rDock').innerHTML = auto ? DOCK_PIN : DOCK_HIDE;
+  $('#rDock').title = auto ? 'Keep this bar open' : 'Auto-hide this bar';
+}
+$('#railHot').addEventListener('mouseenter', () => railPeek(true));
+$('#rail').addEventListener('mouseenter', () => railPeek(true));
+$('#rail').addEventListener('mouseleave', () => railPeek(false));
+document.addEventListener('click', () => { if (prefs.rail === 'auto') railPeek(false); });
+$('#rDock').addEventListener('click', e => {
+  e.stopPropagation();
+  setPref('rail', prefs.rail === 'auto' ? 'show' : 'auto');
+  $('#rail').classList.remove('peek'); syncDock();
+  toast(prefs.rail === 'auto' ? 'Left bar hides until you point at the left edge' : 'Left bar stays open');
+});
+$('#prefs').addEventListener('click', () => setTimeout(syncDock));
+syncDock();
 
 applyPrefs();
 $('#text').addEventListener('input', function () { this.style.height = 'auto'; this.style.height = Math.min(this.scrollHeight, 140) + 'px'; });
