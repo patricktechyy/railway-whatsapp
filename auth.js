@@ -255,6 +255,15 @@ export class Auth {
   }
 
   /** New one-time link. Clears the old password and signs the user out. */
+  /** Remember when someone last used the site (kept in memory, saved every few minutes). */
+  touch(username) {
+    const u = this.get(username)
+    if (!u) return
+    const now = Date.now()
+    u.lastActiveAt = now
+    if (now - (u.lastActiveSavedAt || 0) > 5 * 60e3) { u.lastActiveSavedAt = now; this.save() }
+  }
+
   markSeen(username, version) {
     this.refresh()
     const u = this.get(username)
@@ -361,7 +370,11 @@ export class Auth {
         this.fail(ip, key)
         throw new HttpError(403, 'This account has no password yet. Use the setup link you were sent.')
       }
-      if (await this.checkPassword(u, password)) return this.ok(key, { k: 'user', u: u.username, pv: u.pv })
+      if (await this.checkPassword(u, password)) {
+        u.lastLoginAt = Date.now()
+        this.save()
+        return this.ok(key, { k: 'user', u: u.username, pv: u.pv })
+      }
       console.warn(`[auth] user login failed: username=${JSON.stringify(username)}, found=${!!u}, hasPassword=${!!u && !!this.storedPassword(u)}, passwordLength=${String(password ?? '').length}, ip=${ip}`)
     }
     this.fail(ip, key)
