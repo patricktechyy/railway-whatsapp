@@ -295,6 +295,16 @@ export class Store {
     return m
   }
 
+  /** [{t: "6581234567", name: "Budi", me: false}] for highlighting @mentions */
+  mentionView(m, mineJid) {
+    if (!m.mentions?.length) return undefined
+    const mine = mineJid ? this.canon(mineJid) : null
+    return m.mentions.map((x) => {
+      const me = !!mine && this.canon(x.j) === mine
+      return { t: x.t, name: me ? 'You' : this.displayName(x.j), me }
+    })
+  }
+
   quoteView(q) {
     if (!q) return undefined
     return { id: q.id, text: q.text, name: q.fromMe ? 'You' : q.sender ? this.displayName(q.sender) : '' }
@@ -391,6 +401,7 @@ export class Store {
       edited: !!m.edited,
       senderName: group && !m.fromMe && m.sender ? this.displayName(m.sender) : '',
       reactions: this.reactionView(m, mineJid),
+      mentions: this.mentionView(m, mineJid),
     }))
   }
 
@@ -448,10 +459,15 @@ export function previewOf(msg, store) {
           location: '📍 Location',
           contact: '👤 Contact',
         }[msg.type] || ''
+  // "@6581234567" reads better as "@Budi" in the chat list
+  let bodyText = body
+  if (msg.mentions?.length && store) {
+    for (const x of msg.mentions) bodyText = bodyText.split('@' + x.t).join('@' + store.displayName(x.j))
+  }
   const who = msg.fromMe
     ? 'You: '
     : isGroup(msg.jid) && msg.sender && store
       ? store.displayName(msg.sender) + ': '
       : ''
-  return who + body
+  return who + bodyText
 }

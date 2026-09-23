@@ -428,7 +428,7 @@ async function route(req, res) {
     const text = String(body.text || '').trim()
     if (!body.jid || !text) throw new HttpError(400, 'jid and text required')
     if (text.length > 65000) throw new HttpError(400, 'Message too long')
-    return json(res, await s.send(body.jid, text, body.replyTo))
+    return json(res, await s.send(body.jid, text, body.replyTo, body.mentions))
   }
   if (api === '/resolve') return json(res, await s.resolveNumber(body.phone))
   if (api === '/changelog/seen') {

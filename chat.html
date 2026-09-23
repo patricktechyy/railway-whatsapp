@@ -183,6 +183,10 @@ html[data-locked] #lock{display:flex}
   box-shadow:0 2px 8px rgba(0,0,0,.2);font-size:18px;z-index:2}
 #jump span{position:absolute;top:-6px;right:-4px;background:var(--accent);color:#fff;border-radius:10px;font-size:11px;padding:1px 6px}
 #jump span:empty{display:none}
+.m .mention{color:var(--accent);font-weight:600}
+.m .mention.me{background:color-mix(in srgb,var(--accent) 18%,transparent);border-radius:4px;padding:0 2px}
+#suggest .mav{width:26px;height:26px;flex:0 0 26px;border-radius:50%;background:var(--accent);color:#fff;font-size:11px;font-weight:600;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden}
+#suggest .mav img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .m a.lnk{color:var(--accent);word-break:break-all}
 .seg{display:flex;gap:6px;flex-wrap:wrap}
 .seg button{border:1px solid var(--line);background:var(--field);border-radius:8px;padding:6px 12px;font-size:14px}
@@ -546,6 +550,7 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&
 let replyTo = null;
 let panicOn = false, panicSaved = null;
 let editing = null, editBackup = '', locked = false;
+let mentionMode = false, composerMentions = [];
 const PREF_DEFAULTS = {theme: 'auto', accent: 'green', wall: 'plain', size: 'normal', enter: 'auto', blur: 'off', idle: '0'};
 let prefs = {...PREF_DEFAULTS};
 try { Object.assign(prefs, JSON.parse(localStorage.getItem('wah-prefs') || '{}')); } catch {}
@@ -719,20 +724,20 @@ function bubble(m) {
   if (m.type === 'image' || m.type === 'sticker') {
     const src = m.local || (m.media ? mediaUrl(m) : '');
     body = src ? `<img loading="lazy" src="${esc(src)}" alt="" data-full="${esc(src)}">` : '<span class="note">📷 Photo</span>';
-    if (m.text) body += rich(m.text);
+    if (m.text) body += mentionize(rich(m.text), m.mentions);
   } else if (m.type === 'document' || m.type === 'video' || m.type === 'audio') {
     const label = m.type === 'document' ? (m.fileName || 'Document') : m.type === 'video' ? 'Video' : 'Voice message';
     const icon = {document: '📄', video: '🎥', audio: '🎤'}[m.type];
     const inner = `<span style="font-size:22px">${icon}</span><span>${esc(label)}</span>`;
     body = m.media ? `<a class="file" href="${esc(mediaUrl(m))}" target="_blank" rel="noopener">${inner}</a>` : `<div class="file">${inner}</div>`;
-    if (m.text) body += rich(m.text);
+    if (m.text) body += mentionize(rich(m.text), m.mentions);
   } else if (m.type === 'location') {
     const q = encodeURIComponent(m.text);
     body = `<a class="file" href="https://maps.google.com/?q=${q}" target="_blank" rel="noopener">📍 ${esc(m.text)}</a>`;
   } else if (m.type === 'contact') {
     body = `<span class="note">👤 ${esc(m.text)}</span>`;
   } else {
-    body = rich(m.text);
+    body = mentionize(rich(m.text), m.mentions);
   }
   let tick = '';
   if (m.failed) tick = ' <span class="tick">⚠️</span>';
@@ -792,7 +797,7 @@ function startReply(id) {
 function cancelReply() { replyTo = null; $('#reply').classList.remove('on'); }
 
 async function openChat(jid, name) {
-  cancelEdit();
+  cancelEdit(); composerMentions = [];
   cancelReply();
   if (current) { const t = $('#text').value; if (t.trim()) drafts.set(current, t); else drafts.delete(current); }
   stopTyping();
@@ -853,11 +858,12 @@ async function send() {
     return sendFile(jid, a, text);
   }
   const r = replyTo; cancelReply();
-  const tmp = {id: 'tmp' + (++tmpN), jid, fromMe: true, ts: Math.floor(Date.now() / 1000), type: 'text', text, pending: true,
+  const mt = mentionsForSend(text); composerMentions = [];
+  const tmp = {id: 'tmp' + (++tmpN), jid, fromMe: true, ts: Math.floor(Date.now() / 1000), type: 'text', text, sendText: mt.text, pending: true,
     quote: r ? {id: r.id, text: quotePreview(r), name: r.fromMe ? 'You' : r.senderName || ''} : undefined};
   upsert(tmp); renderMsgs(true);
   try {
-    const real = await call('POST', '/send', {jid, text, replyTo: r?.id});
+    const real = await call('POST', '/send', {jid, text: mt.text, replyTo: r?.id, mentions: mt.ids});
     if (current === jid) { msgs = msgs.filter(m => m.id !== tmp.id); if (real) upsert(real); renderMsgs(true); }
     loadChats();
   } catch (x) {
@@ -1027,7 +1033,7 @@ function stream() {
       const m = d.message;
       // our own optimistic bubble may still be pending; the real one replaces it
       if (m.fromMe) {
-        const i = msgs.findIndex(x => x.pending && x.type === m.type && (x.text || '') === (m.text || ''));
+        const i = msgs.findIndex(x => x.pending && x.type === m.type && (x.sendText ?? x.text ?? '') === (m.text || ''));
         if (i >= 0) { m.local = msgs[i].local; msgs.splice(i, 1); }
       }
       const box = $('#msgs');
@@ -1178,7 +1184,7 @@ document.addEventListener('click', e => {
 
 // :shortcodes  ->  suggestions while typing, auto-replace on the closing colon
 let sugg = [], suggIdx = 0, suggFrom = 0;
-function hideSuggest() { $('#suggest').hidden = true; sugg = []; }
+function hideSuggest() { $('#suggest').hidden = true; sugg = []; mentionMode = false; }
 function pickSuggest(i) {
   const e = sugg[i]; if (!e) return;
   const t = $('#text');
@@ -1187,6 +1193,7 @@ function pickSuggest(i) {
   insertAtCaret(e.ch + ' ', suggFrom, t.selectionStart);
 }
 function checkShortcode() {
+  if (checkMention()) return;
   const t = $('#text'), pos = t.selectionStart, before = t.value.slice(0, pos);
   // ":cool:" typed in full -> replace it right away
   let m = before.match(/(^|\s):([a-z0-9_+-]{2,}):$/i);
@@ -1212,13 +1219,13 @@ function suggestKey(e) {
     $('#suggest').querySelectorAll('div').forEach((d, i) => d.classList.toggle('on', i === suggIdx));
     return true;
   }
-  if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); pickSuggest(suggIdx); return true; }
+  if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); mentionMode ? pickMention(suggIdx) : pickSuggest(suggIdx); return true; }
   if (e.key === 'Escape') { e.preventDefault(); hideSuggest(); return true; }
   return false;
 }
 $('#suggest').addEventListener('mousedown', e => {
   const d = e.target.closest('[data-i]'); if (!d) return;
-  e.preventDefault(); pickSuggest(+d.dataset.i);
+  e.preventDefault(); mentionMode ? pickMention(+d.dataset.i) : pickSuggest(+d.dataset.i);
 });
 $('#text').addEventListener('input', checkShortcode);
 $('#text').addEventListener('click', checkShortcode);
@@ -1682,6 +1689,68 @@ $('#grpInvite').addEventListener('click', async () => {
     catch { prompt('Copy this invite link:', link); }
   } catch (x) { toast(x.message); }
 });
+
+
+// ------------------------------------------------------------- @mentions
+// In groups: type @ to pick a member. You see "@Name"; WhatsApp gets
+// "@<number>" plus the list of people mentioned, which is what it expects.
+const memberCache = new Map();   // group jid -> {at, list}
+async function groupMembersFor(jid) {
+  const c = memberCache.get(jid);
+  if (c && Date.now() - c.at < 5 * 60e3) return c.list;
+  try {
+    const g = await call('GET', '/group?jid=' + encodeURIComponent(jid));
+    const list = g.members.filter(m => !m.me);
+    memberCache.set(jid, {at: Date.now(), list});
+    return list;
+  } catch { return c?.list || []; }
+}
+const mentionToken = (id) => String(id).split('@')[0].split(':')[0];
+function mentionize(html, mentions) {
+  if (!mentions?.length) return html;
+  for (const x of mentions) {
+    if (!/^\d+$/.test(x.t)) continue;
+    html = html.replace(new RegExp('@' + x.t + '(?!\\d)', 'g'), `<span class="mention${x.me ? ' me' : ''}">@${esc(x.name)}</span>`);
+  }
+  return html;
+}
+function mentionsForSend(text) {
+  const ids = [];
+  // longest names first so "@Anita" isn't eaten by "@Ani"
+  for (const m of [...composerMentions].sort((a, b) => b.name.length - a.name.length)) {
+    const tag = '@' + m.name;
+    if (!text.includes(tag)) continue;
+    text = text.split(tag).join('@' + mentionToken(m.id));
+    ids.push(m.id);
+  }
+  return {text, ids: [...new Set(ids)]};
+}
+let mentionReq = 0;
+function checkMention() {
+  const isGroupChat = String(current || '').endsWith('@g.us');
+  const t = $('#text'), pos = t.selectionStart, before = t.value.slice(0, pos);
+  const m = isGroupChat && before.match(/(^|\s)@([^\s@]{0,30})$/);
+  if (!m) { if (mentionMode) hideSuggest(); return false; }
+  const q = m[2].toLowerCase(), from = pos - m[2].length - 1, req = ++mentionReq, jid = current;
+  groupMembersFor(jid).then(list => {
+    if (req !== mentionReq || jid !== current) return;
+    const digits = q.replace(/\D/g, '');
+    const found = list.filter(x => !q || x.name.toLowerCase().includes(q) || (digits && (x.phone || '').includes(digits))).slice(0, 8);
+    if (!found.length) { hideSuggest(); return; }
+    mentionMode = true; sugg = found; suggIdx = 0; suggFrom = from;
+    $('#suggest').innerHTML = found.map((x, i) =>
+      `<div data-i="${i}" class="${i ? '' : 'on'}"><span class="mav">${esc(initials(x.name))}${avImg(x.jid)}</span>${esc(x.name)}<small>${i ? esc(x.phone || '') : 'Tab ↹'}</small></div>`).join('');
+    $('#suggest').hidden = false;
+  });
+  return true;
+}
+function pickMention(i) {
+  const x = sugg[i]; if (!x) return;
+  const t = $('#text');
+  hideSuggest();
+  composerMentions.push({name: x.name, id: x.id});
+  insertAtCaret('@' + x.name + ' ', suggFrom, t.selectionStart);
+}
 
 applyPrefs();
 $('#text').addEventListener('input', function () { this.style.height = 'auto'; this.style.height = Math.min(this.scrollHeight, 140) + 'px'; });
