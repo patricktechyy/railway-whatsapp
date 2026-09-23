@@ -455,6 +455,14 @@ async function route(req, res) {
     if (!body.jid) throw new HttpError(400, 'jid required')
     return json(res, await s.fetchOlder(body.jid))
   }
+  if (api === '/delete') {
+    if (!body.jid || !body.id) throw new HttpError(400, 'jid and id required')
+    return json(res, await s.deleteMessage(body.jid, body.id, !!body.everyone))
+  }
+  if (api === '/edit') {
+    if (!body.jid || !body.id) throw new HttpError(400, 'jid and id required')
+    return json(res, await s.editMessage(body.jid, body.id, body.text))
+  }
   if (api === '/react') {
     if (!body.jid || !body.messageId) throw new HttpError(400, 'jid and messageId required')
     const emoji = String(body.emoji || '').trim().slice(0, 16)

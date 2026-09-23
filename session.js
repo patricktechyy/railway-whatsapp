@@ -584,6 +584,18 @@ export class Session extends EventEmitter {
       if (!live()) return
       for (const entry of updates) {
         try {
+          const up = entry?.update || {}
+          if (entry?.key?.id && (up.messageStubType === 1 || up.messageStubType === 'REVOKE')) {
+            this.applyRemoteDelete(entry.key, entry.key)
+            continue
+          }
+          const um = up.message
+          if (entry?.key?.id && um && (um.editedMessage || um.protocolMessage?.type === 14 || um.protocolMessage?.type === 'MESSAGE_EDIT')) {
+            const inn = inner(um)
+            const edited = inn?.protocolMessage?.editedMessage || inn
+            this.applyRemoteEdit(entry.key, entry.key, edited)
+            continue
+          }
           const id = entry?.key?.id
           const status = messageStatusValue(entry?.update?.status)
           if (!id || status == null) continue
@@ -781,6 +793,12 @@ export class Session extends EventEmitter {
       })
       return null
     }
+    const pm = c.protocolMessage
+    if (pm?.key?.id) {
+      const t = pm.type
+      if (t === 0 || t === 'REVOKE') { this.applyRemoteDelete(pm.key, k); return null }
+      if (t === 14 || t === 'MESSAGE_EDIT') { this.applyRemoteEdit(pm.key, k, pm.editedMessage); return null }
+    }
     if (c.protocolMessage || c.senderKeyDistributionMessage) {
       if (!c.conversation && !c.extendedTextMessage) return null
     }
@@ -889,6 +907,92 @@ export class Session extends EventEmitter {
     this.log(`no WhatsApp name included in messages from ${phoneOf(jid) || jid}`)
   }
 
+  // ---------------------------------------------------- delete & edit
+  applyRemoteDelete(targetKey, envelopeKey) {
+    const jid = this.store.canon(targetKey.remoteJid || envelopeKey?.remoteJid || '')
+    if (!jid) return
+    const m = this.store.markDeleted(jid, targetKey.id)
+    if (m) {
+      this.emit('event', { type: 'message', message: this.publicMsg(m) })
+      this.emit('event', { type: 'chats' })
+    }
+  }
+
+  applyRemoteEdit(targetKey, envelopeKey, content) {
+    const jid = this.store.canon(targetKey.remoteJid || envelopeKey?.remoteJid || '')
+    const text = textOf(inner(content) || content)
+    if (!jid || text == null) return
+    const m = this.store.markEdited(jid, targetKey.id, text)
+    if (m) {
+      this.emit('event', { type: 'message', message: this.publicMsg(m) })
+      this.emit('event', { type: 'chats' })
+    }
+  }
+
+  keyFor(m, fallbackJid) {
+    return { remoteJid: m.rj || fallbackJid, id: m.id, fromMe: !!m.fromMe, participant: m.rp || undefined }
+  }
+
+  /** Delete for everyone (your own messages, ~2.5 days) or just for you. */
+  async deleteMessage(jid, id, everyone) {
+    jid = this.store.canon(jid)
+    const m = this.store.findMessage(jid, id)
+    if (!m) throw Object.assign(new Error('Message not found'), { status: 404 })
+    if (everyone) {
+      if (!m.fromMe) throw Object.assign(new Error('You can only delete your own messages for everyone'), { status: 403 })
+      if (m.deleted) return this.publicMsg(m)
+      if (Date.now() / 1000 - m.ts > 60 * 3600) {
+        throw Object.assign(new Error('Too old to delete for everyone. WhatsApp only allows it for about 2½ days.'), { status: 400 })
+      }
+      this.ensureConnected()
+      const target = await this.sendJid(jid)
+      await this.sock.sendMessage(target, { delete: this.keyFor(m, target) })
+      const u = this.store.markDeleted(jid, id)
+      this.emit('event', { type: 'message', message: this.publicMsg(u) })
+      this.emit('event', { type: 'chats' })
+      return this.publicMsg(u)
+    }
+    // for me: also remove it from your phone, like WhatsApp Web does
+    let synced = false
+    try {
+      if (this.sock?.chatModify && this.status === 'connected') {
+        const key = this.keyFor(m, jid)
+        await this.sock.chatModify({ deleteForMe: { deleteMedia: false, key, timestamp: m.ts } }, key.remoteJid)
+        synced = true
+      }
+    } catch (e) {
+      this.log('delete-for-me sync failed (removed on this site only):', e?.message || e)
+    }
+    this.store.removeMessage(jid, id)
+    this.emit('event', { type: 'message-removed', jid, id })
+    this.emit('event', { type: 'chats' })
+    return { removed: true, synced }
+  }
+
+  /** Edit your own text message (WhatsApp allows 15 minutes). */
+  async editMessage(jid, id, text) {
+    jid = this.store.canon(jid)
+    text = String(text || '').trim()
+    const m = this.store.findMessage(jid, id)
+    if (!m) throw Object.assign(new Error('Message not found'), { status: 404 })
+    if (!m.fromMe) throw Object.assign(new Error('You can only edit your own messages'), { status: 403 })
+    if (m.deleted) throw Object.assign(new Error('That message was deleted'), { status: 400 })
+    if (m.type !== 'text') throw Object.assign(new Error('Only text messages can be edited'), { status: 400 })
+    if (!text) throw Object.assign(new Error('The message cannot be empty'), { status: 400 })
+    if (text.length > 65000) throw Object.assign(new Error('Message too long'), { status: 400 })
+    if (Date.now() / 1000 - m.ts > 15 * 60) {
+      throw Object.assign(new Error('WhatsApp only lets you edit a message within 15 minutes of sending it'), { status: 400 })
+    }
+    if (text === m.text) return this.publicMsg(m)
+    this.ensureConnected()
+    const target = await this.sendJid(jid)
+    await this.sock.sendMessage(target, { text, edit: this.keyFor(m, target) })
+    const u = this.store.markEdited(jid, id, text)
+    this.emit('event', { type: 'message', message: this.publicMsg(u) })
+    this.emit('event', { type: 'chats' })
+    return this.publicMsg(u)
+  }
+
   publicMsg(m) {
     return {
       id: m.id,
@@ -901,6 +1005,8 @@ export class Session extends EventEmitter {
       media: !!m.rm,
       fileName: m.fileName,
       quote: this.store.quoteView(m.quote),
+      deleted: !!m.deleted,
+      edited: !!m.edited,
       senderName: isGroup(m.jid) && !m.fromMe && m.sender ? this.store.displayName(m.sender) : '',
       reactions: this.store.reactionView(m, this.me?.jid),
     }
@@ -1327,6 +1433,12 @@ export class Session extends EventEmitter {
     clearTimeout(this.retryTimer)
     this.store.close()
   }
+}
+
+function textOf(c) {
+  if (!c) return null
+  if (typeof c.conversation === 'string') return c.conversation
+  return c.extendedTextMessage?.text ?? c.imageMessage?.caption ?? c.videoMessage?.caption ?? c.documentMessage?.caption ?? null
 }
 
 function inner(message) {
