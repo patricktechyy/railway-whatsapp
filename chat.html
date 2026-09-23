@@ -114,6 +114,7 @@ html[data-locked] #lock{display:flex}
 #msgMenu button:hover{background:var(--hover)}
 #msgMenu .danger{color:var(--danger)}
 #delDlg .dlg,#pinDlg .dlg{max-width:340px}
+#pinDlg.overlay{z-index:15}
 #grpDlg .dlg{max-width:440px;max-height:88vh;display:flex;flex-direction:column}
 #grpDlg .sub{color:var(--muted);font-size:13px;margin:-6px 0 10px}
 #grpDlg .scroll{overflow-y:auto;margin:0 -24px;padding:0 24px}
@@ -332,6 +333,7 @@ html[data-locked] #lock{display:flex}
       <span class="dot" id="dot"></span>
       <div class="av sm" id="meAv"></div>
       <div class="me"><b id="meName" data-egg>__LABEL__</b><small id="mePhone">connecting…</small></div>
+      <button class="ib" id="lockBtn" title="Lock now (L)">🔒</button>
       <button class="ib" id="blurBtn" title="Blur the chat list (hover a chat to peek)">👁</button>
       <button class="ib" id="newBtn" title="New chat">✎</button>
       <button class="ib" id="menuBtn" title="Menu">⋮</button>
@@ -344,7 +346,6 @@ html[data-locked] #lock{display:flex}
       <button data-m="relink">Re-link WhatsApp</button>
       <button data-m="health">Connection &amp; status</button>
       <button data-m="news">What's new</button>
-      <button data-m="lock" id="lockNowItem" hidden>🔒 Lock now</button>
       <button data-m="tour">Tutorial</button>
       <button data-m="about">About</button>
       <button data-m="out" class="danger">Sign out</button>
@@ -1521,7 +1522,7 @@ function refreshLockUi() {
   $('#pinSet').textContent = has ? 'Change PIN' : 'Set PIN';
   $('#pinRemove').hidden = !has;
   $('#idleRow').hidden = !has;
-  $('#lockNowItem').hidden = !has;
+  $('#lockBtn').title = has ? 'Lock now (L)' : 'Set a PIN to lock the app';
   $('#pinState').textContent = has ? 'On. Locks when the site opens.' : 'Off';
 }
 function lockApp() {
@@ -1599,9 +1600,12 @@ $('#pinForm').addEventListener('submit', async e => {
   const salt = [...crypto.getRandomValues(new Uint8Array(12))].map(x => x.toString(16).padStart(2, '0')).join('');
   try { localStorage.setItem(LOCK_KEY, JSON.stringify({salt, hash: await pinHash(p, salt), len: p.length})); } catch { return err('Could not save on this device'); }
   $('#pinDlg').classList.remove('on'); refreshLockUi();
-  toast('PIN set. Lock any time with ⋮ → Lock now, or press L');
+  toast('PIN set. Lock any time with 🔒 at the top, or press L');
 });
 for (const id of ['pinCur', 'pinNew', 'pinRep']) $('#' + id).addEventListener('input', e => { e.target.value = e.target.value.replace(/\D/g, ''); });
+
+// 🔒 in the sidebar header: lock now, or set a PIN first
+$('#lockBtn').addEventListener('click', () => { if (lockData()) lockApp(); else openPin('set'); });
 
 // blur toggle in the sidebar header
 $('#blurBtn').addEventListener('click', () => setPref('blur', prefs.blur === 'on' ? 'off' : 'on'));
@@ -1864,7 +1868,6 @@ $('#menu').addEventListener('click', async e => {
   if (m === 'prefs') { applyPrefs(); $('#prefs').classList.add('on'); }
   if (m === 'about') $('#about').classList.add('on');
   if (m === 'tour') startTour();
-  if (m === 'lock') lockApp();
   if (m === 'news') { try { showNews(await call('GET', '/changelog'), true); } catch (x) { toast(x.message); } }
   if (m === 'name') {
     const cur = $('#meName').textContent;
