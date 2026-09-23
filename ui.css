@@ -213,3 +213,11 @@ textarea.input, .field textarea { min-height: 0; resize: vertical; line-height: 
   .bubbles i { animation: none; opacity: .5; transform: translateY(var(--h)); }
   * { transition: none !important; }
 }
+
+/* ------------------------------------------------------------- scrollbars
+   Thin grey pill on a see-through track, everywhere. */
+* { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--ink) 26%, transparent) transparent; }
+::-webkit-scrollbar { width: 10px; height: 10px; background: transparent; }
+::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
+::-webkit-scrollbar-thumb { background-color: color-mix(in srgb, var(--ink) 24%, transparent); border-radius: 10px; border: 3px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background-color: color-mix(in srgb, var(--ink) 40%, transparent); }

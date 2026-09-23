@@ -506,6 +506,42 @@ html[data-locked] #lock{display:flex}
 #lock p{margin:0 0 20px;font-size:14px}
 #lockPin{letter-spacing:4px}
 #lockPin::placeholder{letter-spacing:normal;color:var(--muted)}
+
+/* ================= neutral WhatsApp palette (no green tint) ================= */
+:root{--paper:#f0f2f5;--surface:#ffffff;--ink:#111b21;--muted:#667781;--line:#e9edef;--field:#f0f2f5;--hover:#f5f6f6;
+  --leaf:#00a884;--leaf-strong:#008f72;--leaf-ink:#ffffff;--leaf-soft:#d9fdd3;--danger:#ea0038;
+  --rail:#f0f2f5;--sel:#f0f2f5;--thread:#efeae2;--in:#ffffff;--out:#d9fdd3}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --paper:#161717;--surface:#161717;--ink:#e9edef;--muted:#9a9f9f;--line:#2a2d2d;--field:#2a2c2c;--hover:#222424;
+  --leaf:#21c063;--leaf-strong:#35d27a;--leaf-ink:#0a1f14;--leaf-soft:#103529;--danger:#f15c6d;
+  --rail:#1d1f1f;--sel:#2e2f2f;--thread:#0e0f0f;--in:#242626;--out:#144d37}}
+:root[data-theme="dark"]{
+  --paper:#161717;--surface:#161717;--ink:#e9edef;--muted:#9a9f9f;--line:#2a2d2d;--field:#2a2c2c;--hover:#222424;
+  --leaf:#21c063;--leaf-strong:#35d27a;--leaf-ink:#0a1f14;--leaf-soft:#103529;--danger:#f15c6d;
+  --rail:#1d1f1f;--sel:#2e2f2f;--thread:#0e0f0f;--in:#242626;--out:#144d37}
+/* the accent setting must still win over the palette above (more specific on purpose) */
+html:root[data-accent]{--leaf:var(--accent);--leaf-strong:color-mix(in srgb,var(--accent) 82%,#000);--leaf-soft:color-mix(in srgb,var(--accent) 16%,var(--surface));--out:color-mix(in srgb,var(--accent) 22%,#ffffff)}
+@media (prefers-color-scheme:dark){html:root:not([data-theme="light"])[data-accent]{--out:color-mix(in srgb,var(--accent) 38%,#161717)}}
+html:root[data-theme="dark"][data-accent]{--out:color-mix(in srgb,var(--accent) 38%,#161717)}
+/* placeholder avatars: neutral grey like WhatsApp */
+.av{background:var(--field);color:var(--muted)}
+.av.g{background:var(--field);color:var(--muted)}
+/* formatting */
+.m b{font-weight:700}
+.m s{text-decoration-thickness:1.5px}
+/* ---- list header: ⋯ centred with the title, only highlighted on hover */
+.sidehead{align-items:center;padding:16px 14px 8px 18px}
+.ctitle{line-height:1}
+#menuBtn{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;flex-basis:30px;padding:0;background:transparent;border-radius:50%;color:var(--muted)}
+#menuBtn:hover,#menuBtn[aria-expanded="true"]{background:var(--hover);color:var(--ink)}
+#menuBtn svg{display:block}
+/* ---- one left/right edge for search, chips and chat rows */
+.search{margin:4px 14px 10px;width:calc(100% - 28px)}
+#chips{padding:0 14px 8px}
+.list{padding:0 14px 10px 14px;scrollbar-gutter:stable}  /* right padding is trimmed by JS to the real scrollbar width */
+.row{padding:10px 10px;border-radius:12px}
+.ct .top{align-items:baseline}
+.ct .pv{align-items:center}
 </style>
 
 <div id="app">
@@ -776,7 +812,11 @@ let filter = 'all', unseen = 0;
 const drafts = new Map();
 // URLs in messages become links (runs on already-escaped text)
 const linkify = (html) => html.replace(/\bhttps?:\/\/[^\s<]+[^\s<.,;:!?)\]'"]/g, u => `<a class="lnk" href="${u}" target="_blank" rel="noopener noreferrer">${u}</a>`);
-const rich = (t) => linkify(esc(t));
+// WhatsApp formatting on already-escaped text: *bold*, ~strike~
+const waFmt = (h) => h
+  .replace(/(^|[\s>(\[{;])\*(?=\S)([^*\n]*?\S)\*(?=$|[\s<.,!?;:)\]}&])/g, '$1<b>$2</b>')
+  .replace(/(^|[\s>(\[{;])~(?=\S)([^~\n]*?\S)~(?=$|[\s<.,!?;:)\]}&])/g, '$1<s>$2</s>');
+const rich = (t) => linkify(waFmt(esc(t)));
 let status = 'starting', me = null, chats = [], current = null, currentName = '', msgs = [], attach = null, tmpN = 0;
 let currentPresence = null, typingTimer = null, typingState = 'paused';
 const REACTIONS = ['❤️','😂','👍','😮','😢','🙏','🗿'];
@@ -2100,10 +2140,22 @@ $('#rDock').addEventListener('click', e => {
   e.stopPropagation();
   setPref('rail', prefs.rail === 'auto' ? 'show' : 'auto');
   $('#rail').classList.remove('peek'); syncDock();
-  toast(prefs.rail === 'auto' ? 'Left bar is hidden' : 'Left bar restored');
+  toast(prefs.rail === 'auto' ? 'Left bar hides until you point at the left edge' : 'Left bar stays open');
 });
 $('#prefs').addEventListener('click', () => setTimeout(syncDock));
 syncDock();
+
+
+// Keep chat rows' right edge in line with the search box on every system:
+// classic scrollbars take ~11px, floating ones (macOS, phones) take none.
+function fitListEdge() {
+  const l = document.getElementById('chats'); if (!l) return;
+  l.style.paddingRight = '';
+  const sb = l.offsetWidth - l.clientWidth;
+  l.style.paddingRight = Math.max(0, 14 - sb) + 'px';
+}
+window.addEventListener?.('resize', fitListEdge);
+fitListEdge();
 
 applyPrefs();
 $('#text').addEventListener('input', function () { this.style.height = 'auto'; this.style.height = Math.min(this.scrollHeight, 140) + 'px'; });
@@ -2342,7 +2394,7 @@ stream();
       <div class="wave">👋</div>
       <div class="tag">DEVELOPER</div>
       <h2>Hanzel</h2>
-      <p class="role">Creator of Apa yang Diatas</p>
+      <p class="role">Creator of Apa yang Diatas (Whats Up)</p>
       <p class="quip">${quip}</p>
       <div class="stats"><span><b>${found}</b>time${found === 1 ? '' : 's'} found</span><span><b>${days}</b>day${days === 1 ? '' : 's'} since first</span></div>
       <small>You found the secret. Tap anywhere to close.</small>
