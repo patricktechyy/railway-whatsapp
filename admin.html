@@ -116,6 +116,12 @@ details.older summary { cursor: pointer; color: var(--muted); font-size: var(--t
 
     <aside class="side">
       <section class="card">
+        <h2>Message history</h2>
+        <p class="help">How many days of messages are kept for everyone. Older messages are deleted from the server and scrolling up stops there. The minimum is 4 days.</p>
+        <div class="actions"><input class="input" id="histDays" type="number" min="4" max="3650" step="1" style="width:96px;min-height:40px" aria-label="Days of history">
+          <span class="help" style="margin:0">days</span><button class="btn" id="histSave">Save</button><span class="help" id="histState"></span></div>
+      </section>
+      <section class="card">
         <h2>Changelog <span class="help" id="clver" style="font-weight:500;display:inline"></span></h2>
         <p class="help">Shown once to everyone after this version is deployed. One change per line. **Bold** and *italic* work. Leave empty for no popup.</p>
         <textarea class="input" id="cltxt" rows="6" spellcheck="true" placeholder="Pin chats to the top with 📌&#10;Fixed Enter not sending"></textarea>
@@ -294,6 +300,22 @@ $('#clsave').addEventListener('click', async () => {
   try { await loadChangelog(await call('POST', '/admin/api/changelog', {version: clVersion, notes: $('#cltxt').value})); toast('Changelog saved'); }
   catch (x) { toast(x.message); }
 });
+let histNow = null;
+async function loadHist(d) {
+  try {
+    d = d || await call('GET', '/admin/api/settings');
+    histNow = d.historyDays; $('#histDays').value = d.historyDays; $('#histDays').min = d.minHistoryDays;
+    $('#histState').textContent = `Keeping ${d.historyDays} days`;
+  } catch {}
+}
+$('#histSave').addEventListener('click', async () => {
+  const days = Math.round(Number($('#histDays').value));
+  if (!days || days < 4) { toast('The minimum is 4 days'); $('#histDays').value = Math.max(4, days || 4); return; }
+  if (histNow && days < histNow && !confirm(`Keep only ${days} days?\n\nMessages older than ${days} days will be deleted for everyone. This can't be undone.`)) return;
+  try { await loadHist(await call('POST', '/admin/api/settings', {historyDays: days})); toast(`Message history set to ${days} days`); }
+  catch (x) { toast(x.message); }
+});
+loadHist();
 loadChangelog();
 loadEgg();
 function dur(ms) {

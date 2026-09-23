@@ -1029,6 +1029,7 @@ export class Session extends EventEmitter {
       deleted: !!m.deleted,
       edited: !!m.edited,
       senderName: isGroup(m.jid) && !m.fromMe && m.sender ? this.store.displayName(m.sender) : '',
+      sender: isGroup(m.jid) && !m.fromMe ? m.sender : undefined,
       reactions: this.store.reactionView(m, this.me?.jid),
       mentions: this.store.mentionView(m, this.me?.jid),
     }
