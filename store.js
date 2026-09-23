@@ -6,8 +6,8 @@ const MAX_CHATS = Number(process.env.MAX_CHATS || 800)
 // simply because it crossed an arbitrary message-count cap. This is especially
 // important for groups where thousands of messages can arrive within a day.
 // HISTORY_DAYS is the actual retention boundary; default 14 gives a full week
-// of scrollback with some breathing room. The admin can change it at runtime,
-// but it never goes below MIN_HISTORY_DAYS.
+// of scrollback with some breathing room. The server may override it via an
+// environment variable, but it never goes below MIN_HISTORY_DAYS.
 export const MIN_HISTORY_DAYS = 7
 const DEFAULT_HISTORY_DAYS = 14
 let historyDays = Math.max(MIN_HISTORY_DAYS, Number(process.env.HISTORY_DAYS) || DEFAULT_HISTORY_DAYS)

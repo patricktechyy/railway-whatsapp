@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { Session } from './session.js'
-import { getHistoryDays, setHistoryDays, MIN_HISTORY_DAYS } from './store.js'
+import { getHistoryDays } from './store.js'
 import { Auth, COOKIE, HttpError, MIN_PASSWORD } from './auth.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -84,12 +84,6 @@ function storageOf(u) {
   storageCache.set(u.username, { at: Date.now(), bytes })
   return bytes
 }
-
-// Message history length: saved on the volume so it survives restarts
-const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json')
-function readSettings() { try { return JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8')) } catch { return {} } }
-function writeSettings(patch) { fs.writeFileSync(SETTINGS_FILE, JSON.stringify({ ...readSettings(), ...patch }, null, 2)) }
-if (readSettings().historyDays) setHistoryDays(readSettings().historyDays)
 
 const MAX_UPLOAD = Number(process.env.MAX_UPLOAD_MB || 25) * 1024 * 1024
 
@@ -323,19 +317,6 @@ async function route(req, res) {
       startSession(user) // stays idle (no QR traffic) until they open their page
       console.log(`[admin] created user ${user.username}`)
       return json(res, { user: auth.publicUser(user), setupUrl: `${origin(req)}/setup/${token}` }, 201)
-    }
-    if (p === '/admin/api/settings') {
-      if (M === 'GET') return json(res, { historyDays: getHistoryDays(), minHistoryDays: MIN_HISTORY_DAYS })
-      if (M === 'POST') {
-        requireJson(req)
-        const { historyDays } = await readJson(req)
-        const days = setHistoryDays(historyDays)
-        writeSettings({ historyDays: days })
-        // prune right away: every account drops messages older than the new limit on its next save
-        for (const sess of sessions.values()) { sess.store.dirty = true; sess.store.flush?.() }
-        console.log(`[admin] message history set to ${days} days`)
-        return json(res, { historyDays: days, minHistoryDays: MIN_HISTORY_DAYS })
-      }
     }
     if (p === '/admin/api/changelog') {
       if (M === 'GET') return json(res, { version: APP_VERSION, history: changelogHistory() })

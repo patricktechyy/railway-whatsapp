@@ -64,6 +64,23 @@
 .card textarea.input { margin-top: 12px; }
 #eggtxt { font: 13px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 details.older summary { cursor: pointer; color: var(--muted); font-size: var(--t-sm); margin-top: 14px; }
+/* Admin dark theme mirrors the main chat's neutral WhatsApp dark palette. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #161717; --surface: #161717; --ink: #e9edef; --muted: #9a9f9f; --line: #2a2d2d;
+    --field: #2a2c2c; --hover: #222424; --leaf: #21c063; --leaf-strong: #35d27a; --leaf-ink: #0a1f14;
+    --leaf-soft: #103529; --danger: #f15c6d; --danger-soft: #2d171c; --warn: #f2b84b; --warn-soft: #3a2e14;
+    --shadow: 0 24px 60px -20px rgba(0, 0, 0, .6), 0 2px 6px rgba(0, 0, 0, .3);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #161717; --surface: #161717; --ink: #e9edef; --muted: #9a9f9f; --line: #2a2d2d;
+  --field: #2a2c2c; --hover: #222424; --leaf: #21c063; --leaf-strong: #35d27a; --leaf-ink: #0a1f14;
+  --leaf-soft: #103529; --danger: #f15c6d; --danger-soft: #2d171c; --warn: #f2b84b; --warn-soft: #3a2e14;
+  --shadow: 0 24px 60px -20px rgba(0, 0, 0, .6), 0 2px 6px rgba(0, 0, 0, .3);
+  color-scheme: dark;
+}
 @media (max-width: 960px) { .cols { grid-template-columns: 1fr; } }
 @media (max-width: 640px) {
   .topbar .in, .admin { padding-left: 16px; padding-right: 16px; }
@@ -116,12 +133,6 @@ details.older summary { cursor: pointer; color: var(--muted); font-size: var(--t
     </section>
 
     <aside class="side">
-      <section class="card">
-        <h2>Message history</h2>
-        <p class="help">How many days of messages are kept for everyone. Older messages are deleted from the server and scrolling up stops there. The minimum is 4 days.</p>
-        <div class="actions"><input class="input" id="histDays" type="number" min="4" max="3650" step="1" style="width:96px;min-height:40px" aria-label="Days of history">
-          <span class="help" style="margin:0">days</span><button class="btn" id="histSave">Save</button><span class="help" id="histState"></span></div>
-      </section>
       <section class="card">
         <h2>Changelog <span class="help" id="clver" style="font-weight:500;display:inline"></span></h2>
         <p class="help">Shown once to everyone after this version is deployed. One change per line. **Bold** and *italic* work. Leave empty for no popup.</p>
@@ -313,22 +324,6 @@ $('#clsave').addEventListener('click', async () => {
   try { await loadChangelog(await call('POST', '/admin/api/changelog', {version: clVersion, notes: $('#cltxt').value})); toast('Changelog saved'); }
   catch (x) { toast(x.message); }
 });
-let histNow = null;
-async function loadHist(d) {
-  try {
-    d = d || await call('GET', '/admin/api/settings');
-    histNow = d.historyDays; $('#histDays').value = d.historyDays; $('#histDays').min = d.minHistoryDays;
-    $('#histState').textContent = `Keeping ${d.historyDays} days`;
-  } catch {}
-}
-$('#histSave').addEventListener('click', async () => {
-  const days = Math.round(Number($('#histDays').value));
-  if (!days || days < 4) { toast('The minimum is 4 days'); $('#histDays').value = Math.max(4, days || 4); return; }
-  if (histNow && days < histNow && !confirm(`Keep only ${days} days?\n\nMessages older than ${days} days will be deleted for everyone. This can't be undone.`)) return;
-  try { await loadHist(await call('POST', '/admin/api/settings', {historyDays: days})); toast(`Message history set to ${days} days`); }
-  catch (x) { toast(x.message); }
-});
-loadHist();
 if (ME && ME !== 'admin') { $('#backChats').hidden = false; $('#backChats').href = '/u/' + encodeURIComponent(ME) + '/'; }
 loadChangelog();
 loadEgg();
