@@ -361,6 +361,10 @@ async function route(req, res) {
   const api = rest.replace(/^\/api/, '')
   const jid = url.searchParams.get('jid')
 
+  if (api === '/group') {
+    if (!jid) throw new HttpError(400, 'jid required')
+    return json(res, await s.groupMembers(jid))
+  }
   if (api === '/changelog') {
     const u = auth.get(username)
     const history = changelogHistory()
@@ -454,6 +458,14 @@ async function route(req, res) {
   if (api === '/older') {
     if (!body.jid) throw new HttpError(400, 'jid required')
     return json(res, await s.fetchOlder(body.jid))
+  }
+  if (api === '/group/participants') {
+    if (!body.jid) throw new HttpError(400, 'jid required')
+    return json(res, { results: await s.groupParticipants(body.jid, body.action, body.ids) })
+  }
+  if (api === '/group/invite') {
+    if (!body.jid) throw new HttpError(400, 'jid required')
+    return json(res, await s.groupInvite(body.jid))
   }
   if (api === '/delete') {
     if (!body.jid || !body.id) throw new HttpError(400, 'jid and id required')

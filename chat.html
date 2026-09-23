@@ -58,6 +58,9 @@ button{font:inherit;color:inherit;cursor:pointer}
 .tm{color:var(--muted);font-size:11px;white-space:nowrap}
 .pv{color:var(--muted);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .badge{background:var(--accent);color:#fff;border-radius:10px;font-size:11px;padding:1px 7px;margin-left:6px}
+.pv{display:flex;align-items:center}
+.pv .pvt{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pv .badge{flex:0 0 auto}
 .empty{margin:auto;color:var(--muted);text-align:center;padding:24px;font-size:14px}
 #sync{display:none;padding:8px 14px;font-size:12px;color:var(--muted);background:var(--field);border-bottom:1px solid var(--line)}
 #sync.on{display:block}
@@ -111,6 +114,21 @@ html[data-locked] #lock{display:flex}
 #msgMenu button:hover{background:var(--hover)}
 #msgMenu .danger{color:var(--danger)}
 #delDlg .dlg,#pinDlg .dlg{max-width:340px}
+#grpDlg .dlg{max-width:440px;max-height:88vh;display:flex;flex-direction:column}
+#grpDlg .sub{color:var(--muted);font-size:13px;margin:-6px 0 10px}
+#grpDlg .scroll{overflow-y:auto;margin:0 -24px;padding:0 24px}
+#grpDlg .gm{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)}
+#grpDlg .gi{flex:1;min-width:0;line-height:1.25}
+#grpDlg .gi b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+#grpDlg .gi small{color:var(--muted);font-size:12px}
+#grpDlg .gadm{font-size:11px;padding:1px 7px;border-radius:9px;background:color-mix(in srgb,var(--accent) 16%,var(--field));color:var(--accent);font-weight:600}
+#grpDlg .gx{padding:4px 10px;font-size:12px}
+#grpDlg .gx.add{background:var(--accent);color:#fff;border-color:var(--accent)}
+#grpDlg .gx.rm{color:var(--danger)}
+#grpDlg h4{margin:14px 0 6px;font-size:13px;color:var(--muted);font-weight:600}
+#grpDlg #grpQ{width:100%;padding:9px 12px;border-radius:8px;border:1px solid var(--line);background:var(--field);color:inherit;font:inherit;outline:none}
+#grpDlg #grpQ:focus{border-color:var(--accent)}
+#grpDlg .note{color:var(--muted);font-size:13px;margin:6px 0 0}
 #delDlg .col{display:flex;flex-direction:column;gap:8px;margin-top:14px}
 #delDlg .col .btn{width:100%}
 #delDlg .col .danger{background:var(--danger);color:#fff}
@@ -210,6 +228,20 @@ html[data-locked] #lock{display:flex}
 .m .rxpick.on{display:flex}
 .m .rxpick button{width:32px;height:30px;border:0;border-radius:8px;background:none;font-size:19px;cursor:pointer}
 .m .rxpick button:hover{background:var(--hover)}
+.m .hov{position:absolute;top:2px;left:calc(100% + 6px);display:flex;gap:4px;opacity:0;transition:opacity .15s;z-index:3}
+.m.me .hov{left:auto;right:calc(100% + 6px);flex-direction:row-reverse}
+.m:hover .hov,.m .hov:focus-within,.m .hov:has(.rxpick.on){opacity:1}
+.m .hov .rp,.m .hov .mm,.m .hov .ra{position:static;opacity:1;width:26px;height:26px;flex:0 0 26px;border:0;border-radius:50%;background:var(--panel);
+  color:var(--muted);font-size:14px;box-shadow:0 1px 3px rgba(0,0,0,.18);cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
+.m .hov button:hover{color:var(--fg);background:var(--hover)}
+.m .hov .rxpick{right:auto;left:0;bottom:calc(100% + 4px)}
+.m.me .hov .rxpick{left:auto;right:0}
+@media (hover:none){
+  .m .hov{top:auto;bottom:calc(100% + 4px);left:0;pointer-events:none}
+  .m.me .hov{left:auto;right:0}
+  .m:hover .hov{opacity:0}
+  .m.tap .hov,.m .hov:has(.rxpick.on){opacity:1;pointer-events:auto}
+}
 .m .q{display:block;border-left:3px solid var(--accent);background:rgba(0,0,0,.06);border-radius:5px;padding:4px 8px;margin:1px 0 4px;
   font-size:13px;cursor:pointer;white-space:normal;overflow:hidden;text-overflow:ellipsis;max-height:3.2em}
 .m .q b{display:block;color:var(--accent);font-size:12px}
@@ -334,6 +366,7 @@ html[data-locked] #lock{display:flex}
       <button class="ib" id="back">←</button>
       <div class="av sm" id="tav" hidden></div>
       <div id="title"><b>Select a chat</b><small></small></div>
+      <button class="pill" id="grpBtn" title="See, add or remove people in this group" hidden>👥 Members</button>
       <button class="pill" id="nickBtn" title="Give this chat a nickname that only you see on this site" hidden>✏️ Nickname</button>
       <button class="pill" id="pinBtn" title="Pin this chat to the top on this site (your phone isn't affected)" hidden>📌 Pin</button>
       <button class="pill" id="archBtn" title="Archive or unarchive this chat on this site (your phone isn't affected)" hidden>📦 Archive</button>
@@ -411,6 +444,23 @@ html[data-locked] #lock{display:flex}
     <div class="ver" id="newsVer"></div>
     <div id="newsBody"></div>
     <div class="acts"><button type="button" class="btn" id="newsX">Got it</button></div>
+  </div>
+</div>
+<div class="overlay" id="grpDlg" style="background:rgba(0,0,0,.45)">
+  <div class="dlg">
+    <h3 id="grpTitle">Group</h3>
+    <div class="sub" id="grpSub"></div>
+    <div class="scroll">
+      <div id="grpAdd" hidden>
+        <h4>Add people</h4>
+        <input id="grpQ" placeholder="Name or number with country code" autocomplete="off">
+        <div id="grpRes"></div>
+      </div>
+      <p class="note" id="grpNote" hidden>Only group admins can add or remove people.</p>
+      <h4>Members</h4>
+      <div id="grpList"><div class="empty">Loading…</div></div>
+    </div>
+    <div class="acts"><button type="button" class="btn ghost" id="grpInvite" hidden>🔗 Copy invite link</button><button type="button" class="btn" id="grpX">Done</button></div>
   </div>
 </div>
 <div class="overlay" id="delDlg" style="background:rgba(0,0,0,.45)">
@@ -605,7 +655,7 @@ function row(c, extra = '') {
     <div class="av ${c.group ? 'g' : ''}">${esc(c.group ? '👥' : initials(c.name))}${avImg(c.jid)}</div>
     <div class="ct">
       <div class="top"><span class="nm">${esc(c.profile && c.name === c.profile ? '~' + c.name : c.name)}</span><span class="tm">${c.t ? fmtWhen(c.t) : ''}${c.pinned ? '<span class="pin" title="Pinned">📌</span>' : ''}</span></div>
-      <div class="pv">${extra || esc(c.preview || c.phone || '')}${c.unread ? `<span class="badge">${c.unread}</span>` : ''}</div>
+      <div class="pv"><span class="pvt">${extra || esc(c.preview || c.phone || '')}</span>${c.unread ? `<span class="badge">${c.unread}</span>` : ''}</div>
     </div></div>`;
 }
 function renderChats() {
@@ -643,6 +693,7 @@ function updateTitle() {
   $('#title').innerHTML = `<b>${esc(name)}</b><small id="presenceLabel">${esc(extra || sub.join(' · '))}</small>`;
   $('#nickBtn').hidden = false;
   $('#archBtn').hidden = false;
+  $('#grpBtn').hidden = !(c?.group || String(current).endsWith('@g.us'));
   $('#pinBtn').hidden = false;
   $('#pinBtn').textContent = c?.pinned ? '📌 Unpin' : '📌 Pin';
   $('#archBtn').textContent = c?.archived ? '📤 Unarchive' : '📦 Archive';
@@ -697,11 +748,12 @@ function bubble(m) {
   const canReact = !m.pending && !m.failed && !String(m.id).startsWith('tmp');
   const rx = Array.isArray(m.reactions) ? m.reactions : [];
   const pills = rx.map(r => `<button class="rx ${r.mine ? 'mine' : ''}" data-rx-value="${esc(r.emoji)}" data-rx-message="${esc(m.id)}" title="${r.count} reaction${r.count === 1 ? '' : 's'}">${esc(r.emoji)} ${r.count > 1 ? `<span>${r.count}</span>` : ''}</button>`).join('');
-  const rxbar = canReact ? `<div class="rxs">${pills}<button class="rxadd" data-rx-add="${esc(m.id)}" title="React">＋</button><span class="rxpick">${REACTIONS.map(e => `<button data-rx-pick="${esc(e)}" data-rx-message="${esc(m.id)}">${e}</button>`).join('')}</span></div>` : '';
+  const rxbar = canReact && rx.length ? `<div class="rxs">${pills}</div>` : '';
+  const ra = canReact && !m.deleted ? `<button class="ra" data-rx-add="${esc(m.id)}" title="React">☺</button><span class="rxpick">${REACTIONS.map(e => `<button data-rx-pick="${esc(e)}" data-rx-message="${esc(m.id)}">${e}</button>`).join('')}</span>` : '';
   if (m.deleted) body = `<span class="del">🚫 ${m.fromMe ? 'You deleted this message' : 'This message was deleted'}</span>`;
   const mm = m.pending || m.failed || String(m.id).startsWith('tmp') ? '' : `<button class="mm" data-mm="${esc(m.id)}" title="Edit or delete">⋯</button>`;
   const ed = m.edited && !m.deleted ? '<span class="edl">edited</span>' : '';
-  return `<div class="m ${m.fromMe ? 'me' : ''} ${m.pending ? 'pending' : ''} ${m.failed ? 'failed' : ''}" data-id="${esc(m.id)}">${m.deleted ? '' : rp}${mm}${who}${m.deleted ? '' : q}${body}<span class="t">${ed}${fmtTime(m.ts)}${tick}</span>${m.deleted ? '' : rxbar}</div>`;
+  return `<div class="m ${m.fromMe ? 'me' : ''} ${m.pending ? 'pending' : ''} ${m.failed ? 'failed' : ''}" data-id="${esc(m.id)}"><div class="hov">${m.deleted ? '' : rp}${ra}${mm}</div>${who}${m.deleted ? '' : q}${body}<span class="t">${ed}${fmtTime(m.ts)}${tick}</span>${m.deleted ? '' : rxbar}</div>`;
 }
 function renderMsgs(stick) {
   const box = $('#msgs');
@@ -1550,6 +1602,87 @@ $('#blurBtn').addEventListener('click', () => setPref('blur', prefs.blur === 'on
 refreshLockUi();
 if (document.documentElement.dataset.locked === '1') { if (lockData()) lockApp(); else delete document.documentElement.dataset.locked; }
 
+
+// ---------------------------------------------------------- group members
+let grp = null, grpT;
+async function openGroup() {
+  if (!current) return;
+  grp = null;
+  $('#grpTitle').textContent = $('#title b')?.textContent || 'Group';
+  $('#grpSub').textContent = '';
+  $('#grpList').innerHTML = '<div class="empty">Loading…</div>';
+  $('#grpAdd').hidden = true; $('#grpNote').hidden = true; $('#grpInvite').hidden = true;
+  $('#grpQ').value = ''; $('#grpRes').innerHTML = '';
+  $('#grpDlg').classList.add('on');
+  await loadGroup();
+}
+async function loadGroup() {
+  try { grp = await call('GET', '/group?jid=' + encodeURIComponent(current)); renderGroup(); }
+  catch (x) { $('#grpList').innerHTML = `<div class="empty">${esc(x.message)}</div>`; }
+}
+function renderGroup() {
+  const g = grp;
+  $('#grpTitle').textContent = g.subject || 'Group';
+  $('#grpSub').textContent = `${g.members.length} member${g.members.length === 1 ? '' : 's'}` + (g.amAdmin ? ' · you are an admin' : '');
+  $('#grpAdd').hidden = !g.amAdmin; $('#grpNote').hidden = g.amAdmin; $('#grpInvite').hidden = !g.amAdmin;
+  $('#grpList').innerHTML = g.members.map(m => `<div class="gm">
+      <div class="av sm">${esc(initials(m.name))}${avImg(m.jid)}</div>
+      <div class="gi"><b>${esc(m.me ? 'You' : m.name)}</b><small>${esc(m.phone || '')}</small></div>
+      ${m.admin ? `<span class="gadm">${m.admin === 'superadmin' ? 'Owner' : 'Admin'}</span>` : ''}
+      ${g.amAdmin && !m.me && m.admin !== 'superadmin' ? `<button class="btn ghost gx rm" data-rm="${esc(m.id)}" data-name="${esc(m.name)}">Remove</button>` : ''}
+    </div>`).join('');
+}
+async function grpSearch() {
+  const q = $('#grpQ').value.trim();
+  if (!q) { $('#grpRes').innerHTML = ''; return; }
+  const inGroup = new Set((grp?.members || []).map(m => m.jid));
+  const digits = q.replace(/\D/g, '');
+  let html = '';
+  if (digits.length >= 7 && /^[+\d\s()-]+$/.test(q)) html += `<div class="gm"><div class="av sm">＋</div><div class="gi"><b>+${digits}</b><small>Add this number</small></div><button class="btn ghost gx add" data-addphone="${digits}">Add</button></div>`;
+  try {
+    const list = (await call('GET', '/contacts?q=' + encodeURIComponent(q))).filter(c => !c.group && !inGroup.has(c.jid)).slice(0, 8);
+    html += list.map(c => `<div class="gm"><div class="av sm">${esc(initials(c.name))}${avImg(c.jid)}</div><div class="gi"><b>${esc(c.name)}</b><small>${esc(c.phone || '')}</small></div><button class="btn ghost gx add" data-add="${esc(c.jid)}" data-name="${esc(c.name)}">Add</button></div>`).join('');
+  } catch {}
+  $('#grpRes').innerHTML = html || '<p class="note">No matching contacts. Type a full number with country code.</p>';
+}
+async function grpChange(action, ids, label) {
+  try {
+    const {results} = await call('POST', '/group/participants', {jid: current, action, ids});
+    const r = results[0] || {ok: false, text: 'No answer from WhatsApp'};
+    toast(r.ok ? `${label}: ${r.text}` : r.text, 4500);
+    if (!r.ok && (r.status === 403 || r.status === 408)) $('#grpInvite').classList.add('add');
+    $('#grpQ').value = ''; $('#grpRes').innerHTML = '';
+    await loadGroup();
+  } catch (x) { toast(x.message); }
+}
+$('#grpBtn').addEventListener('click', openGroup);
+$('#grpX').addEventListener('click', () => $('#grpDlg').classList.remove('on'));
+$('#grpDlg').addEventListener('click', async e => {
+  if (e.target.id === 'grpDlg') return $('#grpDlg').classList.remove('on');
+  const rm = e.target.closest('[data-rm]');
+  if (rm) {
+    if (!confirm(`Remove ${rm.dataset.name} from this group?`)) return;
+    rm.disabled = true;
+    return grpChange('remove', [rm.dataset.rm], rm.dataset.name);
+  }
+  const add = e.target.closest('[data-add]');
+  if (add) { add.disabled = true; return grpChange('add', [add.dataset.add], add.dataset.name); }
+  const ph = e.target.closest('[data-addphone]');
+  if (ph) {
+    ph.disabled = true;
+    try { const c = await call('POST', '/resolve', {phone: ph.dataset.addphone}); return grpChange('add', [c.jid], c.name || '+' + ph.dataset.addphone); }
+    catch (x) { ph.disabled = false; toast(x.message); }
+  }
+});
+$('#grpQ').addEventListener('input', () => { clearTimeout(grpT); grpT = setTimeout(grpSearch, 250); });
+$('#grpInvite').addEventListener('click', async () => {
+  try {
+    const {link} = await call('POST', '/group/invite', {jid: current});
+    try { await navigator.clipboard.writeText(link); toast('Invite link copied'); }
+    catch { prompt('Copy this invite link:', link); }
+  } catch (x) { toast(x.message); }
+});
+
 applyPrefs();
 $('#text').addEventListener('input', function () { this.style.height = 'auto'; this.style.height = Math.min(this.scrollHeight, 140) + 'px'; });
 $('#text').addEventListener('paste', e => {
@@ -1613,7 +1746,14 @@ $('#msgs').addEventListener('click', async e => {
     else toast('That message is older than what is saved here');
     return;
   }
-  const img = e.target.closest('img[data-full]'); if (img) window.open(img.dataset.full, '_blank', 'noopener');
+  const img = e.target.closest('img[data-full]'); if (img) return window.open(img.dataset.full, '_blank', 'noopener');
+  // phones: tap a message to show its ↩ ☺ ⋯ buttons
+  const tapped = e.target.closest('#msgs .m[data-id]');
+  if (tapped && !e.target.closest('a, button') && matchMedia('(hover: none)').matches) {
+    const was = tapped.classList.contains('tap');
+    document.querySelectorAll('#msgs .m.tap').forEach(x => x.classList.remove('tap'));
+    if (!was) tapped.classList.add('tap');
+  }
 });
 async function reactMessage(messageId, emoji) {
   if (!current || !messageId) return;
@@ -1644,7 +1784,7 @@ $('#nclist').addEventListener('click', async e => {
 });
 
 $('#menuBtn').addEventListener('click', e => { e.stopPropagation(); $('#menu').classList.toggle('on'); });
-document.addEventListener('click', e => { if (!e.target.closest('#menu')) $('#menu').classList.remove('on'); if (!e.target.closest('.rxs')) document.querySelectorAll('.rxpick.on').forEach(x => x.classList.remove('on')); });
+document.addEventListener('click', e => { if (!e.target.closest('#menu')) $('#menu').classList.remove('on'); if (!e.target.closest('.rxs, .hov')) document.querySelectorAll('.rxpick.on').forEach(x => x.classList.remove('on')); if (!e.target.closest('#msgs .m')) document.querySelectorAll('#msgs .m.tap').forEach(x => x.classList.remove('tap')); });
 async function signOut() { await fetch('/api/logout', {method: 'POST'}); location.href = '/'; }
 $('#gateOut').addEventListener('click', signOut);
 $('#menu').addEventListener('click', async e => {
