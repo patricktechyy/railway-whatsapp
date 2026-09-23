@@ -323,7 +323,11 @@ export class Session extends EventEmitter {
     const B = await loadBaileys()
     const { state, saveCreds } = await B.useMultiFileAuthState(this.authDir)
     if (this.stopped || gen !== this.gen) return
-    this.registered = !!state.creds?.registered
+    // Linked if WhatsApp gave us an identity. QR-linked devices keep
+    // creds.registered false (that flag belongs to the pairing-code flow),
+    // so creds.me is the reliable sign; checking only `registered` left every
+    // QR-linked account idle after a redeploy until its owner opened the page.
+    this.registered = !!(state.creds?.registered || state.creds?.me?.id)
 
     // Not linked and nobody looking at the page: don't sit on WhatsApp's
     // servers generating QR codes for no one. Opening the page wakes it.
