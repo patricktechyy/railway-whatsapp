@@ -1411,6 +1411,8 @@ function closeNew() { $('#newchat').classList.remove('on'); }
 // ----------------------------------------------------------------- wire
 $('#chats').addEventListener('click', e => { const r = e.target.closest('.row'); if (r) openChat(r.dataset.jid, r.dataset.name); });
 $('#search').addEventListener('input', renderChats);
+function clearChatSearch() { const el = $('#search'); if (el && el.value) { el.value = ''; renderChats(); } }
+window.addEventListener('pageshow', clearChatSearch);
 $('#back').addEventListener('click', () => document.body.classList.remove('open'));
 $('#send').addEventListener('click', send);
 $('#text').addEventListener('keydown', e => { if (suggestKey(e)) return; if (e.key === 'Enter' && !e.shiftKey && enterSends()) { e.preventDefault(); send(); } });
@@ -2307,7 +2309,7 @@ document.addEventListener('pointerdown', (e) => {
 
 // accounts the admin has marked as admins get a way into the admin page
 if ('__IS_ADMIN__' === '1') { $('#adminItem').hidden = false; $('#gateAdmin').hidden = false; }
-$('#gateAdmin').addEventListener('click', () => { location.href = '/admin'; });
+$('#gateAdmin').addEventListener('click', () => { clearChatSearch(); location.href = '/admin'; });
 
 applyPrefs();
 $('#text').addEventListener('input', function () { this.style.height = 'auto'; this.style.height = Math.min(this.scrollHeight, 140) + 'px'; });
@@ -2425,7 +2427,7 @@ $('#menu').addEventListener('click', async e => {
   if (m === 'prefs') { applyPrefs(); $('#prefs').classList.add('on'); }
   if (m === 'about') $('#about').classList.add('on');
   if (m === 'tour') startTour();
-  if (m === 'admin') location.href = '/admin';
+  if (m === 'admin') { clearChatSearch(); location.href = '/admin'; }
   if (m === 'news') { try { showNews(await call('GET', '/changelog'), true); } catch (x) { toast(x.message); } }
   if (m === 'name') {
     const cur = $('#meName').textContent;
