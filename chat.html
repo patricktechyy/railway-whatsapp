@@ -618,7 +618,7 @@ html:root[data-theme="dark"][data-accent]{--out:color-mix(in srgb,var(--accent) 
       <button data-m="out" class="danger">Sign out</button>
     </div>
     <div id="sync">Syncing your chats…</div>
-    <input class="search" id="search" type="search" name="chatSearch" data-gramm="false" data-gramm_editor="false" data-enable-grammarly="false" placeholder="Search chats" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+    <input class="search" id="search" type="search" name="chat-filter" data-gramm="false" data-gramm_editor="false" data-enable-grammarly="false" placeholder="Search chats" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" readonly aria-label="Search chats" data-lpignore="true" data-1p-ignore="true" data-bwignore="true">
     <div id="chips"><button data-f="all" class="on">All</button><button data-f="unread">Unread</button><button data-f="groups">Groups</button><button data-f="archived" id="archChip">📦 Archived</button></div>
     <div class="list" id="chats"><div class="empty">Loading…</div></div>
 
@@ -1436,7 +1436,7 @@ $('#prefs').addEventListener('click', e => {
 document.addEventListener('keydown', e => {
   const typing = /^(INPUT|TEXTAREA)$/.test(document.activeElement?.tagName);
   if ((e.key === '/' && !typing) || (e.key.toLowerCase() === 'k' && (e.ctrlKey || e.metaKey))) {
-    e.preventDefault(); $('#newchat').classList.remove('on'); document.body.classList.remove('open'); $('#search').focus(); $('#search').select();
+    e.preventDefault(); $('#newchat').classList.remove('on'); document.body.classList.remove('open'); unlockChatSearch(); $('#search').focus(); $('#search').select();
   } else if (e.key === 'Escape' && !$('#emojiPanel').hidden) {
     closeEmoji();
   } else if (e.key === 'Escape') {
@@ -2414,12 +2414,22 @@ $('#nclist').addEventListener('click', async e => {
 });
 
 let searchUserInteracted = false;
-$('#search').addEventListener('focus', () => { searchUserInteracted = true; });
-$('#search').addEventListener('input', () => { searchUserInteracted = true; renderChats(); });
+const chatSearch = $('#search');
+function unlockChatSearch() {
+  if (chatSearch) chatSearch.readOnly = false;
+}
+chatSearch.addEventListener('pointerdown', unlockChatSearch, {capture:true});
+chatSearch.addEventListener('touchstart', unlockChatSearch, {capture:true, passive:true});
+chatSearch.addEventListener('keydown', e => {
+  if (e.key !== 'Tab' && e.key !== 'Shift') unlockChatSearch();
+});
+chatSearch.addEventListener('focus', () => { if (!chatSearch.readOnly) searchUserInteracted = true; });
+chatSearch.addEventListener('input', () => { searchUserInteracted = true; renderChats(); });
 function clearChatSearch(force = false) {
-  const el = $('#search');
+  const el = chatSearch;
   if (!el) return;
   if (!force && searchUserInteracted) return;
+  el.readOnly = true;
   if (el.value) {
     el.value = '';
     el.dispatchEvent(new Event('input', {bubbles: true}));
