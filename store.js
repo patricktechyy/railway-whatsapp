@@ -34,7 +34,9 @@ export function toPn(v) {
 }
 
 /** "+62 812-3456-7890" and the like: a number dressed up as a name. */
-export const looksLikePhone = (s) => typeof s === 'string' && /^[+\d\s().-]{6,}$/.test(s.trim())
+// Also catches the masked numbers WhatsApp puts in place of a name for some
+// chats (e.g. "+65••••••46"), which would otherwise beat the real saved name.
+export const looksLikePhone = (s) => typeof s === 'string' && /^[+\d\s().\-•·∙⋅*…]{6,}$/.test(s.trim()) && /\d/.test(s)
 
 export const phoneOf = (jid) => (isPn(jid) ? '+' + jid.split('@')[0] : '')
 
@@ -65,7 +67,9 @@ export class Store {
       for (const c of raw.chats || []) this.chats.set(c.jid, c)
       for (const [jid, c] of raw.contacts || []) {
         // older snapshots stored a plain string name
-        this.contacts.set(jid, typeof c === 'string' ? { notify: c } : c)
+        const info = typeof c === 'string' ? { notify: c } : { ...c }
+        for (const k of ['name', 'verified', 'notify']) if (looksLikePhone(info[k])) delete info[k]
+        this.contacts.set(jid, info)
       }
       for (const [lid, pn] of raw.alias || []) this.alias.set(lid, pn)
       for (const id of raw.gone || []) this.gone.add(id)
