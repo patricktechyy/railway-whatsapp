@@ -924,7 +924,7 @@ function setPresence(p) {
   currentPresence = p || null;
   if (!currentPresence) { if (current) updateTitle(); return; }
   const el = $('#presenceLabel');
-  if (el) el.textContent = presenceLabel(currentPresence) || '';
+  if (el) el.textContent = presenceLabel(currentPresence) || titleSub();
 }
 function scheduleTypingReset() {
   clearTimeout(typingTimer);
@@ -976,19 +976,25 @@ const loadChats = throttle(async () => {
   try { chats = await call('GET', '/chats'); renderChats(); updateTitle(); } catch {}
 }, 700);
 
+// "~Profile name · +phone" under the chat title; shown whenever there's no presence to report
+function titleSub() {
+  const c = chats.find(x => x.jid === current);
+  const name = c?.name || currentName || String(current || '').split('@')[0];
+  if (c?.group) return 'Group';
+  return [
+    c?.profile && c.profile !== name ? '~' + c.profile : '',
+    c?.phone && c.phone !== name ? c.phone : '',
+  ].filter(Boolean).join(' · ');
+}
 function updateTitle() {
   if (!current) return;
   const c = chats.find(x => x.jid === current);
   const name = c?.name || currentName || current.split('@')[0];
-  const sub = c?.group ? ['Group'] : [
-    c?.profile && c.profile !== name ? '~' + c.profile : '',
-    c?.phone && c.phone !== name ? c.phone : '',
-  ].filter(Boolean);
   $('#tav').hidden = false;
   $('#tav').className = 'av sm' + (c?.group ? ' g' : '');
   $('#tav').innerHTML = esc(c?.group ? '👥' : initials(name)) + avImg(current);
   const extra = presenceLabel(currentPresence)
-  $('#title').innerHTML = `<b>${esc(name)}</b><small id="presenceLabel">${esc(extra || sub.join(' · '))}</small>`;
+  $('#title').innerHTML = `<b>${esc(name)}</b><small id="presenceLabel">${esc(extra || titleSub())}</small>`;
   $('#nickBtn').hidden = false;
   $('#archBtn').hidden = false;
   $('#chatMore').hidden = false;
