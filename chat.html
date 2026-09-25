@@ -618,7 +618,7 @@ html:root[data-theme="dark"][data-accent]{--out:color-mix(in srgb,var(--accent) 
       <button data-m="out" class="danger">Sign out</button>
     </div>
     <div id="sync">Syncing your chats…</div>
-    <input class="search" id="search" data-gramm="false" data-gramm_editor="false" data-enable-grammarly="false" placeholder="Search chats" autocomplete="off">
+    <input class="search" id="search" type="search" name="chatSearch" data-gramm="false" data-gramm_editor="false" data-enable-grammarly="false" placeholder="Search chats" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
     <div id="chips"><button data-f="all" class="on">All</button><button data-f="unread">Unread</button><button data-f="groups">Groups</button><button data-f="archived" id="archChip">📦 Archived</button></div>
     <div class="list" id="chats"><div class="empty">Loading…</div></div>
 
@@ -817,7 +817,7 @@ html:root[data-theme="dark"][data-accent]{--out:color-mix(in srgb,var(--accent) 
 <div class="overlay" id="pw">
   <form class="dlg" id="pwf">
     <h3>Change password</h3>
-    <input type="text" autocomplete="username" value="__USER__" hidden>
+
     <label>Current password</label><input type="password" id="pwc" autocomplete="current-password" required>
     <label>New password</label><input type="password" id="pwn" autocomplete="new-password" minlength="8" required>
     <label>Repeat new password</label><input type="password" id="pwr" autocomplete="new-password" required>
@@ -1410,7 +1410,7 @@ function closeNew() { $('#newchat').classList.remove('on'); }
 
 // ----------------------------------------------------------------- wire
 $('#chats').addEventListener('click', e => { const r = e.target.closest('.row'); if (r) openChat(r.dataset.jid, r.dataset.name); });
-$('#search').addEventListener('input', renderChats);
+
 $('#back').addEventListener('click', () => document.body.classList.remove('open'));
 $('#send').addEventListener('click', send);
 $('#text').addEventListener('keydown', e => { if (suggestKey(e)) return; if (e.key === 'Enter' && !e.shiftKey && enterSends()) { e.preventDefault(); send(); } });
@@ -2413,20 +2413,30 @@ $('#nclist').addEventListener('click', async e => {
   } else { closeNew(); openChat(r.dataset.jid, r.dataset.name); }
 });
 
-function clearChatSearch() {
+let searchUserInteracted = false;
+$('#search').addEventListener('focus', () => { searchUserInteracted = true; });
+$('#search').addEventListener('input', () => { searchUserInteracted = true; renderChats(); });
+function clearChatSearch(force = false) {
   const el = $('#search');
   if (!el) return;
+  if (!force && searchUserInteracted) return;
   if (el.value) {
     el.value = '';
     el.dispatchEvent(new Event('input', {bubbles: true}));
   }
 }
-window.addEventListener('pageshow', () => {
-  clearChatSearch();
-  setTimeout(clearChatSearch, 0);
-  setTimeout(clearChatSearch, 100);
-});
-window.addEventListener('pagehide', clearChatSearch);
+function clearRestoredSearch() {
+  searchUserInteracted = false;
+  clearChatSearch(true);
+  requestAnimationFrame(() => clearChatSearch(true));
+  setTimeout(() => clearChatSearch(true), 0);
+  setTimeout(() => clearChatSearch(true), 100);
+  setTimeout(() => clearChatSearch(true), 500);
+  setTimeout(() => clearChatSearch(true), 1200);
+}
+window.addEventListener('pageshow', clearRestoredSearch);
+window.addEventListener('load', clearRestoredSearch);
+window.addEventListener('pagehide', () => clearChatSearch(true));
 
 $('#menuBtn').addEventListener('click', e => { e.stopPropagation(); $('#menu').classList.toggle('on'); });
 document.addEventListener('click', e => { if (!e.target.closest('#menu')) $('#menu').classList.remove('on'); if (!e.target.closest('.rxs, .hov')) document.querySelectorAll('.rxpick.on').forEach(x => x.classList.remove('on')); if (!e.target.closest('#msgs .m')) document.querySelectorAll('#msgs .m.tap').forEach(x => x.classList.remove('tap')); });
