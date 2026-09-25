@@ -1411,8 +1411,6 @@ function closeNew() { $('#newchat').classList.remove('on'); }
 // ----------------------------------------------------------------- wire
 $('#chats').addEventListener('click', e => { const r = e.target.closest('.row'); if (r) openChat(r.dataset.jid, r.dataset.name); });
 $('#search').addEventListener('input', renderChats);
-function clearChatSearch() { const el = $('#search'); if (el && el.value) { el.value = ''; renderChats(); } }
-window.addEventListener('pageshow', clearChatSearch);
 $('#back').addEventListener('click', () => document.body.classList.remove('open'));
 $('#send').addEventListener('click', send);
 $('#text').addEventListener('keydown', e => { if (suggestKey(e)) return; if (e.key === 'Enter' && !e.shiftKey && enterSends()) { e.preventDefault(); send(); } });
@@ -2309,7 +2307,7 @@ document.addEventListener('pointerdown', (e) => {
 
 // accounts the admin has marked as admins get a way into the admin page
 if ('__IS_ADMIN__' === '1') { $('#adminItem').hidden = false; $('#gateAdmin').hidden = false; }
-$('#gateAdmin').addEventListener('click', () => { clearChatSearch(); location.href = '/admin'; });
+$('#gateAdmin').addEventListener('click', () => { location.href = '/admin'; });
 
 applyPrefs();
 $('#text').addEventListener('input', function () { this.style.height = 'auto'; this.style.height = Math.min(this.scrollHeight, 140) + 'px'; });
@@ -2414,6 +2412,21 @@ $('#nclist').addEventListener('click', async e => {
     catch (x) { r.querySelector('.pv').textContent = x.message; }
   } else { closeNew(); openChat(r.dataset.jid, r.dataset.name); }
 });
+
+function clearChatSearch() {
+  const el = $('#search');
+  if (!el) return;
+  if (el.value) {
+    el.value = '';
+    el.dispatchEvent(new Event('input', {bubbles: true}));
+  }
+}
+window.addEventListener('pageshow', () => {
+  clearChatSearch();
+  setTimeout(clearChatSearch, 0);
+  setTimeout(clearChatSearch, 100);
+});
+window.addEventListener('pagehide', clearChatSearch);
 
 $('#menuBtn').addEventListener('click', e => { e.stopPropagation(); $('#menu').classList.toggle('on'); });
 document.addEventListener('click', e => { if (!e.target.closest('#menu')) $('#menu').classList.remove('on'); if (!e.target.closest('.rxs, .hov')) document.querySelectorAll('.rxpick.on').forEach(x => x.classList.remove('on')); if (!e.target.closest('#msgs .m')) document.querySelectorAll('#msgs .m.tap').forEach(x => x.classList.remove('tap')); });
