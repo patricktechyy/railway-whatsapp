@@ -607,6 +607,7 @@ export class Session extends EventEmitter {
           // Only our own messages need outgoing tick state.
           const rj = entry.key.remoteJid
           const jid = rj ? this.store.canon(rj) : null
+          if (jid && status >= 4 && !entry.key.fromMe) { this.readElsewhere(jid, [id]); continue }
           // In groups one person's receipt must not tick the whole message;
           // per-member receipts (below) decide delivered/read there.
           if (jid && isGroup(jid) && status >= 3) continue
@@ -635,6 +636,10 @@ export class Session extends EventEmitter {
           const rj = entry?.key?.remoteJid
           const jid = rj ? this.store.canon(rj) : null
           const existing = jid ? this.store.findMessage(jid, id) : null
+          if (existing && !existing.fromMe) {
+            if (receipt.readTimestamp || receipt.readTimestampMs || receipt.playedTimestamp) this.readElsewhere(jid, [id])
+            continue
+          }
           if (!existing?.fromMe) continue
           let status = null
           if (receipt.readTimestamp || receipt.readTimestampMs || receipt.playedTimestamp) status = 4
@@ -771,7 +776,9 @@ export class Session extends EventEmitter {
     const patch = {}
     const t = num(c.conversationTimestamp || c.lastMessageRecvTimestamp)
     if (t) patch.t = t
-    if (c.unreadCount != null) patch.unread = Math.max(0, c.unreadCount)
+    if (c.unreadCount != null) {
+      patch.unread = c.unreadCount < 0 ? Math.max(1, this.store.chats.get(jid)?.unread || 0) : c.unreadCount
+    }
     if (!isUpdate || Object.keys(patch).length) this.store.touchChat(jid, patch)
   }
 
@@ -1466,6 +1473,25 @@ export class Session extends EventEmitter {
     this.store.touchChat(jid, pinned ? { localPinned: true, localArchived: false } : { localPinned: false })
     this.emit('event', { type: 'chats' })
     return { pinned: !!pinned }
+  }
+
+  /** The user read this chat on their phone or another linked device. */
+  readElsewhere(jid, ids) {
+    const chat = this.store.chats.get(jid)
+    if (!chat?.unread) return
+    const list = this.store.messages.get(jid) || []
+    let at = -1
+    for (const id of ids) {
+      const i = list.findIndex((m) => m.id === id)
+      if (i > at) at = i
+    }
+    if (at < 0) return
+    let left = 0
+    for (let i = at + 1; i < list.length; i++) if (!list[i].fromMe) left++
+    if (left >= chat.unread) return
+    chat.unread = left
+    this.store.dirty = true
+    this.emit('event', { type: 'chats' })
   }
 
   async markRead(jid) {

@@ -910,6 +910,7 @@ const initials = (n) => (n || '?').replace(/[^\p{L}\p{N} ]/gu, '').trim().split(
 const fmtSize = (b) => b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB';
 const mediaUrl = (m) => api(`/media?jid=${encodeURIComponent(m.jid)}&id=${encodeURIComponent(m.id)}`);
 function presenceLabel(p) {
+  return '';   // typing / online indicators are turned off
   if (!p) return '';
   if (p.typing) return p.recording ? 'recording…' : 'typing…';
   if (p.online || p.state === 'available') return 'online';
@@ -1139,7 +1140,7 @@ async function openChat(jid, name) {
     if (current !== jid) return;
     storeMore = msgs.length >= 200;
     renderMsgs(true);
-    subscribePresence(jid);
+    // presence (typing/online) is not shown, so no need to subscribe
     const c = chats.find(x => x.jid === jid); if (c) c.unread = 0;
     renderChats();
   } catch (x) { toast(x.message); }
@@ -1358,7 +1359,7 @@ function stream() {
     else if (d.type === 'chats') loadChats();
     else if (d.type === 'history') { syncing(d); loadChats(); if (current) reloadThread(); }
     else if (d.type === 'merged') { if (current === d.from) { current = d.to; reloadThread(); } loadChats(); }
-    else if (d.type === 'presence' && d.jid === current) {
+    else if (d.type === 'presence' && false) {
       if (d.participant && chats.find(x => x.jid === current)?.group) {
         if (d.state === 'composing' || d.state === 'recording') setPresence({typing:true, recording:d.state === 'recording'});
         else setPresence({state:d.state, online:d.state === 'available', lastSeen:d.lastSeen});
