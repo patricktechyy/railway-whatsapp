@@ -66,9 +66,9 @@ export function tourSteps({ me, navigate, showTodo, showLists, openMenu }: { me:
   steps.push({
     icon: '💬', title: 'Part of Whats Up', target: '.side-wa', go: openMenu,
     body: me.whatsapp.configured && me.whatsapp.reminders
-      ? <>Your todolist lives inside Whats Up: <b>{me.home.startsWith('/u/') ? 'Back to chats' : 'Back to admin'}</b> takes you back, and the ✓ button in Whats Up brings you here. Only you can see your tasks.
+      ? <>Your todolist lives inside Whats Up: <b>💬 Whats Up</b> takes you back, and the ✓ button in Whats Up brings you here. Only you can see your tasks.
           <p className="muted">🤖 <b>WhatsApp Buddy</b>: pick <b>💬 WhatsApp me</b> on a task and Buddy messages you {me.whatsapp.botNumber ? <>on your WhatsApp from its own number. Reply <kbd>done</kbd>, <kbd>snooze 1h</kbd> or <kbd>add buy milk 5pm</kbd> right there.</> : <>in “Message yourself”. Reply <kbd>td done</kbd> or <kbd>td snooze 1h</kbd>.</>} Settings → WhatsApp Buddy.</p></>
-      : <>Your todolist lives inside Whats Up: <b>{me.home.startsWith('/u/') ? 'Back to chats' : 'Back to admin'}</b> takes you back, and the ✓ button in Whats Up brings you here.</>,
+      : <>Your todolist lives inside Whats Up: <b>💬 Whats Up</b> takes you back, and the ✓ button in Whats Up brings you here.</>,
   })
   steps.push({
     icon: '🎉', title: 'You’re all set!', go: () => navigate({ kind: 'today' }),

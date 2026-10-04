@@ -17,7 +17,7 @@ A to-do list for Gavin (and friends), **built into Whats Up** (Apa yang Diatas).
 ## What's in it (v2.0)
 
 **New in 2.0: one app with Whats Up**
-- The Todolist is part of Whats Up now: the ✓ button opens it, Back to chats (or <kbd>T</kbd>) goes back. No second website, no second sign-in, no `LINK_KEY`.
+- The Todolist is part of Whats Up now: the ✓ button opens it, the 💬 Whats Up button on phones goes back to chats, and <kbd>T</kbd> still swaps views. No second website, no second sign-in, no `LINK_KEY`.
 - **WhatsApp Buddy writes from a real WhatsApp number** the admin picks, to everyone's own WhatsApp, and people simply reply `done`, `snooze 1h`, `today` or `add …` in that chat.
 - The Todolist admin is a tab on Whats Up's admin page.
 
@@ -26,7 +26,7 @@ A to-do list for Gavin (and friends), **built into Whats Up** (Apa yang Diatas).
 - **🤖 WhatsApp Buddy**: a little reminder bot in your WhatsApp, with a personality (😊 Friendly, 💪 Coach or ⚡ Short). See [WhatsApp Buddy](#whatsapp-buddy-) below
   - **💬 WhatsApp me** on any task (the chip when adding or editing, or the details panel): at due time, 15 min / 1 hour / 1 day before, in 1 hour, this evening, tomorrow morning, or any date and time. The task shows when, then **Sent ✓**
   - Buddy's message says how long until it's due (or how late it is), its priority, your next step and the first line of its notes
-  - **Answer Buddy in WhatsApp**: `td done`, `td start`, `td snooze 30m` (or 2h, tonight, tomorrow, 3pm), `td step` (ticks the next step), `td move` (today's leftovers to tomorrow), `td help`. Changes show up in the app straight away
+  - **Answer Buddy in WhatsApp**: `td done`, `td start`, `td snooze 30m` (or 2h, tonight, tomorrow, 3pm), `td step` (ticks the next step), `td move` (today's leftovers to tomorrow), `td help`. You can also `td tomorrow`, `td upcoming`, `td overdue`, `td add …`, `td delete 2`, `td clear completed`, `td clear reminders` or `td clear buddy`. Changes show up in the app straight away
   - **Remind yourself from WhatsApp**: `td remind me to call mum at 8pm`
   - **☀️ Morning brief and 🌙 evening check-in** (Settings → WhatsApp Buddy, your own times): a numbered list, so `td done 2` ticks off number 2; the evening one has your streak 🔥 and offers `td move`
   - **Send me an example** in Settings, and an on/off switch for the admin (Admin → WhatsApp)
@@ -123,7 +123,7 @@ A to-do list for Gavin (and friends), **built into Whats Up** (Apa yang Diatas).
 
 Since 2.0 the Todolist isn't a separate website any more: it lives **inside Whats Up**, at `/todo/` on the same address, served by the same server, signed in with the same account.
 
-- In Whats Up, the **✓ button** on the left rail (top bar on phones, or **⋯ → ✓ Todolist**, or the <kbd>T</kbd> key) swaps your chats for your todolist. **Back to chats**, the ← arrow on phones, or <kbd>T</kbd> again swaps back. It loads once and then stays, so switching is instant. The red number on the button is what's due today.
+- In Whats Up, the **✓ button** on the left rail (top bar on phones, or **⋯ → ✓ Todolist**, or the <kbd>T</kbd> key) swaps your chats for your todolist. The **Whats Up logo** (💬) takes you back; on phones it is the button beside the menu, and <kbd>T</kbd> also swaps back. It loads once and then stays, so switching is instant. The red number on the button is what's due today.
 - `/u/you/#todo` opens Whats Up straight into the todolist; `/todo/` opens it on its own (handy to install on a phone's home screen for notifications).
 - Each person only ever sees **their own** tasks: the server picks your file from your Whats Up sign-in, never from anything the page sends.
 - Whats Up admins (the `admin` login, or anyone marked as an admin) get the Todolist admin as a **✓ Todolist** tab on Whats Up's admin page.
@@ -154,11 +154,14 @@ Since 2.0 the Todolist isn't a separate website any more: it lives **inside What
 | `move` | Moves today's unfinished (and overdue) tasks to tomorrow |
 | `remind me to call mum at 8pm` | Adds the task with a WhatsApp reminder (a time that's already passed means tomorrow) |
 | `add buy milk tomorrow 5pm` | Just adds a task |
+| `delete 2` · `clear completed` | Deletes a numbered task, or all completed tasks |
+| `clear reminders` | Cancels all task WhatsApp reminders and removes recent Buddy reminder/nudge messages |
+| `clear buddy` | Removes recent messages Buddy sent |
 | `help` · `hi` | The list of commands |
 
 Buddy only answers numbers that belong to a Whats Up account, stays quiet for “thanks”/“ok”, and answers anything else with one short hint (at most once every 10 minutes). If the bot's phone is offline, messages fall back to the person's own “Message yourself” chat until it's back.
 
-**Without a bot number.** Buddy writes into each person's own **“Message yourself”** chat, through their own WhatsApp (WhatsApp doesn't buzz for those). Answer there starting with `td`: `td?`, `td done`, `td snooze 1h`, `td: buy milk tomorrow 5pm`, `td help`.
+**Without a bot number.** Buddy writes into each person's own **“Message yourself”** chat, through their own WhatsApp (WhatsApp doesn't buzz for those). Answer there starting with `td`: `td?`, `td done`, `td snooze 1h`, `td add buy milk tomorrow 5pm`, `td delete 2`, `td clear reminders`, `td help`.
 
 **When.** Buddy checks every 30 seconds. A reminder that comes due while the server is down is still sent if it's less than 12 hours late; a morning or evening message is sent up to 3 hours after its time, once a day. Each reminder goes out once; changing its time, or the task's date or time for a relative one, sets it again.
 
@@ -182,7 +185,7 @@ Reminders arrive as normal phone and computer notifications, **even when the sit
 
 1. Open the site from its **https** address (your Railway domain). Browsers only allow notifications on secure addresses.
 2. **iPhone / iPad:** open `https://your-app/todo/`, tap **Share → Add to Home Screen**, then open the Todolist from the Home Screen. Apple only allows web notifications for installed web apps (iOS 16.4+).
-3. **Settings → Notifications → Turn on notifications**, allow it, then press **Send test notification**.
+3. On your first Todolist visit, keep the recommended reminder options checked, then allow browser notifications. You can change them later in **Settings → Notifications**; WhatsApp reminders are also on by default when available.
 4. Give a task a date and time. Its reminder is set to **At due time** automatically (change it with the 🔔 chip). Tapping the notification opens that task.
 
 Keys for push (VAPID) are created on first start and saved in `/data/todo`; set `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` if you'd rather manage them yourself.

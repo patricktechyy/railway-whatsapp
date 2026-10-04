@@ -430,6 +430,11 @@ body.resizing .app, body.resizing .app::before, body.resizing .resize-handle { t
 .dialog-head .icon-btn { margin: -6px -8px -6px 0; }
 .dialog h2 { font-size: var(--t-xl); letter-spacing: -.02em; }
 .dialog-actions { display: flex; align-items: center; gap: 8px; margin-top: 26px; flex-wrap: wrap; }
+.confirm-choice-actions { display: grid; grid-template-columns: 1fr; gap: 8px; }
+.confirm-choice-row { display: grid; grid-template-columns: minmax(112px, auto) minmax(0, 1fr); gap: 8px; width: 100%; }
+.confirm-choice-row .btn, .confirm-primary { min-width: 0; }
+.confirm-primary { width: 100%; }
+@media (max-width: 480px) { .confirm-choice-row { grid-template-columns: 1fr; } }
 .emoji-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; }
 .emoji-grid button { aspect-ratio: 1; border: 1px solid transparent; background: var(--field); border-radius: 10px; font-size: 18px; }
 .emoji-grid button.on { border-color: var(--leaf); background: var(--leaf-soft); }
@@ -1371,8 +1376,13 @@ body.resizing-board.y { cursor: ns-resize; } body.resizing-board.xy { cursor: nw
 
 /* ===================================================== v2: part of Whats Up ===
    The Todolist now lives inside Whats Up (/todo/). These bits are for that. */
-/* inside Whats Up's page on a phone: a back arrow to the chats, left of the menu button */
+/* inside Whats Up's page on a phone: the Whats Up logo to return to chats */
 .wa-back { display: none; }
+.wa-brand-btn { font-size: 18px; line-height: 1; }
+.side-wa { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.wa-logo { font-size: 19px; line-height: 1; }
+.wa-logo-label { line-height: 1.1; }
+.sidebar.collapsed .side-wa .wa-logo-label { display: none; }
 @media (max-width: 760px) {
   .wa-back { display: inline-grid; margin-left: -8px; }
   .wa-back + .menu-btn { margin-left: -6px; }
@@ -1391,3 +1401,15 @@ body.resizing-board.y { cursor: ns-resize; } body.resizing-board.xy { cursor: nw
 .bot-badge { margin-left: 8px; vertical-align: 2px; font-size: 11px; }
 .warn-text { color: var(--warn); }
 .buddy-privacy { display: block; margin-top: 6px; color: var(--muted); font-size: var(--t-xs); }
+
+/* first-open reminder choice: keep the recommended notification defaults easy to understand */
+.reminder-setup { max-width: 560px; }
+.reminder-setup-intro { margin-top: 10px; }
+.reminder-choice-list { display: grid; gap: 12px; margin: 20px 0 12px; }
+.reminder-choice-list .toggle { padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--field); }
+.reminder-choice-list .toggle small { display: block; margin-top: 4px; }
+.reminder-setup-actions { justify-content: flex-end; }
+@media (max-width: 560px) {
+  .reminder-setup-actions { display: grid; grid-template-columns: 1fr; }
+  .reminder-setup-actions .btn { width: 100%; }
+}

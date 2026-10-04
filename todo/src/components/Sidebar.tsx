@@ -257,9 +257,9 @@ export const Sidebar = memo(function Sidebar({ me, view, lists, tags, counts, on
       )}
 
       {onWhatsApp && (
-        <button className="btn ghost full wa-btn side-wa" onClick={onWhatsApp} title={me.home.startsWith('/u/') ? 'Back to your WhatsApp chats' : 'Back to the admin page'}>
-          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4.5 15.8 5.4 12.6A6.5 6.5 0 1 1 7.8 15z" /><path d="M8 7.5c.2 1.8 2.2 3.8 4 4l.8-1-1.3-.7-.6.6c-.8-.3-1.5-1-1.8-1.8l.6-.6-.7-1.3z" /></svg>
-          {me.home.startsWith('/u/') ? 'Back to chats' : 'Back to admin'}
+        <button className="btn ghost full wa-btn side-wa" onClick={onWhatsApp} title={me.home.startsWith('/u/') ? 'Back to your Whats Up chats' : 'Back to the admin page'} aria-label={me.home.startsWith('/u/') ? 'Back to your Whats Up chats' : 'Back to the admin page'}>
+          <span className="wa-logo" aria-hidden="true">💬</span>
+          <span className="wa-logo-label">{me.home.startsWith('/u/') ? 'Whats Up' : 'Whats Up admin'}</span>
         </button>
       )}
       <div className="side-foot">

@@ -294,8 +294,8 @@ function WhatsAppSetting({ me, on, onChange }: { me: Me; on: boolean; onChange: 
       </label>
       <WaWarning me={me} />
       {me.whatsapp.inbox && (bot
-        ? <p className="help">Tip: message Buddy <b>add buy milk tomorrow 5pm</b> to add a task, or <b>today</b> to see today’s.</p>
-        : <p className="help">Tip: message yourself <b>todo: buy milk tomorrow 5pm</b> on WhatsApp to add a task, or <b>todo?</b> to see today’s.</p>)}
+        ? <p className="help">Tip: message Buddy <b>add buy milk tomorrow 5pm</b> to add a task, <b>today</b> to list today, or <b>help</b> for all commands.</p>
+        : <p className="help">Tip: in your “Message yourself” chat, use <b>td add buy milk tomorrow 5pm</b> to add a task, or <b>td?</b> to see today’s.</p>)}
       {on && (
         <button className="btn ghost sm" disabled={busy} onClick={async () => {
           setBusy(true)
@@ -315,15 +315,20 @@ const STYLES: { key: BuddyStyle; label: string; sample: string }[] = [
 /** "td done" → "done" for the bot's chat, where you just reply (same rules as the server's plain()). */
 const plainCmd = (c: string) => c.replace(/^td\?$/, 'today').replace(/^td:\s?/, 'add ').replace(/^td /, '')
 const COMMANDS: [string, string][] = [
-  ['td?', 'today’s list, numbered'],
-  ['td done', 'finish the task Buddy just reminded you about (td done 2: number 2 on its list)'],
-  ['td start', 'mark it in progress'],
-  ['td snooze 30m', 'or 2h, tonight, tomorrow, 3pm'],
-  ['td step', 'tick its next step'],
-  ['td move', 'push today’s unfinished tasks to tomorrow'],
-  ['td remind me to call mum at 8pm', 'a task and a WhatsApp reminder in one go'],
-  ['td: buy milk tomorrow 5pm', 'just add a task'],
-  ['td help', 'this list, in WhatsApp'],
+  ['td?', 'today + overdue, numbered'],
+  ['td tomorrow', 'tomorrow’s open tasks'],
+  ['td upcoming', 'the next 7 days'],
+  ['td overdue', 'only overdue tasks'],
+  ['td add buy milk tomorrow 5pm', 'add a task (also new, todo, task, tambah)'],
+  ['td done 2', 'complete #2 from the last list; start 2 marks it in progress'],
+  ['td step 2', 'tick the next step of #2'],
+  ['td snooze 2 1h', 'remind #2 again in 1 hour'],
+  ['td move', 'move today’s unfinished tasks to tomorrow'],
+  ['td delete 2', 'delete #2; clear completed removes all finished tasks'],
+  ['td remind me to call mum at 8pm', 'make a task + WhatsApp reminder in one go'],
+  ['td clear reminders', 'cancel task WhatsApp reminders and remove recent Buddy reminder messages'],
+  ['td clear buddy', 'remove recent messages Buddy sent'],
+  ['td help', 'show the full command guide in WhatsApp'],
 ]
 
 /** WhatsApp Buddy: its personality, the daily messages, an example on demand, and what you can answer. */
@@ -348,13 +353,13 @@ function BuddySetting({ me, onChange }: { me: Me; onChange: (b: BuddySettings) =
         <p className="help buddy-intro">
           A little bot that messages you on your real WhatsApp. Choose <b>💬 WhatsApp me</b> on any task and Buddy writes to you about it
           from <b>its own number{me.whatsapp.bot.phone ? ` (${me.whatsapp.bot.phone})` : ''}</b>, so your phone buzzes like any other message, even when Whats Up isn’t open.
-          Save it as a contact (“Buddy 🤖”), and answer right in that chat: <b>done</b>, <b>snooze 1h</b>, <b>today</b>…
+          Save it as a contact (“Buddy 🤖”), and answer right in that chat: <b>done</b>, <b>snooze 1h</b>, <b>today</b>, <b>clear reminders</b>…
           <small className="buddy-privacy"> Like any WhatsApp chat, what Buddy sends you also shows on the bot’s own phone, which your admin looks after.</small>
         </p>
       ) : (
         <p className="help buddy-intro">
           A little bot in your WhatsApp. Choose <b>💬 WhatsApp me</b> on any task and Buddy messages you about it in your <b>“Message yourself”</b> chat.
-          Answer it there with <b>td done</b>, <b>td snooze 1h</b> and more.
+          Answer it there with <b>td done</b>, <b>td snooze 1h</b>, <b>td clear reminders</b> and more.
         </p>
       )}
       <WaWarning me={me} />

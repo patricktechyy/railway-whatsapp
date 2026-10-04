@@ -31,7 +31,7 @@ function defaults() {
   const now = Date.now()
   return {
     rev: 1,
-    profile: { name: '' },
+    profile: { name: '', waReminders: true },
     lists: [
       { id: id(), name: 'Personal', emoji: '🌱', color: 'blue', order: 0, createdAt: now },
       { id: id(), name: 'School', emoji: '📚', color: 'orange', order: 1, createdAt: now },
@@ -253,6 +253,7 @@ export class Store {
       if (!t.status) t.status = t.done ? 'done' : 'todo'
       if (!t.links) t.links = []
     }
+    if (doc.profile.waReminders === undefined) doc.profile.waReminders = true
     if (!doc.board) doc.board = defaultBoard()
     this.docs.set(username, doc)
     return doc
@@ -370,12 +371,12 @@ export class Store {
     return this.load(username).tasks.filter((t) => t.from?.assignment === assignmentId)
   }
 
-  /** Remove the open (unfinished) tasks of an assignment. Finished ones stay as the person's record. */
+  /** Remove every task copy belonging to an assignment, including completed and repeated copies. */
   withdrawAssignment(username, assignmentId) {
-    const open = this.tasksFrom(username, assignmentId).filter((t) => !t.done)
-    if (!open.length) return 0
-    this.change(username, (doc) => { doc.tasks = doc.tasks.filter((t) => !(t.from?.assignment === assignmentId && !t.done)) })
-    return open.length
+    const found = this.tasksFrom(username, assignmentId)
+    if (!found.length) return 0
+    this.change(username, (doc) => { doc.tasks = doc.tasks.filter((t) => t.from?.assignment !== assignmentId) })
+    return found.length
   }
 
   updateTask(username, taskId, body) {
@@ -448,6 +449,17 @@ export class Store {
       doc.tasks = doc.tasks.filter((t) => !t.done || (listId && t.listId !== listId))
       return { removed: before - doc.tasks.length }
     })
+  }
+
+  /** Cancel every WhatsApp reminder currently attached to this person's tasks. */
+  clearWaReminders(username) {
+    const doc = this.load(username)
+    const count = doc.tasks.filter((t) => !!t.wa).length
+    if (!count) return 0
+    this.change(username, (next) => {
+      for (const t of next.tasks) if (t.wa) t.wa = null
+    })
+    return count
   }
 
   // ------------------------------------------------------------ day notes
