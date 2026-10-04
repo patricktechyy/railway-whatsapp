@@ -22,12 +22,11 @@ export function ConfirmDialog({ title, children, confirmLabel, onConfirm, onCanc
       <div className="dialog-inner">
         <h2>{title}</h2>
         {children && <div className="confirm-body">{children}</div>}
-        <div className={`dialog-actions${secondary ? ' confirm-choice-actions' : ''}`}>
-          <div className="confirm-choice-row">
-            <button className="btn ghost" onClick={onCancel}>Cancel</button>
-            {secondary && <button className={`btn ${secondary.danger ? 'danger solid' : 'ghost'}`} onClick={secondary.onClick}>{secondary.label}</button>}
-          </div>
-          <button className={`btn${danger ? ' danger solid' : ''} confirm-primary`} ref={btn} onClick={onConfirm}>{confirmLabel}</button>
+        <div className="dialog-actions">
+          <span className="spacer" />
+          <button className="btn ghost" onClick={onCancel}>Cancel</button>
+          {secondary && <button className={`btn ${secondary.danger ? 'danger solid' : 'ghost'}`} onClick={secondary.onClick}>{secondary.label}</button>}
+          <button className={`btn${danger ? ' danger solid' : ''}`} ref={btn} onClick={onConfirm}>{confirmLabel}</button>
         </div>
       </div>
     </dialog>

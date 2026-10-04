@@ -173,12 +173,7 @@ export class Buddy {
     fs.writeFileSync(tmp, JSON.stringify(this.state))
     fs.renameSync(tmp, this.file)
   }
-  st(u) {
-    const out = (this.state[u] ||= { codes: {}, last: null })
-    out.codes ||= {}
-    out.sent ||= []
-    return out
-  }
+  st(u) { return (this.state[u] ||= { codes: {}, last: null }) }
   /** The numbers in Buddy's last message, so "td done 2" means its second task. */
   remember(u, ids) {
     const s = this.st(u)
@@ -232,49 +227,16 @@ export class Buddy {
    * otherwise into the person's own "Message yourself" chat. If the bot can't send
    * right now (its phone is offline), the "Message yourself" chat is the fallback.
    */
-  trackSent(u, result, { session, jid, kind = 'buddy' } = {}) {
-    if (!result?.id || !jid || !session) return result
-    const s = this.st(u)
-    const cutoff = Date.now() - 60 * 3600e3
-    s.sent = [...s.sent, { session, jid, id: result.id, at: Date.now(), kind }].filter((x) => x.at >= cutoff).slice(-150)
-    this.saveState()
-    return result
-  }
-  async send(u, text, { kind = 'buddy' } = {}) {
+  async send(u, text) {
     if (this.viaBot(u)) {
       const jid = await this.jidOf(u)
       if (jid) {
-        try {
-          const result = await this.link.call('send', { username: this.botUser, jid, text: plain(text) })
-          return this.trackSent(u, result, { session: this.botUser, jid: result?.jid || jid, kind })
-        } catch (e) {
+        try { return await this.link.call('send', { username: this.botUser, jid, text: plain(text) }) } catch (e) {
           console.warn(`[buddy] bot couldn't send to ${u} (${e.message}); using their "Message yourself" chat`)
         }
       }
     }
-    const result = await this.link.call('send', { username: u, text })
-    return this.trackSent(u, result, { session: u, jid: result?.jid, kind })
-  }
-  /** Best-effort removal of messages Buddy itself sent. WhatsApp limits delete-for-everyone to recent messages. */
-  async clearSent(u, kinds = null) {
-    const s = this.st(u)
-    const wanted = kinds ? new Set(kinds) : null
-    const matching = (s.sent || []).filter((x) => !wanted || wanted.has(x.kind))
-    if (!matching.length) return { deleted: 0, failed: 0 }
-    const keep = (s.sent || []).filter((x) => wanted ? !wanted.has(x.kind) : false)
-    let deleted = 0, failed = 0
-    for (const m of matching) {
-      try {
-        await this.link.call('delete-message', { username: m.session, jid: m.jid, id: m.id })
-        deleted++
-      } catch (e) {
-        failed++
-        console.warn(`[buddy] couldn't remove ${m.kind} message for ${u}: ${e.message}`)
-      }
-    }
-    s.sent = keep
-    this.saveState()
-    return { deleted, failed }
+    return this.link.call('send', { username: u, text })
   }
   /** How to answer. Written for the "Message yourself" chat ("td …"); plain() drops the "td" for the bot chat. */
   replyHint(_u, cmds) {
@@ -325,12 +287,6 @@ export class Buddy {
     return tasks.slice(0, MAX_LIST).map((t, i) =>
       `${i + 1}. ${t.due < today ? '⚠️' : t.status === 'doing' ? '◐' : '○'} ${t.title}${t.time && t.due === today ? ` · ${time12(t.time)}` : ''}${t.due < today ? ` _(${dayLabel(t.due, today).toLowerCase()})_` : ''}`)
   }
-  /** Tasks with a due date in [start, end), keeping the same order as today's list. */
-  dateList(u, start, end, now = Date.now()) {
-    const { doc } = this.ctx(u, now)
-    return doc.tasks.filter((t) => !t.done && t.due && t.due >= start && (!end || t.due < end))
-      .sort((a, b) => a.due.localeCompare(b.due) || (a.time || '99').localeCompare(b.time || '99') || b.priority - a.priority)
-  }
 
   morningMessage(u, now = Date.now()) {
     const { style, name, today } = this.ctx(u, now)
@@ -361,26 +317,17 @@ export class Buddy {
 
   helpMessage(u) {
     return [
-      '🤖 *Buddy commands* (start with *td*)',
-      'In the Buddy chat, you can omit *td* and just reply with the command.', '',
-      '*VIEW*',
-      '• *td?* / *td today* — today + overdue, numbered',
-      '• *td tomorrow* — tomorrow’s open tasks',
-      '• *td upcoming* — the next 7 days',
-      '• *td overdue* — only overdue tasks', '',
-      '*TASKS*',
-      '• *td add buy milk tomorrow 5pm* — add a task (also: *new*, *todo*, *task*, *tambah*)',
-      '• *td done 2* — complete #2 from the last list (same for *start* / *step*)',
-      '• *td snooze 2 1h* — remind #2 again in 1 hour',
-      '• *td move* — move today’s unfinished tasks to tomorrow',
-      '• *td delete 2* — delete #2; *td clear completed* — remove every completed task', '',
-      '*REMINDERS & CHAT*',
-      '• *td remind me to call mum at 8pm* — make a task + WhatsApp reminder',
-      '• *td clear reminders* — cancel all task WhatsApp reminders and remove recent Buddy reminder/nudge messages',
-      '• *td clear buddy* — remove recent Buddy messages it has sent', '',
-      '*QUICK SYNTAX*',
-      'Numbers come from the last Buddy list. Dates: *today*, *tomorrow*, *Mon*, or a date. Times: *5pm* / *17:00*. Add *!3* for high priority, *#tag* for a tag, *@List* for a list. Repeats like *daily*, *weekly*, or *every 2 weeks* are understood.', '',
-      `_${this.brand} · Settings → WhatsApp Buddy controls Buddy_`,
+      '🤖 *Buddy commands* (start with *td*):', '',
+      '• *td?* · today’s list, numbered',
+      '• *td done* · finish the task I last reminded you about (*td done 2*: number 2 on my last list)',
+      '• *td start* · mark it in progress',
+      '• *td snooze* 30m · 2h · tonight · tomorrow · 3pm',
+      '• *td step* · tick its next step',
+      '• *td move* · push today’s unfinished tasks to tomorrow',
+      '• *td remind me to* call mum at 8pm · a task + a WhatsApp reminder',
+      '• *td:* buy milk tomorrow 5pm · just add a task',
+      '',
+      `_${this.brand} · turn me on/off in Settings → WhatsApp Buddy_`,
     ].join('\n')
   }
 
@@ -408,38 +355,11 @@ export class Buddy {
 
     if (/^(help|h|commands|\?\?)$/.test(low)) return { reply: this.helpMessage(u) }
 
-    const show = (label, list, hint = '_td done 1 · td start 2 · td snooze 3 2h_') => {
-      this.remember(u, list.slice(0, MAX_LIST).map((t) => t.id))
-      if (!list.length) return { reply: `📋 *${label}* — nothing open 🎉` }
-      return { reply: [`📋 *${label}* (${list.length})`, ...this.numbered(list, today), list.length > MAX_LIST ? `…and ${list.length - MAX_LIST} more` : null, '', hint].filter((x) => x !== null).join('\n') }
-    }
-
     if (/^(\?|today|list|)$/.test(low)) {
-      return show('Today', this.todayList(u, now))
-    }
-    if (/^(tomorrow|tmr|besok)$/.test(low)) {
-      return show('Tomorrow', this.dateList(u, addDaysKey(today, 1), addDaysKey(today, 2)))
-    }
-    if (/^(upcoming|next 7 days|next week)$/.test(low)) {
-      return show('Upcoming · next 7 days', this.dateList(u, today, addDaysKey(today, 8)))
-    }
-    if (/^overdue$/.test(low)) {
-      return show('Overdue', this.store.snapshot(u).tasks.filter((t) => !t.done && t.due && t.due < today)
-        .sort((a, b) => a.due.localeCompare(b.due) || (a.time || '99').localeCompare(b.time || '99') || b.priority - a.priority))
-    }
-
-    // Add a task directly from Buddy/self-chat: td add / td new / td todo / td task / td tambah
-    if ((m = text.match(/^(?:add|new|todo|task|tambah)\s*:?\s+(.+)$/is))) {
-      const doc = this.store.snapshot(u)
-      const parsed = parseQuickAdd(m[1], doc.lists, today)
-      if (!parsed.title) return { reply: 'What should I add? e.g. *td add buy milk tomorrow 5pm*' }
-      const { hints: _h, ...fields } = parsed
-      if (fields.time && fields.remind === undefined) fields.remind = 0
-      const task = this.store.addTask(u, fields)
-      this.st(u).last = task.id
-      this.saveState()
-      const extras = [task.due && `${dayLabel(task.due, today)}${task.time ? `, ${time12(task.time)}` : ''}`, task.priority > 0 && `🚩 P${task.priority}`, task.tags?.length && task.tags.map((x) => `#${x}`).join(' ')].filter(Boolean)
-      return { reply: `✅ Added: *${task.title}*${extras.length ? `\n${extras.join(' · ')}` : ''}` , task }
+      const list = this.todayList(u, now)
+      this.remember(u, list.slice(0, MAX_LIST).map((t) => t.id))
+      if (!list.length) return { reply: `📋 Nothing due today 🎉\n_Add one: “td: buy milk tomorrow 5pm”_` }
+      return { reply: [`📋 *Today* (${list.length})`, ...this.numbered(list, today), list.length > MAX_LIST ? `…and ${list.length - MAX_LIST} more` : null, '', '_td done 1 · td start 2 · td snooze 3 2h_'].filter((x) => x !== null).join('\n') }
     }
 
     // done / start / step [n]
@@ -448,13 +368,12 @@ export class Buddy {
       if (error) return { reply: error }
       const verb = m[1].startsWith('start') ? 'start' : m[1] === 'step' ? 'step' : 'done'
       if (verb === 'step') {
-        const subtasks = task.subtasks || []
-        const i = subtasks.findIndex((s) => !s.done)
+        const i = task.subtasks.findIndex((s) => !s.done)
         if (i < 0) return { reply: `☑ All steps of *${task.title}* are already ticked. *td done* to finish it?` }
-        const nextSteps = subtasks.map((s, k) => (k === i ? { ...s, done: true } : s))
-        this.changed(u, this.store.updateTask(u, task.id, { subtasks: nextSteps }))
-        const left = nextSteps.filter((s) => !s.done)
-        return { reply: left.length ? `☑ Ticked: _${subtasks[i].title}_\nNext: _${left[0].title}_ (${nextSteps.length - left.length}/${nextSteps.length})` : `☑ Last step done! *td done* to finish *${task.title}* 🎉` }
+        const subtasks = task.subtasks.map((s, k) => (k === i ? { ...s, done: true } : s))
+        this.changed(u, this.store.updateTask(u, task.id, { subtasks }))
+        const left = subtasks.filter((s) => !s.done)
+        return { reply: left.length ? `☑ Ticked: _${task.subtasks[i].title}_\nNext: _${left[0].title}_ (${subtasks.length - left.length}/${subtasks.length})` : `☑ Last step done! *td done* to finish *${task.title}* 🎉` }
       }
       if (task.done) return { reply: `✅ *${task.title}* is already done.` }
       if (verb === 'start') {
@@ -481,42 +400,12 @@ export class Buddy {
     }
 
     // move: today's unfinished (and overdue) tasks to tomorrow
-    if (/^(move|move all)$/.test(low)) {
+    if (/^(move|move all|tomorrow|besok)$/.test(low)) {
       const list = this.todayList(u, now)
       if (!list.length) return { reply: 'Nothing left to move 🎉' }
       const tomorrow = addDaysKey(today, 1)
       for (const t of list) this.changed(u, this.store.updateTask(u, t.id, { due: tomorrow }))
       return { reply: `➡️ Moved ${list.length} task${list.length === 1 ? '' : 's'} to tomorrow. Fresh start! 🌱` }
-    }
-
-    // delete/remove/cancel task [n]
-    if ((m = low.match(/^(?:delete|remove|cancel)(?:\s+task)?(?:\s+#?(\d{1,2}))?$/))) {
-      const { task, error } = this.target(u, m[1] && Number(m[1]))
-      if (error) return { reply: error }
-      const removed = this.store.deleteTask(u, task.id)
-      this.changed(u, removed)
-      const s = this.st(u)
-      if (s.last === task.id) s.last = null
-      for (const [k, id] of Object.entries(s.codes || {})) if (id === task.id) delete s.codes[k]
-      this.saveState()
-      return { reply: `🗑️ Removed *${task.title}*.` }
-    }
-
-    if (/^(?:clear|clean) completed$/.test(low)) {
-      const r = this.store.clearCompleted(u)
-      return { reply: r.removed ? `🧹 Cleared ${r.removed} completed task${r.removed === 1 ? '' : 's'}.` : 'Nothing completed to clear.' }
-    }
-
-    // Cancel all task-level WhatsApp reminders and clean the recent Buddy reminder messages.
-    if (/^(?:clear|delete|remove) reminders?$/.test(low)) {
-      const count = this.store.clearWaReminders(u)
-      this.clearSent(u, ['reminder', 'nudge']).catch(() => {})
-      return { reply: count ? `🧹 Cleared ${count} task WhatsApp reminder${count === 1 ? '' : 's'}. I’m also removing recent Buddy reminder/nudge messages.` : '🧹 No task WhatsApp reminders are set. I’ll still clean recent Buddy reminder/nudge messages.' }
-    }
-
-    if (/^(?:clear|delete|remove) (?:buddy|buddy messages|messages)$/.test(low)) {
-      this.clearSent(u).catch(() => {})
-      return { reply: '🧹 I’m removing the recent messages Buddy sent from this chat.' }
     }
 
     // remind me (to) … : a task and a WhatsApp reminder
@@ -562,7 +451,7 @@ export class Buddy {
         this.store.setWaSent(u, t.id, sig) // first, so it never goes out twice
         if (now - at > LATE) continue
         try {
-          await this.send(u, this.taskMessage(u, t, { now }), { kind: 'reminder' })
+          await this.send(u, this.taskMessage(u, t, { now }))
           this.remember(u, [t.id])
           console.log(`[buddy] ${u}: "${t.title}" → WhatsApp`)
         } catch (e) { console.warn(`[buddy] ${u}: ${e.message}`) }
@@ -579,7 +468,7 @@ export class Buddy {
         s[kind] = today
         this.saveState()
         try {
-          await this.send(u, kind === 'morning' ? this.morningMessage(u, now) : this.eveningMessage(u, now), { kind })
+          await this.send(u, kind === 'morning' ? this.morningMessage(u, now) : this.eveningMessage(u, now))
           console.log(`[buddy] ${u}: ${kind} message → WhatsApp`)
         } catch (e) { console.warn(`[buddy] ${u}: ${kind} failed: ${e.message}`) }
       }

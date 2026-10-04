@@ -19,7 +19,7 @@ import { useData } from './useData'
 import { nextOccurrence } from './repeat'
 import { nextStatus, statusOf, type Status as TaskStatus } from './status'
 import { StatusBar } from './components/StatusBar'
-import { enablePush, pushEnabledHere, pushSupport, supportMessage } from './push'
+import { enablePush, pushEnabledHere, pushSupport } from './push'
 import { Fire } from './components/Fire'
 import { ChatPicker } from './components/ChatPicker'
 import { waStyle } from './components/WaPicker'
@@ -126,34 +126,7 @@ function Shell({ me, setMe }: { me: Me; setMe: (m: Me | null) => void }) {
     setMenu(false)
     if (!me.tourDone) api<Me>('/profile', 'PATCH', { tourDone: true }).then(setMe).catch(() => {})
   }
-  const [reminderSetup, setReminderSetup] = useState(false)
-  const [reminderPushOn, setReminderPushOn] = useState(true)
-  const [reminderWaOn, setReminderWaOn] = useState(me.waReminders !== false)
-  useEffect(() => {
-    if (tour) return
-    let seen = false
-    try { seen = localStorage.getItem(`todo-reminder-setup:${me.username}`) === '1' } catch {}
-    if (seen) return
-    let alive = true
-    pushEnabledHere().then((_on) => { if (alive) setReminderSetup(true) }).catch(() => { if (alive) setReminderSetup(true) })
-    setReminderWaOn(me.waReminders !== false)
-    return () => { alive = false }
-  }, [me.username, me.waReminders, tour])
-  const finishReminderSetup = async () => {
-    try { localStorage.setItem(`todo-reminder-setup:${me.username}`, '1') } catch {}
-    let pushError = ''
-    if (reminderPushOn && pushSupport() === 'ok') {
-      try { await enablePush() } catch (e: any) { pushError = e.message || 'Browser notifications could not be enabled.' }
-    }
-    try {
-      if (me.waReminders !== reminderWaOn) setMe(await api<Me>('/profile', 'PATCH', { waReminders: reminderWaOn }))
-    } catch (e: any) {
-      pushError = pushError ? `${pushError} WhatsApp: ${e.message}` : `WhatsApp: ${e.message}`
-    }
-    setReminderSetup(false)
-    if (pushError) toast(`Some reminder settings were not enabled: ${pushError}`)
-    else toast('Reminders are set up — the recommended options are on 🔔💬')
-  }
+  const [confirmRepeat, setConfirmRepeat] = useState<{ task: Task; x?: number; y?: number } | null>(null)
 
   waStyle.bot = me.whatsapp.botNumber // how Buddy's replies are worded in the pickers
   // colours follow the account, so every device looks the same
@@ -643,8 +616,8 @@ function Shell({ me, setMe }: { me: Me; setMe: (m: Me | null) => void }) {
         <div key={toHash(view)} className={`page${wide ? ' wide' : ''} page-${view.kind}`}>
           <header className="main-head">
             {framed && (
-              <button className="icon-btn wa-back wa-brand-btn" onClick={openWhatsApp} aria-label="Back to Whats Up chats" title="Back to Whats Up chats">
-                <span aria-hidden="true">💬</span>
+              <button className="icon-btn wa-back" onClick={openWhatsApp} aria-label="Back to chats" title="Back to chats">
+                <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12 4.5 6.5 10l5.5 5.5" /></svg>
               </button>
             )}
             <button className="icon-btn menu-btn" onClick={() => setMenu(true)} aria-label="Open menu">
@@ -869,17 +842,6 @@ function Shell({ me, setMe }: { me: Me; setMe: (m: Me | null) => void }) {
           </ConfirmDialog>
         )
       })()}
-      {reminderSetup && !tour && (
-        <ReminderSetupDialog
-          me={me}
-          pushOn={reminderPushOn}
-          setPushOn={setReminderPushOn}
-          waOn={reminderWaOn}
-          setWaOn={setReminderWaOn}
-          onConfirm={finishReminderSetup}
-          onLater={() => { try { localStorage.setItem(`todo-reminder-setup:${me.username}`, '1') } catch {}; setReminderSetup(false) }}
-        />
-      )}
       {listDialog && (
         <ListDialog
           list={listDialog.list}
@@ -944,42 +906,4 @@ function DayPanel({ label, children }: { label: string; children: ReactNode }) {
     }
   }, [])
   return <section ref={ref} className="day-panel" aria-label={label}>{children}</section>
-}
-
-function ReminderSetupDialog({ me, pushOn, setPushOn, waOn, setWaOn, onConfirm, onLater }: {
-  me: Me
-  pushOn: boolean
-  setPushOn: (v: boolean) => void
-  waOn: boolean
-  setWaOn: (v: boolean) => void
-  onConfirm: () => void
-  onLater: () => void
-}) {
-  const ref = useRef<HTMLDialogElement>(null)
-  useEffect(() => { const d = ref.current; if (d && !d.open) d.showModal() }, [])
-  const pushReady = pushSupport() === 'ok'
-  const waReady = me.whatsapp.configured && me.whatsapp.reminders
-  return (
-    <dialog ref={ref} className="dialog reminder-setup" onCancel={(e) => { e.preventDefault(); onLater() }} onClick={(e) => { if (e.target === ref.current) onLater() }} aria-labelledby="reminder-setup-title">
-      <div className="dialog-inner">
-        <h2 id="reminder-setup-title">Keep your reminders on? 🔔</h2>
-        <p className="help reminder-setup-intro">Recommended: keep both options on. You’ll get the normal Todolist notification on this device and, when WhatsApp is linked, a WhatsApp reminder too. You can change either setting later.</p>
-        <div className="reminder-choice-list">
-          <label className="toggle tight">
-            <input type="checkbox" checked={pushOn} disabled={!pushReady} onChange={(e) => setPushOn(e.target.checked)} />
-            <span><b>Notifications on this device</b><small>{pushReady ? ' Pop up reminders even when the site is closed.' : ` ${supportMessage(pushSupport()) || 'Not available in this browser.'}`}</small></span>
-          </label>
-          <label className="toggle tight">
-            <input type="checkbox" checked={waOn} disabled={!waReady} onChange={(e) => setWaOn(e.target.checked)} />
-            <span><b>WhatsApp reminders</b><small>{waReady ? ' Send task reminders to your WhatsApp too.' : ' Link WhatsApp first; this preference will stay on by default.'}</small></span>
-          </label>
-        </div>
-        <p className="help">The default is on because reminders are easiest to miss when they are off. Nothing is sent until you actually set a reminder for a task.</p>
-        <div className="dialog-actions reminder-setup-actions">
-          <button className="btn ghost" onClick={onLater}>Not now</button>
-          <button className="btn" onClick={onConfirm}>Keep selected on</button>
-        </div>
-      </div>
-    </dialog>
-  )
 }

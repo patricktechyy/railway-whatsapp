@@ -70,22 +70,9 @@ export class LocalLink {
       if (!jid) throw new HttpError(503, 'WhatsApp is still connecting')
       try {
         const m = await s.send(jid, String(p.text || '').slice(0, 60000))
-        return { ok: true, id: m?.id || null, jid: s.store.canon(jid) }
+        return { ok: true, id: m?.id || null }
       } catch (e) {
         throw new HttpError(e.status || 502, `WhatsApp didn’t take the message: ${e.message}`)
-      }
-    }
-    if (endpoint === 'delete-message') {
-      if (s.status !== 'connected' || !s.sock) {
-        throw new HttpError(503, `The WhatsApp of “${s.label || p.username}” isn’t connected right now (status: ${s.status})`)
-      }
-      const jid = s.store.canon(String(p.jid || ''))
-      const id = String(p.id || '')
-      if (!jid || !id) throw new HttpError(400, 'jid and id required')
-      try {
-        return await s.deleteMessage(jid, id, true)
-      } catch (e) {
-        throw new HttpError(e.status || 502, `WhatsApp couldn’t remove the message: ${e.message}`)
       }
     }
     throw new HttpError(404, `Unknown WhatsApp call: ${endpoint}`)

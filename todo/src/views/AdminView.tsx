@@ -300,8 +300,8 @@ function TasksTab({ me, people, settings, assigned, preselect, onPreselectUsed, 
   const remove = async (a: Assignment, withdraw: boolean) => {
     setConfirm(null)
     try {
-      const r = await api<{ removed: number; people?: number }>(`/admin/assignments/${a.id}${withdraw ? '?withdraw=1' : ''}`, 'DELETE')
-      toast(withdraw ? `Taken back from ${plural(r.people ?? 0, 'person', 'people')} (${r.removed} task${r.removed === 1 ? '' : 's'} removed)` : 'Removed from this list (people keep their tasks)')
+      const r = await api<{ removed: number }>(`/admin/assignments/${a.id}${withdraw ? '?withdraw=1' : ''}`, 'DELETE')
+      toast(withdraw ? `Taken back from ${plural(r.removed, 'person', 'people')}` : 'Removed from this list (people keep their tasks)')
       onChanged()
     } catch (e: any) { toast(e.message) }
   }
@@ -439,8 +439,8 @@ function TasksTab({ me, people, settings, assigned, preselect, onPreselectUsed, 
           onConfirm={() => remove(confirm, true)}
           secondary={{ label: 'Only remove it from this list', onClick: () => remove(confirm, false) }}
         >
-          <b>Take it back</b> removes every copy of this task from everyone’s list — including <b>completed</b> and <b>in-progress</b> copies. Repeating assignments and their completed rounds are taken back too.
-          <br /><br />Or just remove it from this page and let people keep their tasks.
+          <b>Take it back</b> deletes it from the lists of everyone who hasn’t finished it (finished ones stay as their record).
+          Or just remove it from this page and let people keep it.
         </ConfirmDialog>
       )}
     </div>

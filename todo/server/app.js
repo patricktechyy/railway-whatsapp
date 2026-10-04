@@ -122,7 +122,7 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
     const mine = link.status(c.u)
     return {
       username: c.u, name: nameOf(c.u), admin: c.admin, brand, version,
-      waReminders: doc.profile.waReminders !== false,
+      waReminders: !!doc.profile.waReminders,
       // 'off', a country code, or a guess from their timezone
       holidayCountry: doc.profile.holidayCountry || countryForTz(doc.profile.tz) || 'off',
       holidayCountries: Object.entries(COUNTRIES).map(([code, x]) => ({ code, name: x.name })),
@@ -193,7 +193,7 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
           lists: doc.lists.length,
           lastSeen: doc.profile.lastSeen || null,
           devices: push.devices(u).length,
-          waReminders: doc.profile.waReminders !== false,
+          waReminders: !!doc.profile.waReminders,
           tz: doc.profile.tz || null,
           // counts only: what's late is nobody's business but theirs
           overdue: doc.tasks.filter((t) => !t.done && t.due && t.due < todayIn(doc.profile.tz || 'UTC')).length,
@@ -311,9 +311,9 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
         pushed += (await push.send(u, { title: `📌 New task from ${byName}`, body: [task.title, task.due && formatWhen(task)].filter(Boolean).join(' · '), tag: `assign-${rec.id}`, taskId: task.id })).sent
         // "also tell them on WhatsApp": from the bot when there is one; without a bot only into the
         // "Message yourself" chat of people who asked for WhatsApp reminders
-        if (waOk && (buddy.viaBot(u) || store.snapshot(u).profile.waReminders !== false)) {
+        if (waOk && (buddy.viaBot(u) || store.snapshot(u).profile.waReminders)) {
           try {
-            await buddy.send(u, `📌 *${byName} gave you a task*\n\n${taskMessage(task, { today: todayIn(tzOf(u)), brand })}`, { kind: 'assignment' })
+            await buddy.send(u, `📌 *${byName} gave you a task*\n\n${taskMessage(task, { today: todayIn(tzOf(u)), brand })}`)
             buddy.remember(u, [task.id])
             whatsapp++
           } catch (e) { console.warn(`[todo/assign] ${u}: WhatsApp failed: ${e.message}`) }
@@ -338,10 +338,10 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
           n++
           store.bus.emit(u, { type: 'nudge', id: rec.id, taskId: pr.taskId, title: rec.title, by: rec.byName })
           pushed += (await push.send(u, { title: `👋 Reminder from ${rec.byName}`, body: rec.title, tag: `nudge-${rec.id}`, taskId: pr.taskId })).sent
-          if (body.whatsapp && link.enabled('reminders') && pr.taskId && (buddy.viaBot(u) || store.snapshot(u).profile.waReminders !== false)) {
+          if (body.whatsapp && link.enabled('reminders') && pr.taskId && (buddy.viaBot(u) || store.snapshot(u).profile.waReminders)) {
             const task = store.snapshot(u).tasks.find((x) => x.id === pr.taskId)
             try {
-              if (task) { await buddy.send(u, `👋 *${rec.byName} is asking about this one*\n\n${buddy.taskMessage(u, task)}`, { kind: 'nudge' }); buddy.remember(u, [task.id]); whatsapp++ }
+              if (task) { await buddy.send(u, `👋 *${rec.byName} is asking about this one*\n\n${buddy.taskMessage(u, task)}`); buddy.remember(u, [task.id]); whatsapp++ }
             } catch (e) { console.warn(`[todo/nudge] ${u}: WhatsApp failed: ${e.message}`) }
           }
         }
@@ -349,16 +349,10 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
       }
       // forget it (?withdraw=1 also takes the unfinished tasks back from everyone)
       if (!am[2] && M === 'DELETE') {
-        let removed = 0, people = 0
-        if (new URL(req.url, 'http://x').searchParams.get('withdraw') === '1') {
-          for (const u of rec.to) {
-            const n = store.withdrawAssignment(u, rec.id)
-            removed += n
-            if (n) people++
-          }
-        }
+        let removed = 0
+        if (new URL(req.url, 'http://x').searchParams.get('withdraw') === '1') for (const u of rec.to) removed += store.withdrawAssignment(u, rec.id)
         assignments.remove(rec.id)
-        return json(res, { ok: true, removed, people })
+        return json(res, { ok: true, removed })
       }
     }
 
@@ -456,7 +450,7 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
     }
     if (p === '/api/wa/test-reminder' && M === 'POST') {
       link.require('reminders')
-      await buddy.send(u, `🔔 *Test reminder*\nReminders from ${brand} will arrive ${buddy.viaBot(u) ? 'in this chat' : 'here, in your “Message yourself” chat'}.`, { kind: 'reminder' })
+      await buddy.send(u, `🔔 *Test reminder*\nReminders from ${brand} will arrive ${buddy.viaBot(u) ? 'in this chat' : 'here, in your “Message yourself” chat'}.`)
       return json(res, { ok: true })
     }
     // WhatsApp Buddy: send me an example now (a task reminder, the morning brief or the evening check-in)
@@ -474,7 +468,7 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
         text = buddy.taskMessage(u, t)
         if (open[0]) buddy.remember(u, [open[0].id])
       }
-      await buddy.send(u, text, { kind: kind === 'task' ? 'test' : kind })
+      await buddy.send(u, text)
       return json(res, { ok: true })
     }
     let dm = p.match(/^\/api\/days\/(\d{4}-\d{2}-\d{2})$/)
@@ -535,7 +529,7 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
     // don't lecture twice in a row
     if (Date.now() - (lastHelp.get(u) || 0) < 10 * 60e3) return null
     lastHelp.set(u, Date.now())
-    return `🤔 I didn’t catch that. I’m a reminder bot, so try:\n• *today* · what’s due\n• *add* buy milk tomorrow 5pm\n• *done* · finish the task I just reminded you about\n• *snooze 1h*\n• *clear reminders* · remove reminder text + cancel reminders\n• *help* · everything I understand`
+    return `🤔 I didn’t catch that. I’m a reminder bot, so try:\n• *today* · what’s due\n• *done* · finish the task I just reminded you about\n• *snooze 1h*\n• *add* buy milk tomorrow 5pm\n• *help* · everything I understand`
   }
 
   async function onWhatsApp(username, s, msg) {
@@ -569,15 +563,8 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
     if (!msg.fromMe || !self || jid !== self || !isTodoCommand(msg.text)) return
     if (!link.enabled('inbox') && !buddy.available) return
     let reply
-    const selfBody = stripTodo(msg.text)
     try {
-      const quick = selfBody.match(/^(?:add|new|todo|task|tambah)\s*:?\s+(.+)$/is)
-      if (quick) {
-        if (!link.enabled('inbox')) return
-        reply = handleInbox(store, username, `todo: ${quick[1]}`, { tz: tzOf(username), brand }).reply
-      } else {
-        reply = (buddy.available ? buddy.command(username, selfBody) : null)?.reply
-      }
+      reply = (buddy.available ? buddy.command(username, stripTodo(msg.text)) : null)?.reply
       if (!reply) {
         if (!link.enabled('inbox')) return
         reply = handleInbox(store, username, msg.text, { tz: tzOf(username), brand }).reply
