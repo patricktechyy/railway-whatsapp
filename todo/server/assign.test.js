@@ -28,7 +28,7 @@ test('checkTask validates without saving', () => {
   assert.deepEqual(s.usernames(), [])
 })
 
-test('progress follows the newest round of a repeating assignment; withdraw keeps finished ones', () => {
+test('withdraw removes every assigned copy, including completed rounds', () => {
   const s = new Store(dir())
   const t = s.addTask('zef', { title: 'Water plants', due: '2026-10-05', repeat: { freq: 'day', interval: 1 } }, { from })
   assert.equal(progressOf(s.tasksFrom('zef', 'a1')).status, 'todo')
@@ -38,9 +38,16 @@ test('progress follows the newest round of a repeating assignment; withdraw keep
   const pr = progressOf(all)
   assert.equal(pr.status, 'todo')
   assert.equal(pr.rounds, 1)
-  assert.equal(s.withdrawAssignment('zef', 'a1'), 1) // only the open copy goes
-  assert.equal(s.tasksFrom('zef', 'a1').length, 1)
-  assert.equal(progressOf(s.tasksFrom('zef', 'a1')).status, 'done')
+  assert.equal(s.withdrawAssignment('zef', 'a1'), 2) // open + completed copy
+  assert.equal(s.tasksFrom('zef', 'a1').length, 0)
+  assert.equal(progressOf(s.tasksFrom('zef', 'a1')).status, 'removed')
+
+  const doing = s.addTask('ana', { title: 'Bring notes', due: '2026-10-06', status: 'doing' }, { from })
+  assert.equal(progressOf(s.tasksFrom('ana', 'a1')).status, 'doing')
+  assert.equal(s.withdrawAssignment('ana', 'a1'), 1)
+  assert.equal(s.tasksFrom('ana', 'a1').length, 0)
+  assert.equal(progressOf(s.tasksFrom('ana', 'a1')).status, 'removed')
+  assert.ok(doing)
   assert.equal(progressOf([]).status, 'removed')
 })
 

@@ -16,7 +16,13 @@ function setup({ features = {}, bot = '' } = {}) {
   const link = {
     settings: () => ({ whatsapp: { reminders: true, buddy: true, ...features } }),
     enabled: (f) => link.settings().whatsapp[f] !== false,
-    call: async (ep, p) => { if (ep === 'status') return { phone: '+65 9123 4567' }; sent.push({ ep, ...p }); return { ok: true } },
+    call: async (ep, p) => {
+      if (ep === 'status') return { phone: '+65 9123 4567' }
+      sent.push({ ep, ...p })
+      if (ep === 'send') return { ok: true, id: `msg-${sent.length}`, jid: p.jid || '6591234567@s.whatsapp.net' }
+      if (ep === 'delete-message') return { ok: true }
+      return { ok: true }
+    },
   }
   process.env.WA_BOT_USER = bot
   const changed = []
@@ -111,6 +117,31 @@ test('replies: done, start, step, snooze, numbered lists, move, remind me', () =
   assert.equal(buddy.command('gavin', 'done laundry'), null)
   assert.ok(changed.length >= 4)
   assert.ok(b) // (water plants was finished above)
+})
+
+test('clear reminders cancels task reminders and asks WhatsApp to remove Buddy reminder text', async () => {
+  const { store, buddy, sent } = setup()
+  store.addTask('gavin', { title: 'Reminder task', wa: { at: Date.now() + 3600e3 } })
+  await buddy.send('gavin', '⏰ *Reminder task*', { kind: 'reminder' })
+  await buddy.send('gavin', 'A normal Buddy message', { kind: 'morning' })
+  const r = buddy.command('gavin', 'clear reminders')
+  assert.match(r.reply, /Cleared 1 task WhatsApp reminder/)
+  assert.equal(store.snapshot('gavin').tasks[0].wa, null)
+  await new Promise((resolve) => setImmediate(resolve))
+  const deletes = sent.filter((x) => x.ep === 'delete-message')
+  assert.equal(deletes.length, 1)
+})
+
+test('convenience commands add, tomorrow and delete work on the same numbered-list target', () => {
+  const { store, buddy } = setup()
+  const today = todayIn(TZ)
+  const r = buddy.command('gavin', 'add buy milk tomorrow 5pm !3 #groceries')
+  assert.equal(r.task.title, 'buy milk')
+  assert.equal(r.task.priority, 3)
+  assert.equal(buddy.command('gavin', 'tomorrow').reply.includes('buy milk'), true)
+  assert.match(buddy.command('gavin', 'delete 1').reply, /Removed \*buy milk\*/)
+  assert.equal(store.snapshot('gavin').tasks.some((t) => t.title === 'buy milk'), false)
+  assert.ok(today)
 })
 
 test('plain(): messages from the bot number drop the "td" (you just reply there)', async () => {
