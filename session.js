@@ -563,7 +563,11 @@ export class Session extends EventEmitter {
             this.metrics.lastInboundAt = Date.now()
             this.metrics.lastEventAt = Date.now()
             try {
-              this.emit('event', { type: 'message', message: this.publicMsg(msg) })
+              const pub = this.publicMsg(msg)
+              this.emit('event', { type: 'message', message: pub })
+              // the Todolist's WhatsApp Buddy listens here (a separate event name, so it
+              // never counts as someone looking at the page)
+              if (type === 'notify' || type === 'append') this.emit('wa:new', pub)
             } catch (e) {
               this.log('message event delivery failed:', e?.message || e)
             }
@@ -1210,6 +1214,7 @@ export class Session extends EventEmitter {
     this.metrics.lastOutboundAt = Date.now()
     this.metrics.lastEventAt = Date.now()
     if (msg) this.emit('event', { type: 'message', message: this.publicMsg(msg) })
+    if (msg) this.emit('wa:new', this.publicMsg(msg)) // typed here: Buddy's commands work from this site too
     this.emit('event', { type: 'chats' })
     return msg ? this.publicMsg(msg) : null
   }

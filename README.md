@@ -1,10 +1,11 @@
-# wa-lite — several WhatsApp accounts, each with its own login
+# wa-lite — several WhatsApp accounts, each with its own login (with Gavin's Todolist built in)
 
 ```
 https://your-app.up.railway.app/              ← everyone signs in here
 https://your-app.up.railway.app/u/ali/        ← Ali's WhatsApp (only Ali's password opens it)
-https://your-app.up.railway.app/u/budi/       ← Budi's WhatsApp
-https://your-app.up.railway.app/admin         ← you: add / remove people
+https://your-app.up.railway.app/u/ali/#todo   ← …opened straight into Ali's todolist
+https://your-app.up.railway.app/todo/         ← your todolist on its own (install it on a phone)
+https://your-app.up.railway.app/admin         ← you: people, plus the ✓ Todolist admin tab
 ```
 
 One Node process, no browser on the server. Each person has their own
@@ -12,7 +13,74 @@ username and a password **they** choose; you only decide who exists.
 
 ---
 
-## Upgrading from the previous version — read this
+## New in 3.0: Gavin's Todolist is part of Whats Up
+
+![The Todolist inside Whats Up](todo/docs/in-whatsup.png)
+
+**One app, one sign-in.** The ✓ button on the left rail (top bar on phones,
+**⋯ → ✓ Todolist**, or the <kbd>T</kbd> key) swaps your chats for your
+todolist; **Back to chats** (or <kbd>T</kbd> again) swaps back, instantly. The
+red number on it is what's due today. Every person only ever sees their own
+tasks: the server takes who you are from your Whats Up sign-in.
+
+**WhatsApp Buddy 🤖 from a real number.** Pick one Whats Up account linked to a
+spare WhatsApp number as the bot. Buddy then messages everyone's **own
+WhatsApp**, like any other contact (phones buzz, it works in the normal
+WhatsApp app, Whats Up doesn't need to be open). People reply right in that
+chat: `done`, `snooze 1h`, `today`, `add buy milk tomorrow 5pm`, `help`.
+Customise per person in the todolist's **Settings → WhatsApp Buddy**
+(personality, morning brief, evening check-in), and per task with
+**💬 WhatsApp me** (at due time, 15 min / 1 h / 1 day before, or any time).
+
+**Todolist admin tab.** `/admin` now has **💬 WhatsApp | ✓ Todolist** at the
+top. The Todolist tab: give people tasks and follow their progress, people &
+usage (counts only, never anyone's tasks), announcements, and the **Buddy bot**
+picker.
+
+Everything is in this repo: the todolist's code is in [`todo/`](todo/README.md),
+built by the Dockerfile and served by the same server. Its data lives on the same
+volume, in `/data/todo/`.
+
+### Deploying this update
+
+1. **Commit everything to GitHub** (including the new `todo/` folder, the new
+   `Dockerfile` and `package.json`). Railway builds and deploys it like before.
+   The first build takes a few minutes longer: it now also builds the todolist page.
+2. **No new variables are needed.** `ADMIN_PASSWORD` and the `/data` volume
+   stay as they are; nobody has to sign in or link again.
+3. Optional: set up the **Buddy bot** (below). Without it, Buddy still works,
+   writing into each person's own “Message yourself” chat (no buzz; they reply
+   there with `td done`).
+4. If you had the old separate Todolist service running, you can delete it (and
+   its `LINK_KEY` / `WA_URL` / `TODO_URL` variables). To keep its tasks, copy its
+   volume's `users/` folder into this volume's `/data/todo/users/` (same
+   usernames) before people start using the new one.
+
+### Setting up the Buddy bot (once, ~5 minutes)
+
+1. Get a **spare number** with WhatsApp: a cheap prepaid SIM in an old phone,
+   or **WhatsApp Business** on your own phone with a second SIM/eSIM. Don't use
+   someone's personal WhatsApp: the bot reads every message people send it.
+2. `/admin` → **Add person** → username `buddy`, display name `Buddy 🤖` →
+   open the setup link **in a private window** and give it a password.
+3. In that private window, sign in as `buddy` and **scan the QR code** with the
+   spare phone (WhatsApp → Settings → Linked devices → Link a device).
+4. `/admin` → **✓ Todolist** tab → **WhatsApp** → **Bot account** → pick
+   *Buddy 🤖*. Press **Check the bot & message me**: if you're signed in with
+   your own account, the bot sends you a hello on WhatsApp.
+5. Tell everyone to save the bot's number as a contact (“Buddy 🤖”) and to turn
+   on **Settings → Notifications → Also send my reminders to WhatsApp** and
+   **WhatsApp Buddy** in the todolist.
+
+Keep the spare phone charged and online now and then (WhatsApp unlinks a device
+whose phone has been offline for ~14 days). If the bot is offline, Buddy falls
+back to each person's “Message yourself” chat until it's back. Buddy only
+writes to people who turned it on (or when you tick **Also send it on
+WhatsApp** while giving someone a task), at human pace, and only answers
+numbers that belong to a Whats Up account. It's still an unofficial client
+(see *Things to know*), so keep it to reminders, not mass messages.
+
+## Upgrading from 1.x (the browser/VNC version)
 
 **1. Push and deploy.** Nothing to delete. On first boot the new version finds
 your old `/data/session-1`, `/data/session-2`… folders and turns them into users
@@ -92,7 +160,7 @@ in the deploy logs (search for `admin password:`), and saved to the volume.
 | Add someone | Type a username and name → **Add** → copy the link → send it to them. |
 | Someone forgot their password | **Reset password** → send the new link. Their WhatsApp stays linked. |
 | Someone lost/changed their phone | **Unlink phone**. They scan a new QR next time they sign in. |
-| Remove someone | **Remove** → type their username to confirm. Unlinks their phone and deletes their data here. |
+| Remove someone | **Remove** → type their username to confirm. Unlinks their phone and deletes their data here. Their todolist is put aside in `/data/todo/removed/`. |
 
 Usernames and display names are fixed once created. If you got one wrong,
 remove and re-add the person — ideally before they link their phone.
@@ -115,6 +183,10 @@ yourself — they'd notice, because it signs them out.)
 | `DATA_DIR` | `/data` | Must match the volume mount. |
 | `WA_LOG` | `info` while linking, `warn` after | Baileys' own logging. `debug` for more detail, `silent` for none. |
 | `WA_VERSION` | auto | Force a WhatsApp Web version, e.g. `2.3000.1047506285`. Only if the logs show 405s that don't clear on their own. |
+| `BOT_USER` | *(none)* | Optional. Lock the Todolist's Buddy bot to this username (otherwise pick it in `/admin` → ✓ Todolist → WhatsApp). |
+| `TODO_BRAND` | `Gavin's Todolist` | Name the Todolist uses in WhatsApp messages. |
+| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | generated | Todolist push-notification keys; made and saved in `/data/todo` if unset. |
+| `VAPID_SUBJECT` | repo URL | Contact for push services, e.g. `mailto:you@example.com`. |
 
 ## Many people, many devices
 
@@ -185,6 +257,10 @@ what's happening:
 | "This account has no password yet" | Ask the admin for a setup link. |
 | Everyone logged out after a deploy | The `/data` volume isn't mounted. |
 | Build fails fetching libsignal | Keep `git` in the Dockerfile's `apk add` line. |
+| `/todo/` says “The Todolist page isn't built yet” | You're running `node server.js` without building: `npm run build:todo` once (the Dockerfile does this for you on Railway). |
+| Buddy's messages arrive in “Message yourself” instead of from the bot | The bot account isn't connected (see `/admin` → ✓ Todolist → WhatsApp), or the person's own WhatsApp isn't linked yet, so Buddy doesn't know their number. |
+| The bot doesn't answer someone | It only answers numbers that belong to a Whats Up account, and only if that account's WhatsApp is linked (that's how it knows whose number it is). |
+| Todolist build fails on Railway | The `todo/package-lock.json` must be committed; the build runs `npm ci` with it. |
 
 ## Versioning
 
@@ -192,4 +268,4 @@ what's happening:
 
 - **PATCH** (2.9.**1**): fixes only.
 - **MINOR** (2.**9**.0): an update that adds features. Reset PATCH to 0.
-- **MAJOR** (**2**.0.0): a rebuild that changes how the app works or is set up. 1.x was the browser/VNC version; 2.x is the lightweight rewrite.
+- **MAJOR** (**2**.0.0): a rebuild that changes how the app works or is set up. 1.x was the browser/VNC version; 2.x is the lightweight rewrite; 3.x has Gavin's Todolist built in.

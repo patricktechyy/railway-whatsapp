@@ -63,7 +63,8 @@ document.getElementById('f').addEventListener('submit', async (e) => {
       method: 'POST', headers: {'content-type': 'application/json'},
       body: JSON.stringify({
         username: String(usernameInput.value ?? ''),
-        password: String(passwordInput.value ?? '')
+        password: String(passwordInput.value ?? ''),
+        next: new URLSearchParams(location.search).get('next') || ''
       })
     });
     const d = await r.json();

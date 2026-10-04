@@ -13,6 +13,16 @@
   backdrop-filter: saturate(1.4) blur(10px); -webkit-backdrop-filter: saturate(1.4) blur(10px); border-bottom: 1px solid var(--line); }
 .topbar .in { max-width: 1120px; margin: 0 auto; padding: 12px 24px; display: flex; align-items: center; gap: 12px; }
 .topbar .mark { width: 34px; height: 34px; }
+.atabs { display: inline-flex; gap: 4px; padding: 4px; border-radius: 999px; background: var(--field); border: 1px solid var(--line); flex: none; }
+.atabs button { border: 0; background: none; color: var(--muted); font: inherit; font-size: var(--t-sm); font-weight: 600; padding: 7px 14px; border-radius: 999px; cursor: pointer; white-space: nowrap; transition: background-color .15s, color .15s; }
+.atabs button:hover { color: var(--ink); }
+.atabs button.on { background: var(--surface); color: var(--ink); box-shadow: 0 1px 3px rgba(0, 0, 0, .12); }
+#todoAdmin { position: relative; }
+body.todo-tab { height: 100vh; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+body.todo-tab #todoAdmin { flex: 1; min-height: 0; }
+#todoAdmin iframe { width: 100%; height: 100%; border: 0; display: block; }
+#todoAdmin .tp-wait { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: var(--t-sm); }
+@media (max-width: 640px) { .atabs button span { display: none; } .atabs button { padding: 7px 12px; font-size: 16px; } }
 .topbar .brand { flex: 1; min-width: 0; line-height: 1.15; }
 .topbar .brand b { display: block; font-size: var(--t-md); font-weight: 800; letter-spacing: -.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .topbar .brand span { color: var(--muted); font-size: var(--t-xs); font-weight: 600; }
@@ -98,11 +108,15 @@ details.older summary { cursor: pointer; color: var(--muted); font-size: var(--t
 <header class="topbar"><div class="in">
   <span class="mark" style="width:34px;height:34px"><svg viewBox="0 0 48 48" aria-hidden="true"><path fill="var(--leaf)" d="M15 3.5 L22.5 13 H33 A11 11 0 0 1 44 24 V31 A11 11 0 0 1 33 42 H15 A11 11 0 0 1 4 31 V24 A11 11 0 0 1 11.5 13.4 Z"/><path d="M16 31.5 24 23.5 32 31.5" fill="none" stroke="var(--leaf-ink)" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
   <div class="brand"><b data-egg>__BRAND__</b><span>Admin</span></div>
+  <nav class="atabs" role="tablist" aria-label="Which admin">
+    <button role="tab" data-t="wa" aria-selected="true" class="on">💬 <span>WhatsApp</span></button>
+    <button role="tab" data-t="todo" aria-selected="false">✓ <span>Todolist</span></button>
+  </nav>
   <a class="btn ghost" id="backChats" href="/" hidden>Back to chats</a>
   <button class="btn ghost" id="logout">Sign out</button>
 </div></header>
 
-<main class="admin">
+<main class="admin" id="waAdmin">
   <section aria-label="Overview">
     <div class="overview" id="stats"><div class="empty" style="flex:1">Loading…</div></div>
     <p class="note">This page shows activity only: who's online here and when. Messages, chats and contacts are never visible to the admin.</p>
@@ -150,6 +164,8 @@ details.older summary { cursor: pointer; color: var(--muted); font-size: var(--t
     </aside>
   </div>
 </main>
+<!-- Gavin's Todolist admin: giving people tasks, Buddy bot, announcements (counts only, never anyone's own tasks) -->
+<section id="todoAdmin" hidden aria-label="Todolist admin"><div class="tp-wait">Loading the Todolist admin…</div></section>
 <div id="toast"></div>
 
 <script>
@@ -210,7 +226,7 @@ async function load() {
       u.reconnects ? `${u.reconnects} reconnect${u.reconnects === 1 ? '' : 's'} since restart` : '',
       u.lastLoginAt ? 'Signed in ' + ago(u.lastLoginAt) : '', u.storageBytes != null ? mb(u.storageBytes) + ' stored' : ''].filter(Boolean);
     return `<div class="user" data-u="${esc(u.username)}" data-n="${esc(u.name)}">
-      <div class="av">${esc((u.name || u.username).split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase())}</div>
+      <div class="av">${esc(Array.from((u.name || u.username).split(/\s+/).map(w => Array.from(w)[0] || '').join('')).slice(0, 2).join('').toUpperCase())}</div>
       <div class="who">
         <div class="l1"><b>${esc(u.name)}</b><span>@${esc(u.username)}</span>${u.phone ? `<span>${esc(u.phone)}</span>` : ''}</div>
         <div class="tags">${u.isAdmin ? '<span class="badge ok">Admin</span>' : ''}${presence}<span class="badge ${tone}">${esc(st)}</span><span class="badge ${pw[1]}">${pw[0]}</span></div>
@@ -353,6 +369,25 @@ async function loadStats() {
 loadStats(); setInterval(loadStats, 15000);
 load(); setInterval(load, 5000);
 
+// ---- WhatsApp ⇄ Todolist admin
+let todoAdminFrame = null;
+function adminTab(t, push = true) {
+  const todo = t === 'todo';
+  document.querySelectorAll('.atabs button').forEach((b) => { const on = b.dataset.t === t; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); });
+  $('#waAdmin').hidden = todo;
+  $('#todoAdmin').hidden = !todo;
+  document.body.classList.toggle('todo-tab', todo);
+  if (todo && !todoAdminFrame) {
+    todoAdminFrame = document.createElement('iframe');
+    todoAdminFrame.title = 'Todolist admin';
+    todoAdminFrame.src = '/todo/?embed=admin';
+    todoAdminFrame.addEventListener('load', () => $('#todoAdmin .tp-wait')?.remove());
+    $('#todoAdmin').append(todoAdminFrame);
+  }
+  if (push) history.replaceState(null, '', todo ? '#todolist' : location.pathname);
+}
+document.querySelectorAll('.atabs button').forEach((b) => b.addEventListener('click', () => adminTab(b.dataset.t)));
+if (location.hash === '#todolist') adminTab('todo', false);
 $('#addToggle').addEventListener('click', () => {
   const open = $('#addpanel').hidden;
   $('#addpanel').hidden = !open; $('#addToggle').setAttribute('aria-expanded', String(open));

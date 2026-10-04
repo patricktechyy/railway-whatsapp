@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { Session } from './session.js'
 import { getHistoryDays } from './store.js'
 import { Auth, COOKIE, HttpError, MIN_PASSWORD } from './auth.js'
+import { createTodo } from './todo/server/app.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 // Works both flat (repo root) and in the Docker layout (src/ + public/).
@@ -92,10 +93,12 @@ const auth = new Auth(DATA_DIR)
 
 // ------------------------------------------------------------- sessions ---
 const sessions = new Map()
+let todo = null // Gavin's Todolist (set up below, once sign-in helpers exist)
 
 function startSession(user, delay = 0) {
   const s = new Session({ key: user.username, label: user.name, dir: path.join(DATA_DIR, user.dir) })
   sessions.set(user.username, s)
+  todo?.attach(user.username, s) // WhatsApp Buddy hears "td …" and replies to the bot
   s.schedule(delay)
   return s
 }
@@ -148,6 +151,17 @@ function setCookie(req, res, value, maxAge) {
 }
 const whoami = (req) => auth.verify(readCookie(req))
 const landing = (c) => (c?.k === 'admin' ? '/admin' : c?.k === 'user' ? `/u/${c.u}/` : '/')
+/** Where to go after signing in, when a page sent you here (only our own pages, e.g. /todo/). */
+const safeNext = (n) => {
+  n = String(n || '')
+  return /^\/(todo\/|u\/|admin)/.test(n) && /^[\x21-\x7e]+$/.test(n) && !n.startsWith('//') && !n.includes('\\') ? n : null
+}
+
+// ----------------------------------------------------------- the Todolist ---
+// Gavin's Todolist lives at /todo/, signed in with the same accounts. Its data is
+// kept on the same volume, in /data/todo.
+todo = createTodo({ dataDir: path.join(DATA_DIR, 'todo'), auth, sessions, whoami, version: VERSION })
+for (const [username, s] of sessions) todo.attach(username, s)
 
 function readBody(req, limit) {
   return new Promise((resolve, reject) => {
@@ -222,20 +236,22 @@ async function route(req, res) {
     return send(res, 200, tpl('ui.css'), { 'content-type': 'text/css; charset=utf-8', 'cache-control': 'public, max-age=86400' })
   }
   if (p === '/healthz') return send(res, 200, 'ok', { 'content-type': 'text/plain' })
+  // Gavin's Todolist: its page and API (signed in with your Whats Up account)
+  if ((p === '/todo' || p.startsWith('/todo/')) && (await todo.handle(req, res, url))) return
   if (p === '/favicon.ico') return send(res, 204, '')
 
   // ---------------------------------------------------------- login/out
   if (p === '/' && M === 'GET') {
     const c = whoami(req)
-    if (c) return redirect(res, landing(c))
+    if (c) return redirect(res, safeNext(url.searchParams.get('next')) || landing(c))
     return page(res, render('login.html', {}))
   }
   if (p === '/api/login' && M === 'POST') {
     requireJson(req)
-    const { username, password } = await readJson(req)
+    const { username, password, next } = await readJson(req)
     const claims = await auth.login(clientIp(req), username, password)
     setCookie(req, res, auth.sign(claims), 30 * 24 * 3600)
-    return json(res, { redirect: landing(claims) })
+    return json(res, { redirect: safeNext(next) || landing(claims) })
   }
   if (p === '/api/easter-egg' && M === 'GET') return json(res, { messages: eggMessages().messages })
   if (p === '/api/logout' && M === 'POST') {
@@ -369,6 +385,7 @@ async function route(req, res) {
         sessions.delete(username)
         auth.remove(username)
         await s?.destroy()
+        todo.forget(username) // their todolist is put aside too
         console.log(`[admin] removed user ${username}`)
         return json(res, { ok: true })
       }
