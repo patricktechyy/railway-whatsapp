@@ -44,7 +44,7 @@ export function taskMessage(t, { today, listName, brand }) {
   if (t.notes?.trim()) lines.push('', t.notes.trim())
   if (t.links?.length) lines.push('', ...t.links.map((l) => `🔗 ${l.title ? `${l.title}: ` : ''}${l.url}`))
   if (t.tags?.length) lines.push('', t.tags.map((x) => `#${x}`).join(' '))
-  lines.push('', `_— from ${brand}_`)
+  lines.push('', `_from ${brand}_`)
   return lines.join('\n')
 }
 
@@ -67,7 +67,7 @@ export const isTodoCommand = (text) => INBOX_RE.test(text) || /^\s*todo\s*\??\s*
  *   todo?  /  todo today                   → lists today's open tasks
  * Returns the reply to send back to the same chat.
  */
-export function handleInbox(store, username, text, { tz, brand }) {
+export function handleInbox(store, username, text, { tz }) {
   const today = todayIn(tz)
   const raw = String(text || '').trim()
   const body = raw.replace(INBOX_RE, '').trim()
@@ -76,7 +76,7 @@ export function handleInbox(store, username, text, { tz, brand }) {
   if (!body || /^(\?|today|list)$/i.test(body) || /^todo\s*\?$/i.test(raw)) {
     const open = doc.tasks.filter((t) => !t.done && t.due && t.due <= today)
       .sort((a, b) => a.due.localeCompare(b.due) || (a.time || '99').localeCompare(b.time || '99'))
-    if (!open.length) return { reply: `📋 Nothing due today 🎉\n_Add one: “todo: buy milk tomorrow 5pm”_` }
+    if (!open.length) return { reply: '📋 Nothing due today.' }
     const rows = open.slice(0, 20).map((t) => `${t.status === 'doing' ? '◐' : '○'} ${t.title}${t.time ? ` · ${time12(t.time)}` : ''}${t.due < today ? ' _(overdue)_' : ''}`)
     return { reply: `📋 *Today* (${open.length})\n${rows.join('\n')}${open.length > 20 ? `\n…and ${open.length - 20} more` : ''}` }
   }
@@ -94,5 +94,5 @@ export function handleInbox(store, username, text, { tz, brand }) {
     list && `${list.emoji} ${list.name}`,
     task.links?.length && `🔗 ${task.links.map((l) => hostOf(l.url)).join(', ')}`,
   ].filter(Boolean)
-  return { reply: `✅ Added: *${task.title}*${extra.length ? `\n${extra.join(' · ')}` : ''}\n_in ${brand}_`, task }
+  return { reply: `✅ Added: *${task.title}*${extra.length ? `\n${extra.join(' · ')}` : ''}`, task }
 }

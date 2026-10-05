@@ -13,6 +13,24 @@ username and a password **they** choose; you only decide who exists.
 
 ---
 
+## New in 3.2
+
+- **Message → task.** Long-press (or the ⌄ on) any message → ✅ Add to todolist. The date and time in the message are picked up ("by friday 5pm"), and the task links back to the chat.
+- **Send later.** Type a message, tap the clock next to send, pick a time. Scheduled messages show above the box in that chat until they go out, and can be cancelled. They're sent from the server, so your browser can be closed. Text only (no attachments or replies).
+- **Groups in the Todolist.** Make a group, add people, and share a task list: give a task to someone or leave it for anyone. Everyone sees changes live. Your own todolist stays private.
+- **Calendar link.** Todolist → Settings → Calendar gives a private link to subscribe to from Google Calendar, Apple Calendar or Outlook. Renew it there if it ever leaks.
+- **Backup** (admin page). Downloads everything in `/data` as a `.tar.gz`: accounts, WhatsApp logins, todolists. Only the `ADMIN_PASSWORD` login can do this. Keep the file somewhere safe; it can sign in to everyone's WhatsApp.
+- Buddy has just two styles now, **Long** and **Short**. Old choices map to Long.
+- Less text everywhere: shorter tips, fewer hints.
+
+**Restoring a backup:** on a fresh volume, extract it into `/data` (the archive has a `data/` folder at the top):
+
+```
+tar -xzf whatsup-backup-YYYYMMDD-HHMM.tar.gz -C /
+```
+
+Then restart the service. On Railway the easiest way is a one-off shell (`railway ssh`) with the file uploaded somewhere it can fetch.
+
 ## New in 3.1: notifications that actually show up
 
 - **Todolist notifications reach the notification bar on phones and Macs**, not just Windows. One service worker now looks after the whole site (it used to cover only `/todo/`, so Whats Up itself and installed phones missed out), and permission is asked through the Whats Up page, which Safari needs. Devices already set up are moved over by themselves.
@@ -39,7 +57,7 @@ WhatsApp**, like any other contact (phones buzz, it works in the normal
 WhatsApp app, Whats Up doesn't need to be open). People reply right in that
 chat: `done`, `snooze 1h`, `today`, `add buy milk tomorrow 5pm`, `help`.
 Customise per person in the todolist's **Settings → WhatsApp Buddy**
-(personality, morning brief, evening check-in), and per task with
+(Long or Short, morning brief, evening check-in), and per task with
 **💬 WhatsApp me** (at due time, 15 min / 1 h / 1 day before, or any time).
 
 **Todolist admin tab.** `/admin` now has **💬 WhatsApp | ✓ Todolist** at the

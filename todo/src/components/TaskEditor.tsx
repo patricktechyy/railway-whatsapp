@@ -13,6 +13,8 @@ import { CalendarIcon, DatePicker } from './DatePicker'
 import { RepeatIcon, RepeatPicker } from './RepeatPicker'
 import { Switch } from './Switch'
 import { enablePush, permission, pushSupport } from '../push'
+import { openWhatsAppChat } from '../api'
+import { WhatsUpLogo } from './Login'
 import { AddLinkForm, ExtLink, LinkIcon } from './Links'
 import { WaIcon, WaPicker, describeWa } from './WaPicker'
 
@@ -151,7 +153,13 @@ export function TaskEditor({ task, lists, weekStartsMonday, onChange, onToggle, 
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5 5 15" /></svg>
         </button>
       </header>
-      {task.from && <p className="from-note">📌 Given to you by <b>{task.from.name}</b>. It’s yours now: edit, move or finish it like any task.</p>}
+      {task.from && <p className="from-note">📌 From <b>{task.from.name}</b></p>}
+      {task.chat && (
+        <p className="from-note chat-note">
+          <WhatsUpLogo size={16} /> From your chat with <b>{task.chat.name}</b>
+          <button type="button" className="linkish" onClick={() => openWhatsAppChat(task.chat!.jid)}>Open chat</button>
+        </p>
+      )}
 
       <div className="editor-body">
         <div className="group-card">
@@ -205,7 +213,7 @@ export function TaskEditor({ task, lists, weekStartsMonday, onChange, onToggle, 
           <SelectRow icon={<BellIcon />} label="Early reminder" value={task.due ? remindLabel.replace('No reminder', 'None') : 'None'} onClick={remind.toggle} anchorRef={remind.ref} disabled={!task.due} />
           {waOn && <SelectRow icon={<WaIcon />} label="WhatsApp me" value={describeWa(task) || 'Off'} onClick={wa.toggle} anchorRef={wa.ref} />}
         </div>
-        {!task.due && <p className="help card-help">Turn on Date to set a reminder. Choosing a repeat starts it today.</p>}
+        {!task.due && <p className="help card-help">Set a date to add a reminder.</p>}
         {wa.open && (
           <Popover anchor={wa.anchor} onClose={wa.close} label="WhatsApp me" width={300}>
             <WaPicker task={task} onPick={(v) => { onChange({ wa: v }); wa.close() }} />

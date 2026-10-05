@@ -14,7 +14,7 @@ import { api } from '../api'
  * call close() ourselves, because React's StrictMode (npm run dev) runs effects
  * twice and a close() there fired `onClose` and shut the dialog as it opened.
  */
-function Dialog({ title, onClose, children, className = '', closeButton = false }: { title: string; onClose: () => void; children: ReactNode; className?: string; closeButton?: boolean }) {
+export function Dialog({ title, onClose, children, className = '', closeButton = false }: { title: string; onClose: () => void; children: ReactNode; className?: string; closeButton?: boolean }) {
   const ref = useRef<HTMLDialogElement>(null)
   useEffect(() => {
     const d = ref.current
@@ -89,7 +89,6 @@ export function ListDialog({ list, onSave, onDelete, onClose }: {
           </div>
           <span className="row custom-color-row">
             <HexInput value={isHex(color) ? color : null} placeholder="#ff5500" label="List" onChange={(v) => setColor(v || 'blue')} />
-            <span className="help">Pick one of the colours, or tap <b>+</b> for any colour you like.</span>
           </span>
         </div>
         <div className="dialog-actions">
@@ -127,7 +126,7 @@ export function SettingsDialog({ me, prefs, setPrefs, onRename, onWaReminders, o
               <input className="input" value={name} onChange={(e) => setName(e.target.value)} maxLength={60} />
               <button className="btn ghost" disabled={!name.trim() || name.trim() === me.name}>Save</button>
             </span>
-            <span className="help">Signed in as <b>{me.username}</b>, your Whats Up account. Only you can see your tasks.</span>
+            <span className="help">Signed in as <b>{me.username}</b>. Only you can see your tasks.</span>
           </label>
         </form>
       </section>
@@ -150,18 +149,18 @@ export function SettingsDialog({ me, prefs, setPrefs, onRename, onWaReminders, o
       <section className="set-section">
         <h3 className="set-title">Tasks</h3>
         <div className="field">
-          <span className="label">Tasks display</span>
+          <span className="label">Display</span>
           <label className="toggle tight">
             <input type="checkbox" checked={prefs.showProgress} onChange={(e) => setPrefs({ showProgress: e.target.checked })} />
-            <span>Show progress bars <small>(the red/yellow/green bar on each page and under each task)</small></span>
+            <span>Progress bars</span>
           </label>
           <label className="toggle tight">
             <input type="checkbox" checked={prefs.showStatus} onChange={(e) => setPrefs({ showStatus: e.target.checked })} />
-            <span>Show status labels <small>(Not started · In progress · Completed)</small></span>
+            <span>Status labels</span>
           </label>
           <label className="toggle tight">
             <input type="checkbox" checked={prefs.celebrate} onChange={(e) => setPrefs({ celebrate: e.target.checked })} />
-            <span>Celebrate when I finish a task 🎉</span>
+            <span>Confetti when I finish a task</span>
           </label>
         </div>
         <div className="field">
@@ -170,27 +169,27 @@ export function SettingsDialog({ me, prefs, setPrefs, onRename, onWaReminders, o
             {REMIND_OPTIONS.map((o) => <option key={String(o.value)} value={o.value === null ? 'none' : String(o.value)}>{o.value === null ? 'No reminder' : o.label}</option>)}
             {prefs.defaultRemind !== null && !REMIND_OPTIONS.some((o) => o.value === prefs.defaultRemind) && <option value={String(prefs.defaultRemind)}>{describeRemind(prefs.defaultRemind)}</option>}
           </select>
-          <span className="help">Given to a task when you first set its time. Any task can have its own, including a custom one (🔔 → Custom…).</span>
+          <span className="help">Used when you first give a task a time.</span>
         </div>
       </section>
 
       <section className="set-section">
         <h3 className="set-title">Calendar</h3>
         <div className="field">
-          <span className="label">Public holidays on the calendar</span>
+          <span className="label">Public holidays</span>
           <select className="input" value={me.holidayCountry} onChange={(e) => onHolidayCountry(e.target.value)} aria-label="Public holidays country">
             <option value="off">Don’t show holidays</option>
             {me.holidayCountries.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
           </select>
-          <span className="help">Holiday days are shaded red, with their name.</span>
         </div>
         <div className="field">
-          <span className="label">Calendar weeks start on</span>
+          <span className="label">Week starts on</span>
           <div className="seg" role="radiogroup" aria-label="Week start">
             <button role="radio" aria-checked={prefs.weekStartsMonday} className={prefs.weekStartsMonday ? 'on' : ''} onClick={() => setPrefs({ weekStartsMonday: true })}>Monday</button>
             <button role="radio" aria-checked={!prefs.weekStartsMonday} className={!prefs.weekStartsMonday ? 'on' : ''} onClick={() => setPrefs({ weekStartsMonday: false })}>Sunday</button>
           </div>
         </div>
+        <CalendarFeedSetting />
       </section>
 
       <section className="set-section">
@@ -201,7 +200,7 @@ export function SettingsDialog({ me, prefs, setPrefs, onRename, onWaReminders, o
           <span className="row wrap">
             <label className="toggle tight">
               <input type="checkbox" checked={prefs.sound} onChange={(e) => setPrefs({ sound: e.target.checked })} />
-              <span>Play a sound for notifications <small>(while Whats Up or the Todolist is open; closed, your device plays its own notification sound)</small></span>
+              <span>Play a sound <small>(while the app is open)</small></span>
             </label>
             <button type="button" className="btn ghost sm" disabled={!prefs.sound} onClick={() => { try { localStorage.removeItem('todo-chime-at') } catch {}; chime().unlock(); chime().play() }}>▶ Hear it</button>
           </span>
@@ -221,11 +220,10 @@ export function SettingsDialog({ me, prefs, setPrefs, onRename, onWaReminders, o
         <div className="field">
           <span className="label">Tutorial</span>
           <span className="row wrap">
-            <button type="button" className="btn ghost" onClick={onTour}>▶ Start the tutorial</button>
-            <span className="help">A quick tour of every part of the app. Next, Back or Skip whenever you like.</span>
+            <button type="button" className="btn ghost" onClick={onTour}>Start the tutorial</button>
           </span>
         </div>
-        <p className="help about">Version {me.version} · Your name, appearance and holidays follow your account; the other settings are saved on this device.</p>
+        <p className="help about">Version {me.version} · Name, look and holidays sync with your account. Everything else is saved on this device.</p>
       </section>
 
       <div className="dialog-actions pinned">
@@ -259,19 +257,19 @@ export function NotificationsSetting() {
       {support !== 'ok' ? (
         <p className="help">{supportMessage(support)}</p>
       ) : blocked ? (
-        <p className="help">Notifications are blocked for this site. Allow them in your browser's site settings (the 🔒 next to the address), then come back here. {deviceTip().replace(/^Nothing showed\? /, '')}</p>
+        <p className="help">Notifications are blocked for this site. Allow them in your browser’s site settings (the 🔒 by the address), then come back. {deviceTip().replace(/^Nothing showed\? /, '')}</p>
       ) : on ? (
         <>
-          <span className="badge ok"><i className="dot" />On: reminders pop up even when the site is closed</span>
+          <span className="badge ok"><i className="dot" />On for this device</span>
           <div className="row wrap notif-actions">
-            <button className="btn ghost sm" disabled={busy} onClick={() => run(testPush, () => { toast('Test sent. It should pop up in a moment 🔔'); setTip(deviceTip()) })}>Send test notification</button>
+            <button className="btn ghost sm" disabled={busy} onClick={() => run(testPush, () => { toast('Test sent'); setTip(deviceTip()) })}>Send a test</button>
             <button className="btn quiet sm" disabled={busy} onClick={() => run(disablePush, () => setOn(false))}>Turn off</button>
           </div>
         </>
       ) : (
         <>
-          <p className="help">Get a pop-up for each reminder, like a message, even when this site is closed.</p>
-          <button className="btn" disabled={busy || on === null} onClick={() => run(enablePush, () => { setOn(true); toast('Notifications are on 🔔') })}>
+          <p className="help">Get reminders as pop-ups, even when the site is closed.</p>
+          <button className="btn" disabled={busy || on === null} onClick={() => run(enablePush, () => { setOn(true); toast('Notifications on') })}>
             {busy ? 'Turning on…' : 'Turn on notifications'}
           </button>
         </>
@@ -289,59 +287,54 @@ const waWhere = (me: Me) => me.whatsapp.botNumber && me.whatsapp.bot
 
 /** Not linked yet / the bot's phone is offline: said once, where it matters. */
 function WaWarning({ me }: { me: Me }) {
-  if (!me.whatsapp.linked) return <p className="help warn-text">⚠️ Link your WhatsApp first: open your chats in Whats Up and scan the QR code. Until then nothing can reach you on WhatsApp.</p>
-  if (me.whatsapp.botNumber && me.whatsapp.bot && !me.whatsapp.bot.connected) return <p className="help warn-text">⚠️ Buddy’s own number is offline right now, so its messages go to your “Message yourself” chat until it’s back.</p>
+  if (!me.whatsapp.linked) return <p className="help warn-text">Link your WhatsApp first: open Whats Up and scan the QR code.</p>
+  if (me.whatsapp.botNumber && me.whatsapp.bot && !me.whatsapp.bot.connected) return <p className="help warn-text">Buddy’s number is offline, so messages go to “Message yourself” for now.</p>
   return null
 }
 
 /** Reminders on WhatsApp: from the Buddy bot when the admin set one up, else your "Message yourself" chat. */
 function WhatsAppSetting({ me, on, onChange }: { me: Me; on: boolean; onChange: (on: boolean) => void }) {
   const [busy, setBusy] = useState(false)
-  const bot = me.whatsapp.botNumber
   return (
     <div className="field">
       <span className="label">WhatsApp</span>
       <label className="toggle tight">
         <input type="checkbox" checked={on} onChange={(e) => onChange(e.target.checked)} />
-        <span>Also send my reminders to WhatsApp <small>({waWhere(me)})</small></span>
+        <span>Also send reminders to WhatsApp <small>({waWhere(me)})</small></span>
       </label>
       <WaWarning me={me} />
-      {me.whatsapp.inbox && (bot
-        ? <p className="help">Tip: message Buddy <b>add buy milk tomorrow 5pm</b> to add a task, <b>today</b> to list today, or <b>help</b> for all commands.</p>
-        : <p className="help">Tip: in your “Message yourself” chat, use <b>td add buy milk tomorrow 5pm</b> to add a task, or <b>td?</b> to see today’s.</p>)}
       {on && (
         <button className="btn ghost sm" disabled={busy} onClick={async () => {
           setBusy(true)
-          try { await api('/wa/test-reminder', 'POST', {}); toast('Sent. Check your WhatsApp 💬') } catch (e: any) { toast(e.message) }
+          try { await api('/wa/test-reminder', 'POST', {}); toast('Sent, check WhatsApp') } catch (e: any) { toast(e.message) }
           setBusy(false)
-        }}>Send a test to my WhatsApp</button>
+        }}>Send a test</button>
       )}
     </div>
   )
 }
 
 const STYLES: { key: BuddyStyle; label: string; sample: string }[] = [
-  { key: 'friendly', label: '😊 Friendly', sample: 'Hey Gavin! 👋 Just a little nudge about this one: *Physics lab report* (in 2 h). You’ve got this 🌟' },
-  { key: 'coach', label: '💪 Coach', sample: 'Let’s go, Gavin! 💪 Time to crush this: *Physics lab report* (in 2 h). Start now, thank yourself later 🔥' },
-  { key: 'short', label: '⚡ Short', sample: '⏰ *Physics lab report* · Today, 4:00 PM (in 2 h)' },
+  { key: 'friendly', label: 'Long', sample: 'Hi Gavin, reminder…\n\n📝 *Physics lab report*\n📅 Today, 4:00 PM (in 2 h)\n☑ 1/3 steps · next: _graphs_' },
+  { key: 'short', label: 'Short', sample: '⏰ *Physics lab report* · Today, 4:00 PM (in 2 h)' },
 ]
 /** "td done" → "done" for the bot's chat, where you just reply (same rules as the server's plain()). */
 const plainCmd = (c: string) => c.replace(/^td\?$/, 'today').replace(/^td:\s?/, 'add ').replace(/^td /, '')
 const COMMANDS: [string, string][] = [
-  ['td?', 'today + overdue, numbered'],
-  ['td tomorrow', 'tomorrow’s open tasks'],
-  ['td upcoming', 'the next 7 days'],
-  ['td overdue', 'only overdue tasks'],
-  ['td add buy milk tomorrow 5pm', 'add a task (also new, todo, task, tambah)'],
-  ['td done 2', 'complete #2 from the last list; start 2 marks it in progress'],
+  ['td?', 'today and overdue, numbered'],
+  ['td tomorrow', 'tomorrow’s tasks'],
+  ['td upcoming', 'next 7 days'],
+  ['td overdue', 'overdue only'],
+  ['td add buy milk tomorrow 5pm', 'add a task'],
+  ['td done 2', 'complete #2 (start 2 marks it in progress)'],
   ['td step 2', 'tick the next step of #2'],
-  ['td snooze 2 1h', 'remind #2 again in 1 hour'],
-  ['td move', 'move today’s unfinished tasks to tomorrow'],
-  ['td delete 2', 'delete #2; clear completed removes all finished tasks'],
-  ['td remind me to call mum at 8pm', 'make a task + WhatsApp reminder in one go'],
-  ['td clear reminders', 'cancel task WhatsApp reminders and remove recent Buddy reminder messages'],
-  ['td clear buddy', 'remove recent messages Buddy sent'],
-  ['td help', 'show the full command guide in WhatsApp'],
+  ['td snooze 2 1h', 'remind about #2 in an hour'],
+  ['td move', 'push today’s unfinished tasks to tomorrow'],
+  ['td delete 2', 'delete #2 (clear completed removes all done tasks)'],
+  ['td remind me to call mum at 8pm', 'add a task with a WhatsApp reminder'],
+  ['td clear reminders', 'cancel WhatsApp reminders and clear Buddy’s recent reminder messages'],
+  ['td clear buddy', 'clear Buddy’s recent messages'],
+  ['td help', 'full command list'],
 ]
 
 /** WhatsApp Buddy: its personality, the daily messages, an example on demand, and what you can answer. */
@@ -352,11 +345,11 @@ function BuddySetting({ me, onChange }: { me: Me; onChange: (b: BuddySettings) =
   const [help, setHelp] = useState(false)
   const set = (patch: Partial<BuddySettings>) => { const next = { ...b, ...patch }; setB(next); onChange(next) }
   if (!me.whatsapp.buddy) {
-    return <p className="help">{me.whatsapp.reminders ? 'Your admin has turned WhatsApp Buddy off.' : 'WhatsApp Buddy needs WhatsApp reminders, which your admin has turned off.'}</p>
+    return <p className="help">{me.whatsapp.reminders ? 'Your admin has turned Buddy off.' : 'Buddy needs WhatsApp reminders, which your admin has turned off.'}</p>
   }
   const test = async () => {
     setBusy(true)
-    try { await api('/buddy/test', 'POST', { kind }); toast('Sent. Check your WhatsApp 💬') } catch (e: any) { toast(e.message) }
+    try { await api('/buddy/test', 'POST', { kind }); toast('Sent, check WhatsApp') } catch (e: any) { toast(e.message) }
     setBusy(false)
   }
   const style = STYLES.find((x) => x.key === b.style) || STYLES[0]
@@ -364,15 +357,14 @@ function BuddySetting({ me, onChange }: { me: Me; onChange: (b: BuddySettings) =
     <div className="buddy">
       {me.whatsapp.botNumber && me.whatsapp.bot ? (
         <p className="help buddy-intro">
-          A little bot that messages you on your real WhatsApp. Choose <b>💬 WhatsApp me</b> on any task and Buddy writes to you about it
-          from <b>its own number{me.whatsapp.bot.phone ? ` (${me.whatsapp.bot.phone})` : ''}</b>, so your phone buzzes like any other message, even when Whats Up isn’t open.
-          Save it as a contact (“Buddy 🤖”), and answer right in that chat: <b>done</b>, <b>snooze 1h</b>, <b>today</b>, <b>clear reminders</b>…
-          <small className="buddy-privacy"> Like any WhatsApp chat, what Buddy sends you also shows on the bot’s own phone, which your admin looks after.</small>
+          Pick <b>💬 WhatsApp me</b> on a task and Buddy messages you from <b>its own number{me.whatsapp.bot.phone ? ` (${me.whatsapp.bot.phone})` : ''}</b>.
+          Reply in that chat with <b>done</b>, <b>snooze 1h</b> or <b>today</b>.
+          <small className="buddy-privacy"> Its messages also show on the bot’s phone, which your admin looks after.</small>
         </p>
       ) : (
         <p className="help buddy-intro">
-          A little bot in your WhatsApp. Choose <b>💬 WhatsApp me</b> on any task and Buddy messages you about it in your <b>“Message yourself”</b> chat.
-          Answer it there with <b>td done</b>, <b>td snooze 1h</b>, <b>td clear reminders</b> and more.
+          Pick <b>💬 WhatsApp me</b> on a task and Buddy messages you in <b>“Message yourself”</b>.
+          Reply there with <b>td done</b> or <b>td snooze 1h</b>.
         </p>
       )}
       <WaWarning me={me} />
@@ -386,7 +378,7 @@ function BuddySetting({ me, onChange }: { me: Me; onChange: (b: BuddySettings) =
       <div className="field">
         <label className="toggle tight">
           <input type="checkbox" checked={b.on} onChange={(e) => set({ on: e.target.checked })} />
-          <span>Daily messages <small>(a morning brief of what’s due and an evening check-in; reply <b>td done 2</b> or <b>td move</b>)</small></span>
+          <span>Daily messages <small>(morning brief and evening check-in)</small></span>
         </label>
         {b.on && (
           <div className="buddy-times">
@@ -415,11 +407,47 @@ function BuddySetting({ me, onChange }: { me: Me; onChange: (b: BuddySettings) =
           <button className="btn ghost sm" disabled={busy} onClick={test}>{busy ? 'Sending…' : 'Send me an example'}</button>
         </span>
       </div>
-      <button type="button" className="linkish" onClick={() => setHelp(!help)} aria-expanded={help}>{help ? 'Hide' : 'Show'} what you can answer</button>
+      <button type="button" className="linkish" onClick={() => setHelp(!help)} aria-expanded={help}>{help ? 'Hide' : 'Show'} commands</button>
       {help && (
         <dl className="buddy-commands">
           {COMMANDS.map(([c, d]) => <div key={c}><dt><code>{me.whatsapp.botNumber ? plainCmd(c) : c}</code></dt><dd>{me.whatsapp.botNumber ? d.replace(/td (done|start)/g, '$1') : d}</dd></div>)}
         </dl>
+      )}
+    </div>
+  )
+}
+
+/** Your tasks in Google / Apple Calendar: a private subscription link. */
+function CalendarFeedSetting() {
+  const [url, setUrl] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const load = (renew = false) => {
+    setBusy(true)
+    api<{ url: string }>(renew ? '/calendar/renew' : '/calendar', renew ? 'POST' : 'GET', renew ? {} : undefined)
+      .then((r) => { setUrl(r.url); if (renew) toast('New link made, the old one no longer works') })
+      .catch((e) => toast(e.message))
+      .finally(() => setBusy(false))
+  }
+  const webcal = url ? url.replace(/^https?:/, 'webcal:') : ''
+  const copy = () => url && navigator.clipboard?.writeText(url).then(() => toast('Link copied'), () => toast('Couldn’t copy'))
+  return (
+    <div className="field cal-feed">
+      <span className="label">Calendar app</span>
+      {!url ? (
+        <button className="btn ghost sm" disabled={busy} onClick={() => load()}>Get calendar link</button>
+      ) : (
+        <>
+          <div className="row">
+            <input className="input sm" readOnly value={url} onFocus={(e) => e.target.select()} aria-label="Calendar link" />
+            <button className="btn ghost sm" onClick={copy}>Copy</button>
+          </div>
+          <div className="row wrap">
+            <a className="btn ghost sm" href={webcal}>Apple Calendar</a>
+            <a className="btn ghost sm" href={`https://calendar.google.com/calendar/r?cid=${encodeURIComponent(webcal)}`} target="_blank" rel="noopener">Google Calendar</a>
+            <button className="btn quiet sm" disabled={busy} onClick={() => { if (confirm('Make a new link? Calendars using the old one will stop updating.')) load(true) }}>New link</button>
+          </div>
+          <span className="help">Keep this link private: anyone with it can see your dated tasks. Google can take a few hours to update.</span>
+        </>
       )}
     </div>
   )

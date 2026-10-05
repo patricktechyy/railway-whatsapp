@@ -27,6 +27,7 @@ export interface Task {
   spawnedId?: string // a finished repeat: the copy it created for the next date
   from?: TaskFrom // given to you by the admin (only the server sets this)
   wa?: WaRemind | null // "💬 WhatsApp me": WhatsApp Buddy messages you about it
+  chat?: { jid: string; name: string } | null // made from a WhatsApp message in this chat
   priority: Priority
   tags: string[]
   subtasks: Subtask[]
@@ -38,7 +39,7 @@ export interface Task {
 
 /** An exact moment (ms) or minutes before the due time; `sent` is set by the server once it went out. */
 export interface WaRemind { at?: number; before?: number; sent?: string }
-export type BuddyStyle = 'friendly' | 'coach' | 'short'
+export type BuddyStyle = 'friendly' | 'short' // shown as Long / Short
 export interface BuddySettings { on: boolean; style: BuddyStyle; morning: string | null; evening: string | null }
 
 export interface TaskFrom { by: string; name: string; assignment: string }
@@ -143,5 +144,13 @@ export type View =
   | { kind: 'tag'; tag: string }
   | { kind: 'admin' }
   | { kind: 'board' }
+  | { kind: 'group'; id: string }
+
+/** Someone with a Whats Up account. */
+export interface Person { username: string; name: string }
+/** A task in a group: like your own, plus who it's for and who did it. */
+export interface GroupTask extends Task { assignee: string | null; by: string; doneBy: string | null }
+/** A few people sharing one task list. */
+export interface Group { id: string; name: string; emoji: string; owner: string; members: Person[]; tasks: GroupTask[]; rev: number; createdAt: number }
 
 export type TaskInput = Partial<Omit<Task, 'id' | 'order' | 'createdAt' | 'updatedAt' | 'doneAt'>>

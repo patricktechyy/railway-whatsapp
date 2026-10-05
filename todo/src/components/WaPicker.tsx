@@ -70,7 +70,7 @@ export function WaPicker({ task, onPick }: { task: Pick<Task, 'due' | 'time' | '
 
   return (
     <div className="menu wa-picker" role="menu">
-      <p className="menu-note help">🤖 WhatsApp Buddy will message you{waStyle.bot ? ' from its own number' : ''}, and you can answer <b>{waStyle.bot ? 'done' : 'td done'}</b> or <b>{waStyle.bot ? 'snooze 1h' : 'td snooze 1h'}</b>.</p>
+      <p className="menu-note help">Reply <b>{waStyle.bot ? 'done' : 'td done'}</b> or <b>{waStyle.bot ? 'snooze 1h' : 'td snooze 1h'}</b> on WhatsApp.</p>
       {presets.map((p) => <MenuItem key={p.label} label={p.label} sub={p.sub} selected={is(p.wa)} onClick={() => onPick(p.wa)} />)}
       {custom ? (
         <form className="menu-custom" onSubmit={submit}>

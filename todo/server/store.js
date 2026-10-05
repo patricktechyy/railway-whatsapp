@@ -133,7 +133,7 @@ function cleanLinks(v) {
   const out = []
   for (const l of v.slice(0, 40)) {
     const url = cleanUrl(typeof l === 'string' ? l : l?.url)
-    if (!url) throw new HttpError(400, 'Links must be web addresses starting with http:// or https://')
+    if (!url) throw new HttpError(400, 'Links must start with http:// or https://')
     if (!out.some((x) => x.url === url)) out.push({ url, title: str(l?.title, 80) })
   }
   return out.slice(0, 20)
@@ -157,7 +157,16 @@ function cleanWa(v) {
   return { at: Math.round(at) }
 }
 
-const BUDDY_STYLES = ['friendly', 'coach', 'short']
+/** The WhatsApp chat a task came from ("Add to todolist" on a message): which chat, and its name then. */
+const JID_RE = /^[0-9a-z.:_-]{3,80}@(s\.whatsapp\.net|g\.us|lid)$/i
+function cleanChat(v) {
+  if (!v) return null
+  const jid = String(v.jid || '')
+  if (!JID_RE.test(jid)) throw new HttpError(400, 'Invalid chat')
+  return { jid, name: str(v.name, 60) || 'WhatsApp chat' }
+}
+
+const BUDDY_STYLES = ['friendly', 'short'] // Long / Short
 /** WhatsApp Buddy settings: on/off, personality, and the morning / evening messages ('HH:MM' or null). */
 function cleanBuddy(v) {
   const t = (x) => (typeof x === 'string' && TIME_RE.test(x) ? x : null)
@@ -169,8 +178,8 @@ function cleanTags(v) {
   return [...new Set(v.map((t) => str(t, 24).replace(/^#/, '').toLowerCase()).filter(Boolean))].slice(0, 10)
 }
 
-/** Apply the fields present in `body` to `task`, validating each. */
-function applyTask(task, body, doc) {
+/** Apply the fields present in `body` to `task`, validating each. (Group tasks use it too, with no lists.) */
+export function applyTask(task, body, doc) {
   if ('title' in body) {
     const t = str(body.title, 300)
     if (!t) throw new HttpError(400, 'A task needs a title')
@@ -212,6 +221,7 @@ function applyTask(task, body, doc) {
   if ('links' in body) task.links = cleanLinks(body.links)
   if ('subtasks' in body) task.subtasks = cleanSubtasks(body.subtasks)
   if ('wa' in body) task.wa = cleanWa(body.wa)
+  if ('chat' in body) task.chat = cleanChat(body.chat)
   // status (not started / in progress / completed) and `done` always agree
   if ('status' in body || 'done' in body) {
     let status = STATUSES.includes(body.status) ? body.status : null

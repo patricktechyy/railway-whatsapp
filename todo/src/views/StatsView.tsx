@@ -159,14 +159,13 @@ export function StatsView({ tasks, lists, onOpen, overdueShowAll, onOverdueShowA
         <div className="tiles">
           <Tile label="Done today" value={doneCount.get(today) || 0} note={dueToday.length ? `${dueTodayDone} of ${dueToday.length} due today` : 'Nothing due today'} tone="ok" />
           <Tile label="Done this week" value={weekDone} note="Last 7 days" />
-          <Tile label="Still to do" onClick={onShowTodo} go="Show these tasks" value={open.length} note={open.length ? 'Open tasks' : 'All clear ✨'} />
-          <Tile label="Overdue" onClick={onShowOverdue} go="Show overdue tasks" value={overdue.length} note={overdue.length ? `Oldest: ${lateBy(overdue[0])}` : 'Nothing overdue 🎉'} tone={overdue.length ? 'danger' : 'ok'} />
+          <Tile label="Still to do" onClick={onShowTodo} go="Show these tasks" value={open.length} note={open.length ? 'Open tasks' : 'All clear'} />
+          <Tile label="Overdue" onClick={onShowOverdue} go="Show overdue tasks" value={overdue.length} note={overdue.length ? `Oldest: ${lateBy(overdue[0])}` : 'None'} tone={overdue.length ? 'danger' : 'ok'} />
         </div>
       </div>
       <aside className="stats-side">
         <section className="card">
           <h2>Progress by list</h2>
-          <p className="help">Done out of all tasks in each list</p>
           {perList.length === 0 ? <p className="muted">No tasks yet.</p> : (
             <ul className="progress-list">
               {perList.map((l) => (
@@ -185,7 +184,6 @@ export function StatsView({ tasks, lists, onOpen, overdueShowAll, onOverdueShowA
         </section>
         <section className="card">
           <h2>Open by priority</h2>
-          <p className="help">What's still waiting</p>
           <ul className="prio-list">
             {[3, 2, 1, 0].map((p) => {
               const n = open.filter((t) => t.priority === p).length
@@ -203,7 +201,6 @@ export function StatsView({ tasks, lists, onOpen, overdueShowAll, onOverdueShowA
         </section>
         <section className="card">
           <h2>Status</h2>
-          <p className="help">All tasks, by where they're at</p>
           <StatusBar tasks={tasks} label="All tasks" />
         </section>
       </aside>
@@ -212,12 +209,11 @@ export function StatsView({ tasks, lists, onOpen, overdueShowAll, onOverdueShowA
           <div className="chart-head">
             <div>
               <h2>Overdue</h2>
-              <p className="help">{overdue.length ? 'Most late first. Click one to open it.' : 'Past their due date and not done yet'}</p>
             </div>
             {overdue.length > 0 && <span className="badge danger"><i className="dot" />{overdue.length}</span>}
           </div>
           {overdue.length === 0 ? (
-            <p className="muted">Nothing overdue 🎉 You're on top of it.</p>
+            <p className="muted">Nothing overdue.</p>
           ) : (
             <ul className="overdue-list">
               {(overdueShowAll ? overdue : overdue.slice(0, OVERDUE_PREVIEW)).map((t) => {
@@ -246,8 +242,8 @@ export function StatsView({ tasks, lists, onOpen, overdueShowAll, onOverdueShowA
             </button>
           )}
         </section>
-        <Columns title="Tasks completed" sub="Per day, last 14 days" unit="Completed" bars={past} highlight={today} />
-        <Columns title="Coming up" sub="Open tasks due each day, next 14 days" unit="Due" bars={ahead} highlight={today} />
+        <Columns title="Tasks completed" sub="Last 14 days" unit="Completed" bars={past} highlight={today} />
+        <Columns title="Coming up" sub="Open tasks due, next 14 days" unit="Due" bars={ahead} highlight={today} />
       </div>
     </div>
   )

@@ -2,14 +2,14 @@ import { useEffect, useState } from 'react'
 import { CUSTOM_KEYS, GRADIENTS, PRESET_DEFAULTS, PRESET_LABEL, applyAppearance, basePreset, contrast, effective, emptyCustom, inkOn } from '../appearance'
 import type { Appearance, BasePreset, CustomKey, CustomLook, Gradient } from '../types'
 
-const FIELDS: Record<CustomKey, { label: string; help: string }> = {
-  sidebar: { label: 'Sidebar', help: 'The menu on the left' },
-  accent: { label: 'Accent', help: 'Links, highlights, switches, selected items' },
-  button: { label: 'Buttons', help: 'Add, Save, Done…' },
-  taskBg: { label: 'Task cards', help: 'The cards your tasks sit on' },
-  page: { label: 'Page background', help: 'Behind everything' },
-  card: { label: 'Panels & cards', help: 'Boxes, dialogs, blocks' },
-  text: { label: 'Text', help: 'The main writing colour' },
+const FIELDS: Record<CustomKey, { label: string; help?: string }> = {
+  sidebar: { label: 'Sidebar' },
+  accent: { label: 'Accent', help: 'Links, switches, selected items' },
+  button: { label: 'Buttons' },
+  taskBg: { label: 'Task cards' },
+  page: { label: 'Page background' },
+  card: { label: 'Panels', help: 'Dialogs and blocks' },
+  text: { label: 'Text' },
 }
 const DIRECTIONS = [{ a: 90, label: '→', name: 'Left to right' }, { a: 135, label: '↘', name: 'Diagonal down' }, { a: 180, label: '↓', name: 'Top to bottom' }, { a: 45, label: '↗', name: 'Diagonal up' }]
 const DEFAULT_PZ: Gradient = { from: '#7c83f7', to: '#a855f7', angle: 135 }
@@ -39,7 +39,7 @@ function PersonalizeColors({ value, onChange }: { value: Gradient | null | undef
               <input type="color" value={g[k]} onChange={(e) => onChange({ ...g, [k]: e.target.value.toLowerCase() })} aria-label={`Gradient ${k} colour`} />
               Aa
             </label>
-            <span className="color-text"><b>{k === 'from' ? 'From' : 'To'}</b><small>{k === 'from' ? 'Where the gradient starts' : 'Where it ends'}</small></span>
+            <span className="color-text"><b>{k === 'from' ? 'From' : 'To'}</b></span>
             <HexInput value={value ? value[k] : null} placeholder={g[k]} label={`Gradient ${k}`} onChange={(v) => v && onChange({ ...g, [k]: v })} />
           </li>
         ))}
@@ -96,9 +96,8 @@ export function AppearanceSettings({ value, onChange }: { value: Appearance | nu
       {a.preset !== 'custom' ? (
         <div className="row wrap preset-note">
           <span className="help">
-            {a.preset === 'discord' ? 'Discord’s greys with blurple buttons.' : a.preset === 'mono' ? 'Black & white with a blue sidebar.' : 'The original green look.'}
-            {' '}Follows light / dark mode.
-            {a.custom && CUSTOM_KEYS.some((k) => a.custom![k]) && <> Your Custom colours are saved: pick <b>🎨 Custom</b> to use them again.</>}
+            {a.preset === 'discord' ? 'Discord’s greys with blurple buttons.' : a.preset === 'mono' ? 'Black and white, blue sidebar.' : 'The original green look.'}
+            {a.custom && CUSTOM_KEYS.some((k) => a.custom![k]) && <> Your custom colours are still saved.</>}
           </span>
           <span className="spacer" />
           <button type="button" className="btn ghost sm" onClick={() => update({ ...a, preset: 'custom', custom: a.custom ? a.custom : emptyCustom(a.preset as BasePreset) })}>
@@ -124,16 +123,15 @@ export function AppearanceSettings({ value, onChange }: { value: Appearance | nu
                     <input type="color" value={cur} onChange={(e) => setCustom({ [k]: e.target.value.toLowerCase() })} aria-label={`${FIELDS[k].label} colour`} />
                     Aa
                   </label>
-                  <span className="color-text"><b>{FIELDS[k].label}</b><small>{FIELDS[k].help}</small></span>
+                  <span className="color-text"><b>{FIELDS[k].label}</b>{FIELDS[k].help && <small>{FIELDS[k].help}</small>}</span>
                   <HexInput value={custom[k]} placeholder={custom[k] ? '' : 'style’s own'} label={FIELDS[k].label} onChange={(v) => setCustom({ [k]: v })} />
                   <button type="button" className="btn quiet sm" disabled={!custom[k]} onClick={() => setCustom({ [k]: null })}>Reset</button>
                 </li>
               )
             })}
           </ul>
-          {hardToRead && <p className="help warn-text">⚠️ The text may be hard to read on these panels. Try a darker text or a lighter panel colour.</p>}
+          {hardToRead && <p className="help warn-text">The text might be hard to read on these panels.</p>}
           <div className="row wrap">
-            <span className="help">Saved to your account. Colours you leave as “style’s own” still follow light / dark mode; status colours (red, yellow, green) never change.</span>
             <span className="spacer" />
             <button type="button" className="btn ghost sm" onClick={() => setCustom({ ...emptyCustom(custom.base) })}>Reset custom</button>
           </div>

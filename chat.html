@@ -143,6 +143,23 @@ html[data-locked] #lock{display:flex}
 #delDlg .col{display:flex;flex-direction:column;gap:8px;margin-top:14px}
 #delDlg .col .btn{width:100%}
 #delDlg .col .danger{background:var(--danger);color:#fff}
+/* add to todolist / send later */
+#taskDlg .dlg,#schedDlg .dlg{max-width:400px}
+.dlg .pair{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.dlg .chips{display:flex;flex-wrap:wrap;gap:6px}
+.dlg .chips button{border:1px solid var(--line);background:var(--field);color:inherit;border-radius:999px;padding:7px 12px;font:inherit;font-size:13px;cursor:pointer}
+.dlg .chips button.on{background:var(--leaf);border-color:var(--leaf);color:var(--leaf-ink,#fff)}
+#schedBar{background:var(--panel);border-top:1px solid var(--line);padding:6px 12px;font-size:13px}
+#schedBar[hidden]{display:none}
+#schedToggle{background:none;border:0;color:var(--muted);font:inherit;cursor:pointer;padding:2px 0;display:flex;align-items:center;gap:6px}
+#schedToggle:hover{color:var(--fg)}
+#schedList{list-style:none;margin:6px 0 2px;padding:0;display:grid;gap:4px}
+#schedList li{display:flex;align-items:center;gap:10px;padding:6px 8px;border-radius:8px;background:var(--hover)}
+#schedList .when{flex:none;font-weight:600;font-variant-numeric:tabular-nums}
+#schedList .txt{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--muted)}
+#schedList .bad{color:var(--danger)}
+#schedList button{flex:none;background:none;border:0;color:var(--muted);cursor:pointer;font-size:15px;padding:0 4px}
+#schedList button:hover{color:var(--danger)}
 #editbar{display:none;align-items:center;gap:10px;padding:8px 12px;background:var(--panel);border-top:1px solid var(--line)}
 #editbar.on{display:flex}
 #editbar .q{flex:1;min-width:0;border-left:3px solid var(--accent);padding:2px 10px;font-size:13px}
@@ -608,7 +625,7 @@ html:root[data-theme="dark"][data-accent]{--out:color-mix(in srgb,var(--accent) 
     <button class="rb" id="rTodo" title="Todolist (T)"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="4.5"/><path d="m8 12.2 2.7 2.7L16.2 9.3"/></svg><span class="rcount due" id="rTodoN" hidden></span></button>
     <span class="grow"></span>
     <button class="rb" id="rLock" title="Lock now (L)"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="10.5" width="15" height="10" rx="2.2"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/></svg></button>
-    <button class="rb" id="rBlur" title="Blur the chat list"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.8"/></svg></button>
+    <button class="rb" id="rBlur" title="Blur chat list (B)"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.8"/></svg></button>
     <button class="rb" id="rPrefs" title="Appearance &amp; settings"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h9M17 7h3M4 12h3M11 12h9M4 17h11M19 17h1"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="17" r="2"/></svg></button>
     <button class="rb" id="rDock" title="Auto-hide this bar"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="4" width="17" height="16" rx="2.5"/><path d="M9.5 4v16"/><path d="M16 10l-2 2 2 2"/></svg></button>
     <span class="rsep"></span>
@@ -621,7 +638,7 @@ html:root[data-theme="dark"][data-accent]{--out:color-mix(in srgb,var(--accent) 
       <button class="ib" id="menuBtn" title="Menu"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="12" r="1.1" fill="currentColor"/><circle cx="12" cy="12" r="1.1" fill="currentColor"/><circle cx="18" cy="12" r="1.1" fill="currentColor"/></svg></button>
       <span class="grow"></span>
       <button class="ib mob" id="lockBtn" title="Lock now (L)"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="10.5" width="15" height="10" rx="2.2"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/></svg></button>
-      <button class="ib mob" id="blurBtn" title="Blur the chat list (hover a chat to peek)">👁</button>
+      <button class="ib mob" id="blurBtn" title="Blur chat list (hover to peek)">👁</button>
       <button class="ib mob todo-ib" id="todoBtn" title="Todolist"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="4.5"/><path d="m8 12.2 2.7 2.7L16.2 9.3"/></svg><span class="rcount due" id="todoBtnN" hidden></span></button>
       <button class="ib" id="newBtn" title="New chat"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4.5H6.5a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V13"/><path d="M17.8 3.7a1.9 1.9 0 0 1 2.7 2.7L12 14.9l-3.5.8.8-3.5z"/></svg></button>
     </div>
@@ -651,7 +668,6 @@ html:root[data-theme="dark"][data-accent]{--out:color-mix(in srgb,var(--accent) 
         <div class="me"><b>New chat</b></div>
       </div>
       <input class="search" id="ncq" placeholder="Name or number with country code" autocomplete="off" inputmode="search">
-      <div class="hint">Pick a contact, or type a full number like 6591234567.</div>
       <div class="list" id="nclist"></div>
     </div>
   </aside>
@@ -665,17 +681,17 @@ html:root[data-theme="dark"][data-accent]{--out:color-mix(in srgb,var(--accent) 
       <div class="av sm" id="tav" hidden></div>
       <div id="title"><b>Select a chat</b><small></small></div>
       <div id="chatActs">
-      <button class="pill" id="grpBtn" title="See, add or remove people in this group" hidden>👥 Members</button>
-      <button class="pill" id="nickBtn" title="Give this chat a nickname that only you see on this site" hidden>✏️ Nickname</button>
-      <button class="pill" id="pinBtn" title="Pin this chat to the top on this site (your phone isn't affected)" hidden>📌 Pin</button>
-      <button class="pill" id="archBtn" title="Archive or unarchive this chat on this site (your phone isn't affected)" hidden>📦 Archive</button>
+      <button class="pill" id="grpBtn" title="Group members" hidden>👥 Members</button>
+      <button class="pill" id="nickBtn" title="Nickname only you can see" hidden>✏️ Nickname</button>
+      <button class="pill" id="pinBtn" title="Pin to top (this site only)" hidden>📌 Pin</button>
+      <button class="pill" id="archBtn" title="Archive (this site only)" hidden>📦 Archive</button>
       </div>
       <button class="ib" id="chatMore" title="Chat options" aria-haspopup="true" hidden><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="8" cy="12" r=".9" fill="currentColor"/><circle cx="12" cy="12" r=".9" fill="currentColor"/><circle cx="16" cy="12" r=".9" fill="currentColor"/></svg></button>
     </div>
-    <div id="msgs"><div class="empty">Pick a conversation, or start a new one with <svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align:-3px" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4.5H6.5a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V13"/><path d="M17.8 3.7a1.9 1.9 0 0 1 2.7 2.7L12 14.9l-3.5.8.8-3.5z"/></svg>.</div></div>
+    <div id="msgs"><div class="empty">Pick a chat, or start one with <svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align:-3px" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4.5H6.5a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V13"/><path d="M17.8 3.7a1.9 1.9 0 0 1 2.7 2.7L12 14.9l-3.5.8.8-3.5z"/></svg>.</div></div>
     <button id="jump" title="Jump to latest" hidden>↓<span></span></button>
     <div id="emojiPanel" hidden>
-      <input id="emojiSearch" placeholder="Search emoji (e.g. cool, love, fire)" autocomplete="off">
+      <input id="emojiSearch" placeholder="Search emoji" autocomplete="off">
       <div id="emojiTabs"></div>
       <div id="emojiGrid"></div>
     </div>
@@ -693,13 +709,18 @@ html:root[data-theme="dark"][data-accent]{--out:color-mix(in srgb,var(--accent) 
       <div class="info"><b id="attName"></b><small id="attSize"></small></div>
       <button class="ib" id="attX" title="Remove">✕</button>
     </div>
+    <div id="schedBar" hidden>
+      <button type="button" id="schedToggle"><span id="schedCount"></span></button>
+      <ul id="schedList" hidden></ul>
+    </div>
     <div id="composer">
       <button class="ib" id="attach" title="Attach photo or file" disabled><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
       <input type="file" id="file" hidden>
       <div class="cwrap">
         <textarea id="text" data-gramm="false" data-gramm_editor="false" data-enable-grammarly="false" rows="1" placeholder="Type a message" disabled></textarea>
-        <button class="ib" id="emojiBtn" title="Emoji (or type : and a name, like :cool)" disabled><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.8"/><path d="M8.6 14.2a4.6 4.6 0 0 0 6.8 0"/><path d="M9.2 9.6h.01M14.8 9.6h.01" stroke-width="2.4"/></svg></button>
+        <button class="ib" id="emojiBtn" title="Emoji (or type :name)" disabled><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.8"/><path d="M8.6 14.2a4.6 4.6 0 0 0 6.8 0"/><path d="M9.2 9.6h.01M14.8 9.6h.01" stroke-width="2.4"/></svg></button>
       </div>
+      <button class="ib" id="schedBtn" title="Send later" hidden><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.6"/><path d="M12 7.5V12l3 2"/></svg></button>
       <button id="send" title="Send" disabled><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12 20 4.5l-5.2 15.5-3-6.2z"/><path d="M11.8 13.8 20 4.5"/></svg></button>
     </div>
     <div id="drop">Drop to attach</div>
@@ -713,7 +734,7 @@ html:root[data-theme="dark"][data-accent]{--out:color-mix(in srgb,var(--accent) 
   <p id="gp">Starting your session.</p>
   <p id="gerr" hidden></p>
   <div id="pairBox" hidden>
-    <button class="lnk" id="pairOpen" type="button">On this same phone? You can't scan your own screen — link with a code instead</button>
+    <button class="lnk" id="pairOpen" type="button">On this phone? Link with a code instead</button>
     <form id="pairForm" hidden>
       <input id="pairPhone" placeholder="Your number, e.g. 6591234567" inputmode="tel" autocomplete="tel">
       <button class="btn">Get code</button>
@@ -724,12 +745,12 @@ html:root[data-theme="dark"][data-accent]{--out:color-mix(in srgb,var(--accent) 
       <ol>
         <li>Open WhatsApp on this phone → <b>Settings</b> (or ⋮) → <b>Linked devices</b></li>
         <li>Tap <b>Link a device</b>, then <b>Link with phone number instead</b></li>
-        <li>Type the code above. Switch straight back here after.</li>
+        <li>Enter the code above, then come back here.</li>
       </ol>
     </div>
     <p class="err" id="pairErr" style="margin:0"></p>
   </div>
-  <button class="btn ghost" id="restart" hidden>Still stuck? Start over with a new QR code</button>
+  <button class="btn ghost" id="restart" hidden>Start over with a new QR code</button>
   <button class="lnk" id="gateAdmin" hidden>Admin settings</button>
   <button class="lnk" id="gateOut">Sign out</button>
 </div>
@@ -779,6 +800,24 @@ html:root[data-theme="dark"][data-accent]{--out:color-mix(in srgb,var(--accent) 
   <figure class="vfig"><img id="vImg" alt=""><figcaption id="vCap"></figcaption></figure>
   <button class="vnav vnext" id="vNext" title="Next (→)">›</button>
 </div>
+<div class="overlay" id="taskDlg">
+  <form class="dlg" id="taskF">
+    <h3>Add to todolist</h3>
+    <label for="taskT">Task</label><input id="taskT" maxlength="300" required autocomplete="off">
+    <div class="pair"><div><label for="taskD">Date</label><input type="date" id="taskD"></div><div><label for="taskTm">Time</label><input type="time" id="taskTm"></div></div>
+    <div class="err" id="taskErr"></div>
+    <div class="acts"><button type="button" class="btn ghost" id="taskX">Cancel</button><button class="btn" id="taskOk">Add</button></div>
+  </form>
+</div>
+<div class="overlay" id="schedDlg">
+  <form class="dlg" id="schedF">
+    <h3>Send later</h3>
+    <div class="chips" id="schedChips"></div>
+    <label for="schedAt">Or pick a time</label><input type="datetime-local" id="schedAt" required>
+    <div class="err" id="schedErr"></div>
+    <div class="acts"><button type="button" class="btn ghost" id="schedX">Cancel</button><button class="btn">Schedule</button></div>
+  </form>
+</div>
 <div class="overlay" id="delDlg" style="background:rgba(0,0,0,.45)">
   <div class="dlg">
     <h3>Delete message?</h3>
@@ -793,7 +832,7 @@ html:root[data-theme="dark"][data-accent]{--out:color-mix(in srgb,var(--accent) 
   <form class="dlg" id="pinForm">
     <h3 id="pinTitle">Set a PIN</h3>
     <div id="pinCurRow"><label>Current PIN</label><input type="password" id="pinCur" autocomplete="off" maxlength="64"></div>
-    <div id="pinNewRows"><label>New PIN (4 or more characters: letters, numbers or symbols)</label><input type="password" id="pinNew" autocomplete="off" maxlength="64">
+    <div id="pinNewRows"><label>New PIN (at least 4 characters)</label><input type="password" id="pinNew" autocomplete="off" maxlength="64">
     <label>Repeat new PIN</label><input type="password" id="pinRep" autocomplete="off" maxlength="64"></div>
     <div class="err" id="pinErr"></div>
     <div class="acts"><button type="button" class="btn ghost" id="pinX">Cancel</button><button class="btn" id="pinOk">Save</button></div>
@@ -836,7 +875,7 @@ html:root[data-theme="dark"][data-accent]{--out:color-mix(in srgb,var(--accent) 
       <label>Lock automatically after</label>
       <div class="seg" data-p="idle"><button data-v="0">Never</button><button data-v="1">1 min</button><button data-v="5">5 min</button><button data-v="15">15 min</button></div>
     </div>
-    <p style="color:var(--muted);font-size:12px;margin:14px 0 0">Enter "Auto" sends on computers and adds a new line on phones. All of these are saved on this device only.</p>
+    <p style="color:var(--muted);font-size:12px;margin:14px 0 0">Auto: Enter sends on computers, adds a new line on phones. Saved on this device only.</p>
     <div class="acts"><button type="button" class="btn" id="prefsX">Done</button></div>
   </div>
 </div>
@@ -873,7 +912,7 @@ function applyPrefs() {
   if (prefs.theme === 'auto') delete r.dataset.theme; else r.dataset.theme = prefs.theme;
   if (prefs.accent === 'green') delete r.dataset.accent; else r.dataset.accent = prefs.accent;
   r.dataset.wall = prefs.wall; r.dataset.size = prefs.size; r.dataset.blur = prefs.blur; r.dataset.rail = prefs.rail;
-  const bb = document.getElementById('blurBtn'); if (bb) { bb.textContent = prefs.blur === 'on' ? '🙈' : '👁'; bb.title = prefs.blur === 'on' ? 'Chat list blurred: click to show' : 'Blur the chat list (hover a chat to peek)'; }
+  const bb = document.getElementById('blurBtn'); if (bb) { bb.textContent = prefs.blur === 'on' ? '🙈' : '👁'; bb.title = prefs.blur === 'on' ? 'Unblur chat list' : 'Blur chat list (hover to peek)'; }
   document.querySelectorAll('#prefs .seg').forEach(g =>
     g.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === prefs[g.dataset.p])));
 }
@@ -992,15 +1031,22 @@ function renderChats() {
     const d = c.jid !== current && drafts.get(c.jid);
     return row(c, d ? `<span class="draft">Draft:</span> ${esc(d)}` : '');
   }).join('') ||
-    `<div class="empty">${q ? 'No chats match.' : filter === 'unread' ? 'No unread chats 🎉' : filter === 'groups' ? 'No groups yet.' : filter === 'archived' ? 'No archived chats.' : status === 'connected' ? 'No chats yet. They appear here as history syncs, or start one with <svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align:-3px" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4.5H6.5a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V13"/><path d="M17.8 3.7a1.9 1.9 0 0 1 2.7 2.7L12 14.9l-3.5.8.8-3.5z"/></svg>.' : 'Waiting for WhatsApp…'}</div>`;
+    `<div class="empty">${q ? 'No chats match.' : filter === 'unread' ? 'No unread chats 🎉' : filter === 'groups' ? 'No groups yet.' : filter === 'archived' ? 'No archived chats.' : status === 'connected' ? 'No chats yet. They show up as history syncs, or start one with <svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align:-3px" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4.5H6.5a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V13"/><path d="M17.8 3.7a1.9 1.9 0 0 1 2.7 2.7L12 14.9l-3.5.8.8-3.5z"/></svg>.' : 'Waiting for WhatsApp…'}</div>`;
   const n = chats.filter(c => c.unread > 0 && !c.archived).length;
   if (!panicOn && !locked) document.title = (n ? `(${n}) ` : '') + BASE_TITLE;
   const na = chats.filter(c => c.archived).length;
   $('#archChip').textContent = na ? `📦 Archived (${na})` : '📦 Archived';
   if (typeof syncRail === 'function') syncRail();
 }
+// /u/you/#chat=<id> (from a todolist task) opens that chat once the list is in
+let wantChat = location.hash.startsWith('#chat=') ? decodeURIComponent(location.hash.slice(6)) : null;
 const loadChats = throttle(async () => {
   try { chats = await call('GET', '/chats'); renderChats(); updateTitle(); } catch {}
+  if (wantChat && chats.length) {
+    const jid = wantChat, c = chats.find(x => x.jid === jid); wantChat = null;
+    history.replaceState(null, '', location.pathname + location.search);
+    openChat(jid, c?.name || '');
+  }
 }, 700);
 
 // "~Profile name · +phone" under the chat title; shown whenever there's no presence to report
@@ -1033,7 +1079,7 @@ function updateTitle() {
 async function setNickname() {
   if (!current) return;
   const cur = $('#title b')?.textContent || '';
-  const nick = prompt('Nickname for this chat (only shown on this site).\nLeave empty to remove it.', cur);
+  const nick = prompt('Nickname (only you see it). Leave empty to remove.', cur);
   if (nick === null) return;
   try {
     const r = await call('POST', '/nickname', {jid: current, nick});
@@ -1147,8 +1193,9 @@ function startReply(id) {
   $('#replyText').textContent = quotePreview(m);
   $('#reply').classList.add('on');
   $('#text').focus();
+  syncSchedBtn();
 }
-function cancelReply() { replyTo = null; $('#reply').classList.remove('on'); }
+function cancelReply() { replyTo = null; $('#reply').classList.remove('on'); syncSchedBtn(); }
 
 async function openChat(jid, name) {
   cancelEdit(); composerMentions = [];
@@ -1156,6 +1203,7 @@ async function openChat(jid, name) {
   if (current) { const t = $('#text').value; if (t.trim()) drafts.set(current, t); else drafts.delete(current); }
   stopTyping();
   current = jid; currentName = name || ''; currentPresence = null;
+  scheduled = []; renderScheduled(); loadScheduled();
   $('#text').value = drafts.get(jid) || ''; $('#text').style.height = 'auto';
   unseen = 0; showJump(false);
   document.body.classList.add('open');
@@ -1212,7 +1260,7 @@ async function loadOlder(btn) {
   try {
     const r = await call('POST', '/older', {jid: current});
     if (!r.requested) { toast(r.reason ? `Can't load more: ${r.reason}` : 'Nothing older to load'); btn.textContent = 'Load earlier messages'; btn.disabled = false; return; }
-    toast('Requested older messages. Your phone needs to be online.');
+    toast('Asked your phone for older messages. It has to be online.');
     setTimeout(() => { if (btn.isConnected) { btn.textContent = 'Load earlier messages'; btn.disabled = false; } }, 6000);
   } catch (x) { toast(x.message); btn.textContent = 'Load earlier messages'; btn.disabled = false; }
 }
@@ -1221,6 +1269,7 @@ async function loadOlder(btn) {
 function setComposer() {
   const ok = status === 'connected' && !!current;
   $('#text').disabled = $('#send').disabled = $('#attach').disabled = $('#emojiBtn').disabled = !ok;
+  syncSchedBtn();
 }
 async function send() {
   if (!current || status !== 'connected') return;
@@ -1229,7 +1278,7 @@ async function send() {
   if (!text && !attach) return;
   const jid = current;
   $('#text').value = ''; $('#text').style.height = 'auto';
-  drafts.delete(jid);
+  drafts.delete(jid); syncSchedBtn();
   if (attach) {
     const a = attach; clearAttach();
     return sendFile(jid, a, text);
@@ -1311,11 +1360,12 @@ async function setAttach(file) {
   $('#attImg').hidden = !attach.preview; if (attach.preview) $('#attImg').src = attach.preview;
   $('#attIcon').hidden = !!attach.preview;
   $('#attName').textContent = attach.jpeg ? 'Photo' : attach.name;
-  $('#attSize').textContent = fmtSize(attach.size) + (attach.jpeg ? '' : ' · sent as a file') + ' · type a caption and press send';
+  $('#attSize').textContent = fmtSize(attach.size) + (attach.jpeg ? '' : ' · sent as a file');
   $('#att').classList.add('on');
   $('#text').focus();
+  syncSchedBtn();
 }
-function clearAttach() { attach = null; $('#att').classList.remove('on'); $('#file').value = ''; }
+function clearAttach() { attach = null; $('#att').classList.remove('on'); $('#file').value = ''; syncSchedBtn(); }
 
 // --------------------------------------------------------------- status
 let pairSid = null;
@@ -1347,11 +1397,11 @@ function setStatus(d) {
     if (pairSid != null && d.sid !== pairSid) { hidePairCode(); $('#pairErr').textContent = 'That code expired. Get a new one.'; }
     if (showQr) {
       $('#gt').textContent = 'Link your WhatsApp';
-      $('#gp').innerHTML = 'On your phone: <b>WhatsApp → Settings → Linked devices → Link a device</b>, then scan this.<br>Your chats and history load right after.';
+      $('#gp').innerHTML = 'On your phone: <b>Settings → Linked devices → Link a device</b>, then scan this.';
       if (innerWidth <= 760) { $('#pairForm').hidden = false; }
     } else if (s === 'reconnecting') {
       $('#gt').textContent = d.linked ? 'Reconnecting to WhatsApp…' : 'Getting a QR code…';
-      $('#gp').textContent = d.failures > 1 ? `Attempt ${d.failures}. It keeps retrying on its own.` : 'One moment.';
+      $('#gp').textContent = d.failures > 1 ? `Attempt ${d.failures}, still trying.` : 'One moment.';
     } else if (s === 'logged-out') {
       $('#gt').textContent = 'Not linked';
       $('#gp').textContent = 'Getting a new QR code…';
@@ -1383,6 +1433,7 @@ function stream() {
     const d = JSON.parse(ev.data);
     if (d.type === 'status') setStatus(d);
     else if (d.type === 'chats') loadChats();
+    else if (d.type === 'scheduled') { if (!d.jid || d.jid === current) loadScheduled(); }
     else if (d.type === 'history') { syncing(d); loadChats(); if (current) reloadThread(); }
     else if (d.type === 'merged') { if (current === d.from) { current = d.to; reloadThread(); } loadChats(); }
     else if (d.type === 'presence' && false) {
@@ -1473,7 +1524,9 @@ document.addEventListener('keydown', e => {
   } else if (e.key === 'Escape' && !$('#emojiPanel').hidden) {
     closeEmoji();
   } else if (e.key === 'Escape') {
-    if ($('#news').classList.contains('on')) closeNews();
+    if ($('#taskDlg').classList.contains('on')) closeTaskDlg();
+    else if ($('#schedDlg').classList.contains('on')) closeSched();
+    else if ($('#news').classList.contains('on')) closeNews();
     else if ($('#about').classList.contains('on')) $('#about').classList.remove('on');
     else if ($('#prefs').classList.contains('on')) $('#prefs').classList.remove('on');
     else if ($('#newchat').classList.contains('on')) closeNew();
@@ -1531,7 +1584,7 @@ function renderEmoji() {
     html = found.length ? found.map(cell).join('') : '<div class="lbl">No emoji found</div>';
   } else {
     const c = tabs[emojiTab];
-    html = `<div class="lbl">${c.name}</div>` + (c.list.length ? c.list.map(cell).join('') : '<div class="lbl">Emoji you use show up here.</div>');
+    html = `<div class="lbl">${c.name}</div>` + (c.list.length ? c.list.map(cell).join('') : '<div class="lbl">Nothing yet.</div>');
   }
   $('#emojiGrid').innerHTML = html;
 }
@@ -1620,51 +1673,33 @@ $('#text').addEventListener('click', checkShortcode);
 // Shown once per device the first time you reach your chats; reopen it from ⋮ → Tutorial.
 const TOUR = [
   {ico: '👋', title: 'Welcome to __BRAND__',
-   body: `This is your WhatsApp, in the browser. Your phone stays the main device; this site is linked to it, like WhatsApp Web.<p class="muted">A quick tour, about a minute. Use the arrow keys or the buttons.</p>`},
-  {ico: '🗂️', title: 'Finding chats', target: '#chips',
-   body: `<ul><li><b>All · Unread · Groups · 📦 Archived</b> filter the list.</li>
-     <li>Search names or numbers. Press <kbd>/</kbd> to jump to search.</li>
-     <li>The tab title shows your unread count, e.g. <b>(3)</b>.</li></ul>`},
-  {ico: '💬', title: 'Sending messages', target: '#composer',
-   body: `<ul><li><kbd>Enter</kbd> sends, <kbd>Shift</kbd>+<kbd>Enter</kbd> adds a new line.</li>
-     <li>😊 opens emoji. Or type <b>:cool</b> and pick 😎. <b>:cool:</b> converts by itself.</li>
-     <li>📎 sends photos and files. You can also paste or drag them in.</li>
-     <li>Hover a message (or tap ↩ on phones) to <b>reply</b>.</li>
-     <li>Unsent text is kept as a <b>Draft</b> when you switch chats.</li></ul>`},
+   body: `Your WhatsApp in the browser, linked to your phone like WhatsApp Web.<p class="muted">Quick tour. Arrow keys work too.</p>`},
   {ico: '✏️', title: 'Nicknames', target: '#chatMore',
-   body: `Open a chat, press <b>⋯</b> at the top right, then <b>✏️ Nickname</b> to name it however you like.
-     <ul><li>Only <b>you</b> see it, only on this site. It's never sent to WhatsApp.</li>
-     <li>A name shown as <b>~Budi</b> is the name that person set on their own WhatsApp.</li></ul>`},
+   body: `In a chat, <b>⋯ → ✏️ Nickname</b>. Only you see it, and it never goes to WhatsApp.`},
   {ico: '📌', title: 'Pin & archive (this site only)', target: '#rArch',
-   body: `From a chat's <b>⋯</b> menu, <b>📌 Pin</b> keeps it at the top of your list and <b>📦 Archive</b> tucks it away. Archived chats live behind the box icon on the left (the <b>Archived</b> filter on phones).
-     <ul><li>Both are <b>local to this site</b>. Your phone isn't affected, and pins or archives on your phone don't carry over.</li>
-     <li>Archiving a chat unpins it, and pinning an archived chat brings it back.</li>
-     <li>Archived chats don't count towards the unread number.</li></ul>`},
+   body: `Pins and archives here don't sync with your phone in either direction. Archived chats are behind the box icon (the <b>Archived</b> filter on phones).`},
   {ico: '✅', title: 'Your todolist', target: '#rTodo',
-   body: `The <b>✓ button</b> on the left (top right on phones) opens <b>Gavin's Todolist</b>, built into this app. Press <kbd>T</kbd> to switch between chats and tasks.
-     <ul><li>It's <b>your own</b> list: nobody else (not even the admin) can see your tasks here. (Reminders Buddy sends you on WhatsApp also show on the bot's phone.)</li>
+   body: `The <b>✓</b> button (top right on phones) opens Gavin's Todolist. <kbd>T</kbd> switches between chats and tasks.
+     <ul><li>Your tasks are yours. Nobody else sees them, not even the admin.</li>
      <li>The red number is what's due today.</li>
-     <li>🤖 <b>WhatsApp Buddy</b> can remind you on your real WhatsApp: pick <b>💬 WhatsApp me</b> on a task.</li></ul>`},
-  {ico: '🎨', title: 'Make it yours', target: '#rPrefs',
-   body: `The <b>settings icon</b> on the left (or <b>⋯ → Appearance &amp; settings</b>): light or dark theme, accent colour, chat background, text size, and what <kbd>Enter</kbd> does.
-     You can also <b>blur the chat list</b> with the eye icon and <b>lock the app with a PIN</b> with the lock icon.
-     <p class="muted">Saved per device, so your phone and laptop can look different. You can also change your display name from the ⋮ menu.</p>`},
+     <li>Pick <b>💬 WhatsApp me</b> on a task and WhatsApp Buddy reminds you on WhatsApp. Those reminders also show on the bot's phone.</li></ul>`},
+  {ico: '🎨', title: 'Settings, blur, lock', target: '#rPrefs',
+   body: `Theme, colours, text size and what <kbd>Enter</kbd> does. The eye icon blurs the chat list, the lock icon locks the app with a PIN.<p class="muted">Saved per device.</p>`},
   {ico: '⌨️', title: 'Keyboard shortcuts',
-   body: `<ul><li><kbd>/</kbd> jump to search</li><li><kbd>Esc</kbd> close the open chat (or whatever menu is open)</li>
-     <li><kbd>T</kbd> switch between chats and your todolist</li><li><kbd>B</kbd> blur or unblur the chat list</li><li><kbd>L</kbd> lock the app, once you've set a PIN</li></ul>
-     <p class="muted">Shortcuts only work when you're not typing in a box.</p>`},
+   body: `<ul><li><kbd>/</kbd> search</li><li><kbd>Esc</kbd> close</li>
+     <li><kbd>T</kbd> chats / todolist</li><li><kbd>B</kbd> blur chat list</li><li><kbd>L</kbd> lock (once you've set a PIN)</li></ul>
+     <p class="muted">Not while you're typing in a box.</p>`},
   {ico: '⚠️', title: 'Good to know',
    body: `<ul>
-     <li><b>History:</b> the last <b>14 days</b> are kept here (at least 7 days). Recent messages are no longer limited by an arbitrary per-chat count. <b>Load earlier messages</b> only asks your phone for more once the saved history boundary is reached.</li>
-     <li><b>Names:</b> some contacts show just a number until they message you. WhatsApp only shares names that way. Use a nickname meanwhile.</li>
-     <li><b>Late messages:</b> a message can occasionally take a little while to appear while it's being decrypted.</li>
-     <li><b>Media:</b> videos and voice notes are sent as files. Some stickers, polls and other special messages may not show.</li>
-     <li><b>No alerts</b> when this tab is closed. Your phone still notifies you as normal.</li>
-     <li><b>Privacy:</b> the admin can see whether you're online on this site and when you were last active, but never your messages, chats or contacts.</li>
-     <li><b>Stuck on "Reconnecting…"</b>? Give it a minute. If it lasts, use <b>⋮ → Re-link WhatsApp</b>.</li>
-     <li>If your phone is <b>offline for ~14 days</b>, WhatsApp unlinks this site and you'll scan the QR again.</li></ul>`},
+     <li><b>History:</b> the last 14 days are kept here. <b>Load earlier messages</b> asks your phone for older ones.</li>
+     <li><b>Names:</b> some contacts show as a number until they message you. Give them a nickname meanwhile.</li>
+     <li><b>Media:</b> videos and voice notes go as files. Some stickers and polls may not show.</li>
+     <li><b>No notifications</b> while this tab is closed. Your phone still gets them.</li>
+     <li><b>Privacy:</b> the admin can see if you're online here and when you were last active, never your messages, chats or contacts.</li>
+     <li><b>Stuck on "Reconnecting…"?</b> Give it a minute, then try <b>⋯ → Re-link WhatsApp</b>.</li>
+     <li>If your phone is offline for about 14 days, WhatsApp unlinks this site and you'll scan the QR again.</li></ul>`},
   {ico: '🎉', title: "You're all set",
-   body: `Open this again any time from <b>⋯ → Tutorial</b>. Selamat ngobrol!`},
+   body: `Reopen this from <b>⋯ → Tutorial</b>. Selamat ngobrol!`},
 ];
 let tourStep = -1, tourHl = null;
 function tourDone() { try { localStorage.setItem('wah-tour', '1'); } catch {} }
@@ -1827,6 +1862,7 @@ function openMsgMenu(id, btn) {
   const age = Date.now() / 1000 - m.ts;
   const items = [];
   if (!m.deleted && m.fromMe && m.type === 'text' && age < EDIT_WINDOW) items.push(['edit', '✏️ Edit']);
+  if (!m.deleted && m.text) items.push(['task', '✅ Add to todolist']);
   if (!m.deleted && m.text) items.push(['copy', '📋 Copy text']);
   items.push(['delete', '🗑️ Delete', 'danger']);
   const el = document.createElement('div');
@@ -1843,6 +1879,7 @@ document.addEventListener('click', e => {
   if (!b) { if (!e.target.closest?.('#msgMenu')) closeMsgMenu(); return; }
   const m = menuFor; closeMsgMenu(); if (!m) return;
   if (b.dataset.ma === 'edit') startEdit(m);
+  else if (b.dataset.ma === 'task') openTaskDlg(m);
   else if (b.dataset.ma === 'copy') navigator.clipboard?.writeText(m.text).then(() => toast('Copied'), () => toast('Could not copy'));
   else if (b.dataset.ma === 'delete') openDelete(m);
 });
@@ -1868,6 +1905,110 @@ $('#delMe').addEventListener('click', () => doDelete(false));
 $('#delX').addEventListener('click', () => { $('#delDlg').classList.remove('on'); delFor = null; });
 $('#delDlg').addEventListener('click', e => { if (e.target.id === 'delDlg') { $('#delDlg').classList.remove('on'); delFor = null; } });
 
+// ------------------------------------------------- message → todolist
+let taskFrom = null;
+async function openTaskDlg(m) {
+  taskFrom = {m, jid: current, name: chats.find(x => x.jid === current)?.name || currentName || ''};
+  const text = String(m.text || '').trim(), first = text.split('\n').find(l => l.trim()) || text;
+  $('#taskT').value = first.slice(0, 300); $('#taskD').value = ''; $('#taskTm').value = ''; $('#taskErr').textContent = '';
+  $('#taskDlg').classList.add('on'); $('#taskT').focus(); $('#taskT').select();
+  // pick out a date and time if the message mentions one ("by friday 5pm")
+  try {
+    const r = await fetch('/todo/api/parse?text=' + encodeURIComponent(first.slice(0, 500)));
+    const p = r.ok ? await r.json() : null;
+    if (p && taskFrom?.m === m) {
+      if (p.title && $('#taskT').value === first.slice(0, 300)) $('#taskT').value = p.title; // unless you've already changed it
+      $('#taskD').value = p.due || ''; $('#taskTm').value = p.time || '';
+    }
+  } catch {}
+}
+function closeTaskDlg() { $('#taskDlg').classList.remove('on'); taskFrom = null; }
+$('#taskX').addEventListener('click', closeTaskDlg);
+$('#taskDlg').addEventListener('click', e => { if (e.target.id === 'taskDlg') closeTaskDlg(); });
+$('#taskF').addEventListener('submit', async e => {
+  e.preventDefault();
+  const f = taskFrom; if (!f) return;
+  const title = $('#taskT').value.trim(), due = $('#taskD').value || null, time = due ? ($('#taskTm').value || null) : null;
+  const full = String(f.m.text || '').trim();
+  const body = {title, due, time, remind: time ? 0 : null, notes: full !== title ? full.slice(0, 5000) : ''};
+  if (/@(s\.whatsapp\.net|g\.us|lid)$/.test(f.jid)) body.chat = {jid: f.jid, name: f.name};
+  $('#taskOk').disabled = true; $('#taskErr').textContent = '';
+  try {
+    const r = await fetch('/todo/api/tasks', {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify(body)});
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || 'Couldn’t add it');
+    closeTaskDlg(); toast('Added to your todolist'); refreshTodoBadge();
+  } catch (x) { $('#taskErr').textContent = x.message; }
+  $('#taskOk').disabled = false;
+});
+
+// ------------------------------------------------------- send later
+let scheduled = [], schedOpen = false;
+const fmtAt = (ms) => {
+  const d = new Date(ms), now = new Date(), t = d.toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'});
+  const tom = new Date(now); tom.setDate(now.getDate() + 1);
+  if (d.toDateString() === now.toDateString()) return t;
+  if (d.toDateString() === tom.toDateString()) return 'Tomorrow ' + t;
+  return d.toLocaleDateString([], {weekday: 'short', day: 'numeric', month: 'short'}) + ' ' + t;
+};
+async function loadScheduled() {
+  const jid = current;
+  if (!jid) { scheduled = []; return renderScheduled(); }
+  try { const list = await call('GET', '/scheduled?jid=' + encodeURIComponent(jid)); if (current === jid) { scheduled = list; renderScheduled(); } } catch {}
+}
+function renderScheduled() {
+  $('#schedBar').hidden = !scheduled.length;
+  if (!scheduled.length) { schedOpen = false; return; }
+  const failed = scheduled.filter(x => x.failed).length;
+  $('#schedCount').innerHTML = `${'<svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.6"/><path d="M12 7.5V12l3 2"/></svg>'} ${scheduled.length} scheduled${failed ? ` · <span style="color:var(--danger)">${failed} not sent</span>` : ''} <span style="opacity:.7">${schedOpen ? '▴' : '▾'}</span>`;
+  $('#schedList').hidden = !schedOpen;
+  $('#schedList').innerHTML = scheduled.map(x => `<li><span class="when ${x.failed ? 'bad' : ''}">${esc(x.failed ? 'Not sent' : fmtAt(x.at))}</span><span class="txt" title="${esc(x.failed || x.text)}">${esc(x.text)}</span><button type="button" data-id="${esc(x.id)}" title="Cancel">✕</button></li>`).join('');
+}
+$('#schedToggle').addEventListener('click', () => { schedOpen = !schedOpen; renderScheduled(); });
+$('#schedList').addEventListener('click', async e => {
+  const b = e.target.closest('button[data-id]'); if (!b) return;
+  try { await call('POST', '/scheduled/cancel', {id: b.dataset.id}); toast('Cancelled'); } catch (x) { toast(x.message); }
+  loadScheduled();
+});
+function syncSchedBtn() { $('#schedBtn').hidden = !current || !!editing || !!attach || !!replyTo || !$('#text').value.trim(); }
+$('#text').addEventListener('input', syncSchedBtn);
+const localInput = (ms) => { const d = new Date(ms - new Date(ms).getTimezoneOffset() * 60000); return d.toISOString().slice(0, 16); };
+function schedPresets() {
+  const now = new Date(), at = (d, h, m = 0) => { const x = new Date(d); x.setHours(h, m, 0, 0); return x; };
+  const tomorrow = new Date(now); tomorrow.setDate(now.getDate() + 1);
+  const out = [['In 1 hour', new Date(Date.now() + 3600e3)]];
+  if (now.getHours() < 19) out.push(['Tonight 8 PM', at(now, 20)]);
+  out.push(['Tomorrow 9 AM', at(tomorrow, 9)]);
+  const mon = new Date(now); mon.setDate(now.getDate() + ((8 - now.getDay()) % 7 || 7)); out.push(['Monday 9 AM', at(mon, 9)]);
+  return out;
+}
+$('#schedBtn').addEventListener('click', () => {
+  if (!current || !$('#text').value.trim()) return;
+  $('#schedErr').textContent = '';
+  const ps = schedPresets();
+  $('#schedChips').innerHTML = ps.map(([l, d], i) => `<button type="button" data-i="${i}">${esc(l)}</button>`).join('');
+  $('#schedChips').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; $('#schedAt').value = localInput(ps[+b.dataset.i][1].getTime()); [...$('#schedChips').children].forEach(x => x.classList.toggle('on', x === b)); };
+  $('#schedAt').value = localInput(ps[0][1].getTime()); $('#schedChips').firstElementChild?.classList.add('on');
+  $('#schedAt').min = localInput(Date.now() + 60e3);
+  $('#schedDlg').classList.add('on');
+});
+$('#schedAt').addEventListener('input', () => [...$('#schedChips').children].forEach(x => x.classList.remove('on')));
+const closeSched = () => $('#schedDlg').classList.remove('on');
+$('#schedX').addEventListener('click', closeSched);
+$('#schedDlg').addEventListener('click', e => { if (e.target.id === 'schedDlg') closeSched(); });
+$('#schedF').addEventListener('submit', async e => {
+  e.preventDefault();
+  const text = $('#text').value.trim(), at = new Date($('#schedAt').value).getTime(), jid = current;
+  if (!text || !jid) return closeSched();
+  try {
+    await call('POST', '/scheduled', {jid, text, at});
+    closeSched();
+    $('#text').value = ''; $('#text').style.height = 'auto'; drafts.delete(jid); syncSchedBtn();
+    toast('Will send ' + fmtAt(at).replace(/^Tomorrow/, 'tomorrow'));
+    loadScheduled();
+  } catch (x) { $('#schedErr').textContent = x.message; }
+});
+
 function startEdit(m) {
   cancelReply();
   if (!editing) editBackup = $('#text').value;
@@ -1885,7 +2026,7 @@ function cancelEdit() {
 }
 async function saveEdit() {
   const m = editing, text = $('#text').value.trim();
-  if (!text) return toast('The message cannot be empty. Use Delete instead.');
+  if (!text) return toast("Can't save an empty message. Delete it instead.");
   cancelEdit();
   if (text === m.text) return;
   const before = {...m};
@@ -1951,7 +2092,7 @@ async function tryUnlock() {
 $('#lockPin').addEventListener('input', () => { if ($('#lockPin').value.length >= (lockData()?.len || 99)) tryUnlock(); });
 $('#lockPin').addEventListener('keydown', e => { if (e.key === 'Enter') tryUnlock(); });
 $('#lockForgot').addEventListener('click', () => {
-  if (!confirm('Sign out and remove the PIN from this device?\n\nYou can sign back in with your password.')) return;
+  if (!confirm('Sign out and remove the PIN from this device? You can sign back in with your password.')) return;
   try { localStorage.removeItem(LOCK_KEY); } catch {}
   signOut();
 });
@@ -2000,7 +2141,7 @@ $('#pinForm').addEventListener('submit', async e => {
   const salt = [...crypto.getRandomValues(new Uint8Array(12))].map(x => x.toString(16).padStart(2, '0')).join('');
   try { localStorage.setItem(LOCK_KEY, JSON.stringify({salt, hash: await pinHash(p, salt), len: p.length})); } catch { return err('Could not save on this device'); }
   $('#pinDlg').classList.remove('on'); refreshLockUi();
-  toast('PIN set. Lock any time with 🔒 on the left, or press L');
+  toast('PIN set. Press L to lock.');
 });
 
 // 🔒 in the sidebar header: lock now, or set a PIN first
@@ -2033,7 +2174,7 @@ async function loadGroup() {
 function renderGroup() {
   const g = grp;
   $('#grpTitle').textContent = g.subject || 'Group';
-  $('#grpSub').textContent = `${g.members.length} member${g.members.length === 1 ? '' : 's'}` + (g.amAdmin ? ' · you are an admin' : '');
+  $('#grpSub').textContent = `${g.members.length} member${g.members.length === 1 ? '' : 's'}` + (g.amAdmin ? " · you're an admin" : '');
   $('#grpAdd').hidden = !g.amAdmin; $('#grpNote').hidden = g.amAdmin; $('#grpInvite').hidden = !g.amAdmin;
   $('#grpList').innerHTML = g.members.map(m => `<div class="gm">
       <div class="av sm">${esc(initials(m.name))}${avImg(m.jid)}</div>
@@ -2195,7 +2336,7 @@ function syncRail() {
   $('#rArchN').hidden = !n; $('#rArchN').textContent = n > 99 ? '99+' : n;
   const bl = document.documentElement.dataset.blur === 'on';
   $('#rBlur').classList.toggle('on', bl);
-  $('#rBlur').title = bl ? 'Chat list blurred. Click to show it' : 'Blur the chat list';
+  $('#rBlur').title = bl ? 'Unblur chat list (B)' : 'Blur chat list (B)';
 }
 const railGo = (f) => (e) => { e.stopPropagation(); closeNew(); $(`#chips [data-f="${f}"]`).click(); syncRail(); };
 $('#rChats').addEventListener('click', (e) => { closeTodo(); railGo('all')(e); });
@@ -2292,6 +2433,7 @@ window.addEventListener('message', (e) => {
   if (e.origin !== location.origin || e.data?.source !== 'todolist' || !todoFrame || e.source !== todoFrame.contentWindow) return;
   const d = e.data;
   if (d.type === 'close') closeTodo();
+  else if (d.type === 'open-chat' && typeof d.jid === 'string') { closeTodo(); const c = chats.find(x => x.jid === d.jid); openChat(d.jid, c?.name || ''); }
   else if (d.type === 'badge') setTodoBadge(Number(d.due) || 0);
   else if (d.type === 'active') lastActive = Date.now(); // working in the todolist counts as being here (auto-lock)
   else if (d.type === 'key' && !locked && !panicOn) {
@@ -2332,6 +2474,7 @@ function closeChat() {
   if (!current) return false;
   const t = $('#text').value; if (t.trim()) drafts.set(current, t); else drafts.delete(current);
   current = null; currentName = ''; msgs = []; unseen = 0;
+  scheduled = []; renderScheduled();
   $('#text').value = ''; $('#text').style.height = 'auto';
   $('#msgs').innerHTML = EMPTY_CHAT;
   $('#title').innerHTML = '<b>Select a chat</b><small></small>';
@@ -2358,7 +2501,7 @@ document.addEventListener('keydown', e => {
   if (!typing && !mod && k === 'b' && Date.now() - lastArrowAt > 2500) {   // not mid-Konami
     e.preventDefault();
     setPref('blur', prefs.blur === 'on' ? 'off' : 'on');
-    toast(prefs.blur === 'on' ? 'Chat list blurred (B)' : 'Chat list visible (B)');
+    toast(prefs.blur === 'on' ? 'Chat list blurred' : 'Chat list unblurred');
     return;
   }
   if (e.key === 'Escape' && !mod && !somethingOpen() && closeChat()) e.preventDefault();
@@ -2385,7 +2528,7 @@ $('#rDock').addEventListener('click', e => {
   e.stopPropagation();
   setPref('rail', prefs.rail === 'auto' ? 'show' : 'auto');
   $('#rail').classList.remove('peek'); syncDock();
-  toast(prefs.rail === 'auto' ? 'Left bar hides until you point at the left edge' : 'Left bar stays open');
+  toast(prefs.rail === 'auto' ? 'Bar hidden. Hover the left edge to show it' : 'Bar stays open');
 });
 $('#prefs').addEventListener('click', () => setTimeout(syncDock));
 syncDock();
@@ -2477,7 +2620,7 @@ $('#archBtn').addEventListener('click', async () => {
     const r = await call('POST', '/archive', {jid: current, archived: want});
     if (c) { c.archived = r.archived; if (r.archived) c.pinned = false; }
     renderChats(); updateTitle();
-    toast(want ? 'Chat archived (on this site only)' : 'Chat unarchived');
+    toast(want ? 'Archived (this site only)' : 'Unarchived');
   } catch (x) { toast(x.message); }
 });
 $('#pinBtn').addEventListener('click', async () => {
@@ -2488,7 +2631,7 @@ $('#pinBtn').addEventListener('click', async () => {
     const r = await call('POST', '/pin', {jid: current, pinned: want});
     if (c) { c.pinned = r.pinned; if (r.pinned) c.archived = false; }
     renderChats(); updateTitle();
-    toast(want ? 'Chat pinned (on this site only)' : 'Chat unpinned');
+    toast(want ? 'Pinned (this site only)' : 'Unpinned');
   } catch (x) { toast(x.message); }
 });
 $('#aboutX').addEventListener('click', () => $('#about').classList.remove('on'));
@@ -2518,7 +2661,7 @@ $('#msgs').addEventListener('click', async e => {
   if (qb) {
     const el = [...document.querySelectorAll('#msgs .m[data-id]')].find(x => x.dataset.id === qb.dataset.qid);
     if (el) { el.scrollIntoView({block: 'center', behavior: 'smooth'}); el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); }
-    else toast('That message is older than what is saved here');
+    else toast("That message isn't saved here anymore");
     return;
   }
   const img = e.target.closest('img[data-full]');
@@ -2614,7 +2757,7 @@ $('#menu').addEventListener('click', async e => {
   if (m === 'news') { try { showNews(await call('GET', '/changelog'), true); } catch (x) { toast(x.message); } }
   if (m === 'name') {
     const cur = $('#meName').textContent;
-    const name = prompt('Your display name on this site (your username stays the same):', cur);
+    const name = prompt('Display name (your username stays the same):', cur);
     if (name === null || !name.trim() || name.trim() === cur) return;
     try {
       const r = await call('POST', '/profile', {name});
@@ -2626,7 +2769,7 @@ $('#menu').addEventListener('click', async e => {
   if (m === 'out') signOut();
   if (m === 'pw') { $('#pwf').reset(); $('#pwerr').textContent = ''; $('#pw').classList.add('on'); $('#pwc').focus(); }
   if (m === 'relink') {
-    if (!confirm('Re-link WhatsApp?\n\nThis disconnects this site from your phone and shows a new QR code. Scanning it again reloads your chat history.\n\nYour saved chats here are kept.')) return;
+    if (!confirm('Re-link WhatsApp?\n\nThis disconnects from your phone and shows a new QR code. Chats saved here are kept.')) return;
     try { await call('POST', '/relink', {}); toast('Unlinked. Scan the new QR code.'); } catch (x) { toast(x.message); }
   }
   if (m === 'health') location.href = `/u/__USER__/status`;
@@ -2645,7 +2788,7 @@ $('#pairForm').addEventListener('submit', async e => {
   btn.disabled = false;
 });
 $('#restart').addEventListener('click', async () => {
-  if (!confirm('Start over?\n\nThis clears the saved WhatsApp login on this site and shows a new QR code. Your saved chats here are kept.')) return;
+  if (!confirm('Start over?\n\nThis clears the WhatsApp login here and shows a new QR code. Chats saved here are kept.')) return;
   try { await call('POST', '/relink', {}); } catch (x) { toast(x.message); }
 });
 $('#pwx').addEventListener('click', () => $('#pw').classList.remove('on'));

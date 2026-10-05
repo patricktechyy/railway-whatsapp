@@ -1357,7 +1357,7 @@ body.resizing-board.y { cursor: ns-resize; } body.resizing-board.xy { cursor: nw
 .wa-picker .menu-custom .input { min-width: 0; }
 .buddy { display: flex; flex-direction: column; gap: 2px; }
 .buddy-intro { margin: 10px 0 0; line-height: 1.55; }
-.wa-bubble { position: relative; margin-top: 10px; max-width: 420px; padding: 9px 12px 10px; border-radius: 10px 10px 10px 2px; font-size: var(--t-sm); line-height: 1.45;
+.wa-bubble { white-space: pre-line; position: relative; margin-top: 10px; max-width: 420px; padding: 9px 12px 10px; border-radius: 10px 10px 10px 2px; font-size: var(--t-sm); line-height: 1.45;
   background: #dcf8c6; color: #111b21; box-shadow: 0 1px 1px rgba(0, 0, 0, .08); }
 :root[data-theme="dark"] .wa-bubble { background: #005c4b; color: #e9edef; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .wa-bubble { background: #005c4b; color: #e9edef; } }
@@ -1419,3 +1419,56 @@ body.resizing-board.y { cursor: ns-resize; } body.resizing-board.xy { cursor: nw
   .reminder-setup-actions { display: grid; grid-template-columns: 1fr; }
   .reminder-setup-actions .btn { width: 100%; }
 }
+
+/* a task made from a WhatsApp message */
+.chat-note { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.chat-note .linkish { margin-left: auto; }
+.meta.chat { color: #128c4a; }
+:root[data-theme="dark"] .meta.chat { color: #4ade80; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .meta.chat { color: #4ade80; } }
+
+/* Settings → calendar link */
+.cal-feed .row { gap: 8px; margin-top: 6px; }
+.cal-feed .row .input { flex: 1; min-width: 0; font-size: 12px; }
+.cal-feed .help { margin-top: 6px; }
+
+/* ===================================================== groups ===
+   A few people sharing one list. Rows are simpler than your own tasks. */
+.group-page { display: flex; flex-direction: column; gap: 14px; }
+.g-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.g-members { display: inline-flex; align-items: center; gap: 10px; border: 0; background: none; color: var(--muted); font: inherit; font-size: var(--t-sm); padding: 4px 6px 4px 0; border-radius: 999px; cursor: pointer; }
+.g-members:hover { color: var(--ink); }
+.g-avatars { display: inline-flex; }
+.g-av { width: 28px; height: 28px; border-radius: 50%; display: inline-grid; place-items: center; flex: none; background: var(--leaf-soft); color: var(--leaf); font-size: 11px; font-weight: 700; border: 2px solid var(--surface); }
+.g-avatars .g-av + .g-av { margin-left: -8px; }
+.g-av.more { background: var(--field); color: var(--muted); }
+.g-add { display: flex; gap: 8px; }
+.g-add .input:first-child { flex: 1; min-width: 0; }
+.g-add select.input { width: auto; max-width: 40%; }
+.g-hint { margin: -6px 2px 0; }
+.g-list .g-task { display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; border-top: 1px solid var(--line); }
+.g-list .g-task:first-child { border-top: 0; }
+.g-task .check { margin-top: 2px; }
+.g-body { flex: 1; min-width: 0; text-align: left; border: 0; background: none; color: inherit; font: inherit; padding: 0; cursor: pointer; display: flex; flex-direction: column; gap: 4px; }
+.g-title { font-weight: 600; overflow-wrap: anywhere; }
+.g-task.done .g-title { color: var(--muted); text-decoration: line-through; }
+.g-meta { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: var(--t-xs); color: var(--muted); }
+.g-who.me { color: var(--leaf); font-weight: 600; }
+.g-edit { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.g-edit-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.g-edit-row .input.sm { width: auto; }
+.danger-text { color: var(--danger); }
+.g-people { list-style: none; margin: 6px 0 0; padding: 0; max-height: 280px; overflow-y: auto; display: grid; gap: 2px; }
+.g-people label { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 10px; cursor: pointer; }
+.g-people label:hover { background: var(--hover); }
+.g-people label.locked { cursor: default; opacity: .75; }
+.g-people small { display: block; color: var(--muted); font-size: var(--t-xs); }
+.g-people .g-av { border-color: transparent; }
+.group-dialog .input.sm { margin-top: 4px; }
+@media (max-width: 640px) {
+  .g-add { flex-wrap: wrap; }
+  .g-add .input:first-child { flex-basis: 100%; }
+  .g-add select.input { flex: 1; max-width: none; }
+}
+.sidebar .nav-count.mine { color: var(--leaf); }
+.lists-head .section-label { padding-left: 4px; }

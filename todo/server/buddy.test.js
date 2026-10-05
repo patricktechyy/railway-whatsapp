@@ -74,7 +74,7 @@ test('the clock: sends each reminder once, skips stale ones, morning brief once 
   assert.equal(msgs.filter((m) => m.text.includes('Due now')).length, 1)
   assert.ok(!msgs.some((m) => m.text.includes('*Later*') || m.text.includes('*Way overdue*')))
   const morning = zonedTime(todayIn(TZ, now), '00:00', TZ)
-  const briefs = msgs.filter((m) => /Good morning|Morning, Gavin/.test(m.text))
+  const briefs = msgs.filter((m) => /Good morning|Morning Gavin/.test(m.text))
   assert.equal(briefs.length, now - morning <= 3 * 3600e3 ? 1 : 0) // only within 3h of its time
   assert.equal(store.snapshot('gavin').tasks.find((t) => t.title === 'Way overdue').wa.sent !== undefined, true)
 })
@@ -125,7 +125,7 @@ test('clear reminders cancels task reminders and asks WhatsApp to remove Buddy r
   await buddy.send('gavin', '⏰ *Reminder task*', { kind: 'reminder' })
   await buddy.send('gavin', 'A normal Buddy message', { kind: 'morning' })
   const r = buddy.command('gavin', 'clear reminders')
-  assert.match(r.reply, /Cleared 1 task WhatsApp reminder/)
+  assert.match(r.reply, /Cleared 1 reminder/)
   assert.equal(store.snapshot('gavin').tasks[0].wa, null)
   await new Promise((resolve) => setImmediate(resolve))
   const deletes = sent.filter((x) => x.ep === 'delete-message')

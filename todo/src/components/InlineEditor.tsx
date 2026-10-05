@@ -100,7 +100,7 @@ export function InlineEditor({ task, lists, weekStartsMonday, onChange, onStatus
           </span>
         ))}
         <form onSubmit={addTag}>
-          <input className="bare-input" value={tag} onChange={(e) => setTag(e.target.value)} placeholder="Add Tags" maxLength={24} aria-label="Add a tag" />
+          <input className="bare-input" value={tag} onChange={(e) => setTag(e.target.value)} placeholder="Add tags" maxLength={24} aria-label="Add a tag" />
         </form>
       </div>
 

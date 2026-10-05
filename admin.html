@@ -126,14 +126,14 @@ details.older summary { cursor: pointer; color: var(--muted); font-size: var(--t
 <main class="admin" id="waAdmin">
   <section aria-label="Overview">
     <div class="overview" id="stats"><div class="empty" style="flex:1">Loading…</div></div>
-    <p class="note">This page shows activity only: who's online here and when. Messages, chats and contacts are never visible to the admin.</p>
+    <p class="note">You can see who's online and when, never their chats, messages or contacts.</p>
   </section>
 
   <div class="cols">
     <section class="card">
       <div class="people-head">
         <h2>People <small id="pcount"></small></h2>
-        <input class="input" id="pfilter" placeholder="Find a person" autocomplete="off" aria-label="Find a person">
+        <input class="input" id="pfilter" placeholder="Search" autocomplete="off" aria-label="Find a person">
         <button class="btn" id="addToggle" aria-expanded="false">Add person</button>
       </div>
       <div class="addpanel" id="addpanel" hidden>
@@ -142,7 +142,7 @@ details.older summary { cursor: pointer; color: var(--muted); font-size: var(--t
           <label class="field"><span>Display name</span><input class="input" id="nm" placeholder="Ali Rahman"></label>
           <button class="btn" id="addb">Create account</button>
         </form>
-        <p class="help">Usernames are lowercase and can't be changed later. Display names can.</p>
+        <p class="help">Usernames can't be changed later.</p>
         <div class="error" id="adderr" role="alert"></div>
       </div>
       <div class="linkbox" id="linkbox">
@@ -155,24 +155,28 @@ details.older summary { cursor: pointer; color: var(--muted); font-size: var(--t
 
     <aside class="side">
       <section class="card">
+        <h2>Backup</h2>
+        <p class="help">Has everyone's logins, chats and todolists in it. Keep it private.</p>
+        <div class="actions"><a class="btn" id="bkdl" href="/admin/api/backup" download>Download backup</a><span class="help" id="bkstate"></span></div>
+      </section>
+      <section class="card">
         <h2>Changelog <span class="help" id="clver" style="font-weight:500;display:inline"></span></h2>
-        <p class="help">Shown once to everyone after this version is deployed. One change per line. **Bold** and *italic* work. Leave empty for no popup.</p>
+        <p class="help">Everyone sees this once after the update. One change per line, **bold** and *italic* work.</p>
         <textarea class="input" id="cltxt" rows="6" spellcheck="true" placeholder="Pin chats to the top with 📌&#10;Fixed Enter not sending"></textarea>
         <div class="actions"><button class="btn" id="clsave">Save changelog</button><span class="help" id="clstate"></span></div>
         <details class="older" id="clold" hidden><summary>Earlier versions</summary><div id="clhist"></div></details>
       </section>
       <section class="card">
         <h2>Easter egg messages</h2>
-        <p class="help">One message per line. A random one appears when someone finds the secret.</p>
+        <p class="help">One per line. Someone who finds the egg gets a random one.</p>
         <textarea class="input" id="eggtxt" rows="8" spellcheck="false"></textarea>
         <div class="actions"><button class="btn" id="eggsave">Save messages</button><button class="btn ghost" id="eggreset">Reset to defaults</button><span class="help" id="eggstate"></span></div>
       </section>
-      <p class="note">You sign in as <b>admin</b> and manage who has an account. Each person signs in with their own username and the password they chose. You can't read anyone's chats.</p>
     </aside>
   </div>
 </main>
 <!-- Gavin's Todolist admin: giving people tasks, Buddy bot, announcements (counts only, never anyone's own tasks) -->
-<section id="todoAdmin" hidden aria-label="Todolist admin"><div class="tp-wait">Loading the Todolist admin…</div></section>
+<section id="todoAdmin" hidden aria-label="Todolist admin"><div class="tp-wait">Loading…</div></section>
 <div id="toast"></div>
 
 <script>
@@ -182,7 +186,7 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&
 const STATUS = {
   connected: ['WhatsApp connected', 'ok'], qr: ['Waiting for QR scan', 'warn'],
   starting: ['Starting…', ''], reconnecting: ['Reconnecting…', 'warn'],
-  'logged-out': ['Not linked', 'warn'], idle: ['Phone not linked yet', ''], stopped: ['Stopped', '']
+  'logged-out': ['Not linked', 'warn'], idle: ['Not linked yet', ''], stopped: ['Stopped', '']
 };
 
 function toast(t) {
@@ -203,7 +207,7 @@ async function call(method, url, body) {
 
 function showLink(url, name, reset) {
   $('#linktitle').textContent = reset ? `New setup link for ${name}` : `Send this link to ${name}`;
-  $('#linkhint').textContent = 'It works once and expires in 7 days. They choose their own password, then scan the QR code with their phone.';
+  $('#linkhint').textContent = 'Works once, expires in 7 days.';
   $('#linkurl').value = url;
   $('#linkbox').classList.add('on');
   $('#linkbox').scrollIntoView({behavior: 'smooth', block: 'center'});
@@ -214,14 +218,14 @@ async function load() {
   let users;
   try { users = await call('GET', '/admin/api/users'); } catch { return; }
   if (!users.length) {
-    $('#list').innerHTML = '<div class="empty">Nobody yet. Add the first person above.</div>';
+    $('#list').innerHTML = '<div class="empty">No one here yet.</div>';
     return;
   }
   const openRow = $('#list details[open]')?.closest('.user')?.dataset.u;   // keep an open menu open across refreshes
   const q = ($('#pfilter').value || '').trim().toLowerCase();
   $('#pcount').textContent = users.length;
   const shown = users.filter(u => !q || u.name.toLowerCase().includes(q) || u.username.includes(q));
-  if (!shown.length) { $('#list').innerHTML = '<div class="empty">No one matches that.</div>'; return; }
+  if (!shown.length) { $('#list').innerHTML = '<div class="empty">No matches.</div>'; return; }
   $('#list').innerHTML = shown.map(u => {
     const [st, cls] = STATUS[u.status] || [u.status, ''];
     const tone = cls === 'ok' ? 'ok' : cls === 'warn' ? 'warn' : '';
@@ -275,29 +279,29 @@ $('#list').addEventListener('click', async (e) => {
   try {
     if (a === 'link') {
       const hasPw = b.textContent.startsWith('Reset');
-      if (hasPw && !confirm(`Reset ${n}'s password?\n\nThey'll be signed out and must choose a new one using the link. Their WhatsApp stays linked.`)) return;
+      if (hasPw && !confirm(`Reset ${n}'s password?\n\nThey'll be signed out and pick a new one from the link. WhatsApp stays linked.`)) return;
       const d = await call('POST', url + '/reset', {});
       showLink(d.setupUrl, n, true);
     } else if (a === 'admin') {
       const makeIt = b.textContent.trim() === 'Make admin';
       const self = u === ME;
       const msg = makeIt
-        ? `Make ${n} an admin?\n\nThey'll be able to open this admin page from their own account: add and remove people, reset passwords and change settings. They still can't read anyone's chats.`
-        : self ? `Remove your own admin access?\n\nYou'll lose this page until another admin (or the ADMIN_PASSWORD login) gives it back.` : `Remove admin access for ${n}?`;
+        ? `Make ${n} an admin?\n\nThey'll be able to add and remove people and reset passwords. They still can't read anyone's chats.`
+        : self ? `Remove your own admin access?\n\nOnly another admin (or the ADMIN_PASSWORD login) can give it back.` : `Remove admin access for ${n}?`;
       if (!confirm(msg)) return;
       await call('POST', url + '/admin', {admin: makeIt});
       toast(makeIt ? `${n} is now an admin` : `${n} is no longer an admin`);
       if (self && !makeIt) { location.href = '/'; return; }
     } else if (a === 'rename') {
-      const name = prompt(`Display name for @${u} (the username stays the same):`, n);
+      const name = prompt(`New display name for @${u}`, n);
       if (name === null || !name.trim() || name.trim() === n) return;
       await call('POST', url + '/rename', {name}); toast('Renamed');
     } else if (a === 'unlink') {
-      if (!confirm(`Unlink ${n}'s phone?\n\nTheir WhatsApp is disconnected from this site and they'll need to scan a new QR code.`)) return;
+      if (!confirm(`Unlink ${n}'s phone?\n\nThey'll have to scan the QR code again.`)) return;
       await call('POST', url + '/unlink', {}); toast('Unlinked');
     } else if (a === 'delete') {
-      const typed = prompt(`Remove ${n} permanently?\n\nThis unlinks their phone and deletes their saved chats here. Type the username "${u}" to confirm.`);
-      if (typed !== u) { if (typed != null) toast('Username did not match — nothing removed'); return; }
+      const typed = prompt(`Remove ${n} for good?\n\nThis unlinks their phone and deletes their chats stored here. Type "${u}" to confirm.`);
+      if (typed !== u) { if (typed != null) toast("Username didn't match, nothing removed"); return; }
       await call('DELETE', url); toast(`${n} removed`);
     }
     load();
@@ -316,16 +320,16 @@ async function loadEgg(d) {
   try {
     d = d || await call('GET', '/admin/api/easter-egg');
     $('#eggtxt').value = d.messages.join('\n');
-    $('#eggstate').textContent = d.custom ? `Your ${d.messages.length} messages` : 'Showing the built-in defaults';
+    $('#eggstate').textContent = d.custom ? `Your ${d.messages.length} messages` : 'Using the defaults';
   } catch {}
 }
 $('#eggsave').addEventListener('click', async () => {
   const messages = $('#eggtxt').value.split('\n').map(s => s.trim()).filter(Boolean);
-  try { await loadEgg(await call('POST', '/admin/api/easter-egg', {messages})); toast('Easter egg messages saved'); }
+  try { await loadEgg(await call('POST', '/admin/api/easter-egg', {messages})); toast('Saved'); }
   catch (x) { toast(x.message); }
 });
 $('#eggreset').addEventListener('click', async () => {
-  if (!confirm('Replace your messages with the built-in defaults?')) return;
+  if (!confirm('Reset to the default messages?')) return;
   try { await loadEgg(await call('POST', '/admin/api/easter-egg', {reset: true})); toast('Back to the defaults'); }
   catch (x) { toast(x.message); }
 });
@@ -337,7 +341,7 @@ async function loadChangelog(d) {
     const cur = d.history.find(h => h.version === d.version);
     $('#clver').textContent = `· version ${d.version}`;
     $('#cltxt').value = cur ? cur.notes : '';
-    $('#clstate').textContent = cur ? 'Saved. People who haven\'t seen it yet will get the popup.' : 'No notes for this version yet, so no popup.';
+    $('#clstate').textContent = cur ? 'Live for this version' : 'Empty, no popup';
     const old = d.history.filter(h => h.version !== d.version);
     $('#clold').hidden = !old.length;
     $('#clhist').innerHTML = old.map(h => `<div style="margin-top:10px"><b>${esc(h.version)}</b><div class="hint" style="white-space:pre-wrap;margin:2px 0 0">${esc(h.notes)}</div></div>`).join('');
@@ -375,6 +379,9 @@ async function loadStats() {
 }
 loadStats(); setInterval(loadStats, 15000);
 load(); setInterval(load, 5000);
+
+// ---- backup: the browser downloads it; just say it's on its way (big volumes take a moment)
+$('#bkdl').addEventListener('click', () => { $('#bkstate').textContent = 'Preparing…'; setTimeout(() => { $('#bkstate').textContent = ''; }, 8000); });
 
 // ---- WhatsApp ⇄ Todolist admin
 let todoAdminFrame = null;

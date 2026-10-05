@@ -26,11 +26,11 @@ export function ChatPicker({ taskTitle, onPick, onClose, onSent }: { taskTitle: 
     <dialog ref={ref} className="dialog chat-picker" onCancel={(e) => { e.preventDefault(); onClose() }} onClick={(e) => { if (e.target === ref.current) onClose() }} aria-label="Send on WhatsApp">
       <div className="dialog-inner">
         <h2>Send on WhatsApp</h2>
-        <p className="help">“{taskTitle}” will be sent from your WhatsApp to the chat you pick.</p>
+        <p className="help">Sends “{taskTitle}” from your WhatsApp.</p>
         <input className="input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search chats or type a number" autoFocus aria-label="Search chats" />
         {err && <p className="error" role="alert">{err}</p>}
         <ul className="chat-list">
-          {chats === null && <li className="muted">Loading your chats…</li>}
+          {chats === null && <li className="muted">Loading chats…</li>}
           {chats?.length === 0 && !err && <li className="muted">No chats match.</li>}
           {chats?.map((c) => (
             <li key={c.jid}>

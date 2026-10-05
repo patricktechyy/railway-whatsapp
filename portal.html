@@ -40,13 +40,12 @@
   <h1>__BRAND__</h1>
   <p class="sub">Each session is a separate WhatsApp account.</p>
 __CARDS__
-  <footer>Scan the QR code once from the matching phone. The login is stored on the
-  server volume and survives restarts and redeploys.</footer>
+  <footer>Scan the QR once from each phone. The login sticks around after restarts and redeploys.</footer>
 </div>
 <script>
   const LABEL = {
     connected:'connected', qr:'waiting for QR scan', starting:'starting…',
-    reconnecting:'reconnecting…', 'logged-out':'logged out — needs QR scan'
+    reconnecting:'reconnecting…', 'logged-out':'logged out, scan again'
   };
   async function poll(){
     try{

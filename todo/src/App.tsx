@@ -2,7 +2,7 @@ import { useListColorStyles } from './listColor'
 import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from 'react'
 import { useEvent } from './useEvent'
 import { SearchBox } from './components/SearchBox'
-import { api, BASE, embedAdmin, framed, goSignIn, toWhatsUp } from './api'
+import { api, BASE, embedAdmin, framed, goSignIn, setHome, toWhatsUp } from './api'
 import { addDays, daysBetween, formatDay, fromKey, MONTHS, todayKey, toKey, WEEKDAYS } from './dates'
 import { usePrefs } from './prefs'
 import type { Appearance, List, Me, Task, TaskInput, View } from './types'
@@ -25,6 +25,9 @@ import { Fire } from './components/Fire'
 import { ChatPicker } from './components/ChatPicker'
 import { waStyle } from './components/WaPicker'
 import { AdminView } from './views/AdminView'
+import { GroupDialog, GroupView } from './views/GroupView'
+import { useGroups } from './useGroups'
+import type { Group as SharedGroup } from './types'
 import { streakDays } from './stats'
 import { useReminders } from './useReminders'
 import { ResizeHandle, Sidebar, SidebarIcon, type Counts } from './components/Sidebar'
@@ -46,11 +49,12 @@ function parseHash(): View {
     case 'upcoming': case 'all': case 'completed': case 'calendar': case 'stats': case 'inbox': case 'today': case 'admin': case 'board':
       return { kind }
     case 'list': return arg ? { kind: 'list', id: arg } : { kind: 'today' }
+    case 'group': return arg ? { kind: 'group', id: arg } : { kind: 'today' }
     case 'tag': return arg ? { kind: 'tag', tag: decodeURIComponent(arg) } : { kind: 'today' }
     default: return { kind: 'today' }
   }
 }
-const toHash = (v: View) => (v.kind === 'list' ? `#/list/${v.id}` : v.kind === 'tag' ? `#/tag/${encodeURIComponent(v.tag)}` : `#/${v.kind}`)
+const toHash = (v: View) => (v.kind === 'list' ? `#/list/${v.id}` : v.kind === 'group' ? `#/group/${v.id}` : v.kind === 'tag' ? `#/tag/${encodeURIComponent(v.tag)}` : `#/${v.kind}`)
 
 type Status = 'active' | 'all' | 'done'
 type Sort = 'manual' | 'due' | 'priority' | 'newest'
@@ -105,6 +109,8 @@ function AdminOnly({ me }: { me: Me }) {
 
 function Shell({ me, setMe }: { me: Me; setMe: (m: Me | null) => void }) {
   const { data, online, actions } = useData()
+  const groupsApi = useGroups()
+  const [groupDialog, setGroupDialog] = useState<{ group?: SharedGroup } | null>(null)
   const [prefs, setPrefs] = usePrefs()
   const [view, setView] = useState<View>(parseHash)
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -145,7 +151,7 @@ function Shell({ me, setMe }: { me: Me; setMe: (m: Me | null) => void }) {
     try { localStorage.setItem(`todo-reminder-setup:${me.username}`, '1') } catch {}
     let pushError = ''
     if (reminderPushOn && pushSupport() === 'ok') {
-      try { await enablePush() } catch (e: any) { pushError = e.message || 'Browser notifications could not be enabled.' }
+      try { await enablePush() } catch (e: any) { pushError = e.message || 'Couldn’t turn on notifications.' }
     }
     try {
       if (me.waReminders !== reminderWaOn) setMe(await api<Me>('/profile', 'PATCH', { waReminders: reminderWaOn }))
@@ -153,11 +159,12 @@ function Shell({ me, setMe }: { me: Me; setMe: (m: Me | null) => void }) {
       pushError = pushError ? `${pushError} WhatsApp: ${e.message}` : `WhatsApp: ${e.message}`
     }
     setReminderSetup(false)
-    if (pushError) toast(`Some reminder settings were not enabled: ${pushError}`)
-    else toast('Reminders are set up — the recommended options are on 🔔💬')
+    if (pushError) toast(`Not everything got turned on. ${pushError}`)
+    else toast('Reminders saved')
   }
 
   waStyle.bot = me.whatsapp.botNumber // how Buddy's replies are worded in the pickers
+  setHome(me.home)
   // colours follow the account, so every device looks the same
   useEffect(() => { applyAppearance(me.appearance) }, [me.appearance])
   const saveAppearance = useRef<number | undefined>(undefined)
@@ -186,6 +193,9 @@ function Shell({ me, setMe }: { me: Me; setMe: (m: Me | null) => void }) {
     else location.hash = toHash(v)
     setSearch('')
   }, [])
+
+  // a personal task's details don't belong on a group's page
+  useEffect(() => { if (view.kind === 'group') setSelectedId(null) }, [view])
 
   // re-render at midnight-ish so "Today" and overdue stay right
   useEffect(() => {
@@ -381,6 +391,7 @@ function Shell({ me, setMe }: { me: Me; setMe: (m: Me | null) => void }) {
   const sideDeleteList = useCallback((l: List) => { setMenu(false); setDeleting(l) }, [])
   const sideSignOut = useEvent(() => signOut())
   const sideWhatsApp = useEvent(() => openWhatsApp())
+  const sideNewGroup = useEvent(() => { setMenu(false); setGroupDialog({}) })
 
   if (!data) return <div className="boot" aria-busy="true" />
 
@@ -404,7 +415,7 @@ function Shell({ me, setMe }: { me: Me; setMe: (m: Me | null) => void }) {
       else if (at?.x !== undefined && at.y !== undefined) celebrate(at.x, at.y)
     }
     const next = t.repeat ? nextOccurrence(t.due, t.repeat) : null
-    const msg = allTodayDone ? 'Everything due today is done! 🎉' : next ? `Done. Next one: ${formatDay(next)} ↻` : `Done: ${t.title}`
+    const msg = allTodayDone ? 'Everything due today is done 🎉' : next ? `Done. Next one: ${formatDay(next)} ↻` : `Done: ${t.title}`
     toast(msg, { label: 'Undo', run: () => actions.updateTask(t.id, { status: before }) })
   }
   const remove = (t: Task) => {
@@ -451,7 +462,7 @@ function Shell({ me, setMe }: { me: Me; setMe: (m: Me | null) => void }) {
   let canSort = false
   let showList = true
   let listTools = false // status filter + sort
-  let empty = 'Nothing here yet. Add something above ✨'
+  let empty = 'Nothing here yet.'
 
   const doingFirst = (a: Task, b: Task) => Number(statusOf(b) === 'doing') - Number(statusOf(a) === 'doing')
   let scope: Task[] = [] // everything this page is about, for the status bar
@@ -480,12 +491,11 @@ function Shell({ me, setMe }: { me: Me; setMe: (m: Me | null) => void }) {
         { key: 'done', title: 'Done today', tasks: doneSorted(tasks.filter((t) => matches(t) && (t.due === today || (t.doneAt && toKey(new Date(t.doneAt)) === today)))), ...foldDone },
       ]
       scope = groups.flatMap((g) => g.tasks)
-      empty = 'Nothing due today. Enjoy it, or add something above 🌤️'
+      empty = 'Nothing due today.'
       break
     }
     case 'upcoming': {
       title = 'Upcoming'
-      subtitle = 'The next two weeks and beyond'
       defaults = { due: addDays(today, 1) }
       const future = active.filter((t) => t.due && t.due > today && matches(t)).sort(byDue)
       const days = Array.from({ length: 14 }, (_, i) => addDays(today, i + 1))
@@ -494,7 +504,7 @@ function Shell({ me, setMe }: { me: Me; setMe: (m: Me | null) => void }) {
         { key: 'later', title: 'Later', tasks: future.filter((t) => t.due! > days[days.length - 1]) },
       ]
       scope = tasks.filter((t) => t.due && t.due > today && matches(t))
-      empty = 'Nothing scheduled ahead. Add a task with a date, like "Dentist fri 3pm".'
+      empty = 'Nothing coming up.'
       break
     }
     case 'all':
@@ -506,7 +516,6 @@ function Shell({ me, setMe }: { me: Me; setMe: (m: Me | null) => void }) {
       break
     case 'inbox':
       title = 'No list'
-      subtitle = "Tasks that aren't in a list"
       scope = tasks.filter((t) => !t.listId && matches(t))
       groups = statusGroups(scope)
       canSort = true
@@ -538,7 +547,7 @@ function Shell({ me, setMe }: { me: Me; setMe: (m: Me | null) => void }) {
       const done = doneSorted(tasks.filter(matches))
       const keys = [...new Set(done.map((t) => toKey(new Date(t.doneAt || t.updatedAt))))]
       groups = keys.map((k) => ({ key: k, title: formatDay(k), tasks: done.filter((t) => toKey(new Date(t.doneAt || t.updatedAt)) === k) }))
-      empty = 'Nothing finished yet. You got this 💪'
+      empty = 'Nothing finished yet.'
       break
     }
     case 'calendar':
@@ -546,16 +555,20 @@ function Shell({ me, setMe }: { me: Me; setMe: (m: Me | null) => void }) {
       break
     case 'stats':
       title = 'Stats'
-      subtitle = 'How things are going'
       break
     case 'board':
       title = 'Personalize It'
       emoji = '✨'
-      subtitle = 'Your own page: arrange it however you like'
       break
+    case 'group': {
+      const g = groupsApi.groups?.find((x) => x.id === view.id)
+      title = g?.name || (groupsApi.groups ? 'Group not found' : '')
+      emoji = g?.emoji || ''
+      scope = (g?.tasks || []) as Task[]
+      break
+    }
     case 'admin':
       title = 'Admin'
-      subtitle = 'Give people tasks, follow how they’re doing, and run the app'
       break
   }
   const sortable = canSort && sort === 'manual' && !q
@@ -569,7 +582,7 @@ function Shell({ me, setMe }: { me: Me; setMe: (m: Me | null) => void }) {
   const clearButton = <button className="btn quiet sm" onClick={clearCompleted}>Clear completed</button>
   // "Clear completed" sits on the Completed group it clears, not above the whole list
   if (listTools && doneCountHere > 0) groups = groups.map((g) => (g.key === 'done' ? { ...g, title: g.title || 'Completed', action: clearButton } : g))
-  const hasSearch = view.kind !== 'calendar' && view.kind !== 'stats' && view.kind !== 'board' && view.kind !== 'admin'
+  const hasSearch = view.kind !== 'calendar' && view.kind !== 'stats' && view.kind !== 'board' && view.kind !== 'admin' && view.kind !== 'group'
   const hasStatusBar = view.kind !== 'calendar' && view.kind !== 'stats' && view.kind !== 'completed' && view.kind !== 'admin' && view.kind !== 'board'
   const wide = view.kind === 'calendar' || view.kind === 'stats' || view.kind === 'board' || view.kind === 'admin'
 
@@ -642,6 +655,8 @@ function Shell({ me, setMe }: { me: Me; setMe: (m: Me | null) => void }) {
         onSettings={sideSettings}
         onSignOut={sideSignOut}
         onWhatsApp={sideWhatsApp}
+        groups={groupsApi.groups}
+        onNewGroup={sideNewGroup}
       />
       {!prefs.sidebarCollapsed && <ResizeHandle width={prefs.sidebarWidth} onResize={(w) => setPrefs({ sidebarWidth: w })} />}
       {menu && <div className="scrim" onClick={() => setMenu(false)} />}
@@ -684,9 +699,9 @@ function Shell({ me, setMe }: { me: Me; setMe: (m: Me | null) => void }) {
           ))}
           {showNudge && (
             <div className="nudge" role="status">
-              <span>🔔 You have reminders, but pop-up notifications are off on this device.</span>
+              <span>You have reminders set, but notifications are off on this device.</span>
               <button className="btn sm" onClick={async () => {
-                try { await enablePush(); setPushOn(true); toast('Notifications are on 🔔') } catch (e: any) { toast(e.message) }
+                try { await enablePush(); setPushOn(true); toast('Notifications on') } catch (e: any) { toast(e.message) }
               }}>Turn on</button>
               <button className="icon-btn sm" aria-label="Not now" onClick={() => { setNudgeHidden(true); try { localStorage.setItem('todo-push-nudge', 'no') } catch {} }}>
                 <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6 6l8 8M14 6l-8 8" /></svg>
@@ -704,6 +719,12 @@ function Shell({ me, setMe }: { me: Me; setMe: (m: Me | null) => void }) {
                 onUpdate: actions.updateTask, onAdd: actions.addTask, onReorder: actions.reorderTasks, onShowTodo: showTodo,
               }}
             />
+          ) : view.kind === 'group' ? (
+            (() => {
+              const g = groupsApi.groups?.find((x) => x.id === view.id)
+              if (!g) return <div className="empty">{groupsApi.groups ? 'You’re not in this group.' : 'Loading…'}</div>
+              return <GroupView group={g} me={me.username} actions={groupsApi} onEdit={() => setGroupDialog({ group: g })} />
+            })()
           ) : view.kind === 'admin' ? (
             me.admin ? <AdminView me={me.username} /> : <div className="empty">Only the admin can see this page.</div>
           ) : view.kind === 'stats' ? (
@@ -757,7 +778,7 @@ function Shell({ me, setMe }: { me: Me; setMe: (m: Me | null) => void }) {
                       { key: 'done', title: 'Done', tasks: tasks.filter((t) => t.due === day && t.done), ...foldDone },
                     ],
                     false,
-                    'Nothing on this day yet. Add one above, or drag a task here on the calendar.',
+                    'Nothing on this day.',
                   )}
                 </DayPanel>
               )}
@@ -825,7 +846,7 @@ function Shell({ me, setMe }: { me: Me; setMe: (m: Me | null) => void }) {
           taskTitle={sharing.title}
           onPick={(jid) => api('/wa/share', 'POST', { taskId: sharing.id, jid })}
           onClose={() => setSharing(null)}
-          onSent={(name) => { setSharing(null); toast(`Sent to ${name} on WhatsApp ✓`) }}
+          onSent={(name) => { setSharing(null); toast(`Sent to ${name} on WhatsApp`) }}
         />
       )}
 
@@ -841,7 +862,7 @@ function Shell({ me, setMe }: { me: Me; setMe: (m: Me | null) => void }) {
             secondary={n ? { label: `Delete the ${n === 1 ? 'task' : `${n} tasks`} too`, danger: true, onClick: () => deleteList(deleting, true) } : undefined}
           >
             {n
-              ? <>It has <b>{n} task{n === 1 ? '' : 's'}</b>. Keep them (they move to <b>No list</b>), or delete them with the list? You can undo either.</>
+              ? <>It has <b>{n} task{n === 1 ? '' : 's'}</b>. Keep them (they move to <b>No list</b>) or delete them too? You can undo either way.</>
               : <>The list is empty. You can undo this.</>}
           </ConfirmDialog>
         )
@@ -873,7 +894,7 @@ function Shell({ me, setMe }: { me: Me; setMe: (m: Me | null) => void }) {
               complete(now, 'done', statusOf(now), confirmRepeat)
             }}
           >
-            {next ? <>It repeats, so the next one will be added for <b>{formatDay(next)}</b>.</> : <>It repeats, but this was the last one.</>}
+            {next ? <>It repeats. The next one is on <b>{formatDay(next)}</b>.</> : <>It repeats, but this was the last one.</>}
           </ConfirmDialog>
         )
       })()}
@@ -886,6 +907,19 @@ function Shell({ me, setMe }: { me: Me; setMe: (m: Me | null) => void }) {
           setWaOn={setReminderWaOn}
           onConfirm={finishReminderSetup}
           onLater={() => { try { localStorage.setItem(`todo-reminder-setup:${me.username}`, '1') } catch {}; setReminderSetup(false) }}
+        />
+      )}
+      {groupDialog && (
+        <GroupDialog
+          group={groupDialog.group}
+          me={me.username}
+          onClose={() => setGroupDialog(null)}
+          onSave={async (v) => {
+            if (groupDialog.group) await groupsApi.update(groupDialog.group.id, v)
+            else { const g = await groupsApi.create({ ...v, members: v.members || [me.username] }); if (g) navigate({ kind: 'group', id: g.id }) }
+          }}
+          onLeave={groupDialog.group ? async () => { const id = groupDialog.group!.id; await groupsApi.leave(id); navigate({ kind: 'today' }) } : undefined}
+          onDelete={groupDialog.group ? async () => { const id = groupDialog.group!.id; await groupsApi.remove(id); navigate({ kind: 'today' }) } : undefined}
         />
       )}
       {listDialog && (
@@ -909,7 +943,7 @@ function Shell({ me, setMe }: { me: Me; setMe: (m: Me | null) => void }) {
           setPrefs={setPrefs}
           onClose={() => setSettings(false)}
           onWaReminders={async (on) => {
-            try { setMe(await api<Me>('/profile', 'PATCH', { waReminders: on })); toast(on ? 'Reminders will also go to your WhatsApp 💬' : 'WhatsApp reminders off') } catch (e: any) { toast(e.message) }
+            try { setMe(await api<Me>('/profile', 'PATCH', { waReminders: on })); toast(on ? 'WhatsApp reminders on' : 'WhatsApp reminders off') } catch (e: any) { toast(e.message) }
           }}
           onTour={() => { setSettings(false); setTour(true) }}
           onBuddy={async (b) => {
@@ -970,22 +1004,21 @@ function ReminderSetupDialog({ me, pushOn, setPushOn, waOn, setWaOn, onConfirm, 
   return (
     <dialog ref={ref} className="dialog reminder-setup" onCancel={(e) => { e.preventDefault(); onLater() }} onClick={(e) => { if (e.target === ref.current) onLater() }} aria-labelledby="reminder-setup-title">
       <div className="dialog-inner">
-        <h2 id="reminder-setup-title">Keep your reminders on? 🔔</h2>
-        <p className="help reminder-setup-intro">Recommended: keep both options on. You’ll get the normal Todolist notification on this device and, when WhatsApp is linked, a WhatsApp reminder too. You can change either setting later.</p>
+        <h2 id="reminder-setup-title">How should we remind you?</h2>
+        <p className="help reminder-setup-intro">Nothing is sent until you set a reminder on a task. You can change this later in Settings.</p>
         <div className="reminder-choice-list">
           <label className="toggle tight">
             <input type="checkbox" checked={pushOn} disabled={!pushReady} onChange={(e) => setPushOn(e.target.checked)} />
-            <span><b>Notifications on this device</b><small>{pushReady ? ' Pop up reminders even when the site is closed.' : ` ${supportMessage(pushSupport()) || 'Not available in this browser.'}`}</small></span>
+            <span><b>Notifications on this device</b><small>{pushReady ? ' Pop-ups, even when the site is closed.' : ` ${supportMessage(pushSupport()) || 'Not available in this browser.'}`}</small></span>
           </label>
           <label className="toggle tight">
             <input type="checkbox" checked={waOn} disabled={!waReady} onChange={(e) => setWaOn(e.target.checked)} />
-            <span><b>WhatsApp reminders</b><small>{waReady ? ' Send task reminders to your WhatsApp too.' : ' Link WhatsApp first; this preference will stay on by default.'}</small></span>
+            <span><b>WhatsApp reminders</b><small>{waReady ? ' Reminders also go to your WhatsApp.' : ' Link WhatsApp first.'}</small></span>
           </label>
         </div>
-        <p className="help">The default is on because reminders are easiest to miss when they are off. Nothing is sent until you actually set a reminder for a task.</p>
         <div className="dialog-actions reminder-setup-actions">
           <button className="btn ghost" onClick={onLater}>Not now</button>
-          <button className="btn" onClick={onConfirm}>Keep selected on</button>
+          <button className="btn" onClick={onConfirm}>Save</button>
         </div>
       </div>
     </dialog>

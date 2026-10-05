@@ -5,7 +5,7 @@ import { memo, useRef, type KeyboardEvent, type PointerEvent, type ReactNode } f
 import { DndContext, PointerSensor, TouchSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import type { List, Me, View } from '../types'
+import type { Group, List, Me, View } from '../types'
 import { Mark, WhatsUpLogo } from './Login'
 
 export const SIDEBAR_MIN = 200
@@ -44,6 +44,8 @@ interface Props {
   listsCollapsed: boolean // the Lists section is rolled up
   listsShowAll: boolean // "View more" is on
   onListsUi: (p: { listsCollapsed?: boolean; listsShowAll?: boolean }) => void
+  groups: Group[] | null
+  onNewGroup: () => void
 }
 
 /** The sidebar shows this many lists before "View more". */
@@ -141,7 +143,7 @@ function Item({ icon, label, count, danger, active, onClick }: { icon: ReactNode
   )
 }
 
-export const Sidebar = memo(function Sidebar({ me, view, lists, tags, counts, online, open, collapsed, peek, onCollapse, onPeek, onReorderLists, onNavigate, onNewList, onEditList, onDeleteList, onSettings, onSignOut, onWhatsApp, listsCollapsed, listsShowAll, onListsUi }: Props) {
+export const Sidebar = memo(function Sidebar({ me, view, lists, tags, counts, online, open, collapsed, peek, onCollapse, onPeek, onReorderLists, onNavigate, onNewList, onEditList, onDeleteList, onSettings, onSignOut, onWhatsApp, listsCollapsed, listsShowAll, onListsUi, groups, onNewGroup }: Props) {
   const svg = (k: string) => <svg viewBox="0 0 20 20" aria-hidden="true">{ICONS[k]}</svg>
   const go = (v: View) => () => onNavigate(v)
   const sensors = useSensors(
@@ -165,7 +167,7 @@ export const Sidebar = memo(function Sidebar({ me, view, lists, tags, counts, on
         <div className="side-brand">
           <b>Gavin's Todolist</b>
           <span className="side-user">
-            <i className={`dot${online ? ' ok' : ''}`} title={online ? 'Live: changes sync to your other devices' : 'Reconnecting…'} />
+            <i className={`dot${online ? ' ok' : ''}`} title={online ? 'Synced' : 'Reconnecting…'} />
             {me.name}
           </span>
         </div>
@@ -225,7 +227,7 @@ export const Sidebar = memo(function Sidebar({ me, view, lists, tags, counts, on
             <div id="side-lists">
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={reorder}>
                 <SortableContext items={[...top, ...rest].map((l) => l.id)} strategy={verticalListSortingStrategy}>
-                  <ul className="nav" aria-label="Lists (drag to reorder)">{top.map(row)}</ul>
+                  <ul className="nav" aria-label="Lists">{top.map(row)}</ul>
                   {rest.length > 0 && (
                     <Collapsible open={listsShowAll} className="more-lists">
                       <ul className="nav" aria-label="More lists">{rest.map(row)}</ul>
@@ -239,11 +241,34 @@ export const Sidebar = memo(function Sidebar({ me, view, lists, tags, counts, on
                   {listsShowAll ? 'Show less' : `View more (${rest.length})`}
                 </button>
               )}
-              {lists.length === 0 && <p className="side-empty">No lists yet. Press ＋ to make one.</p>}
+              {lists.length === 0 && <p className="side-empty">No lists yet.</p>}
             </div>
           </Collapsible>
         )
       })()}
+
+      <div className="nav-section lists-head">
+        <span className="section-label">Groups</span>
+        <button className="icon-btn sm" onClick={onNewGroup} aria-label="New group" title="New group">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4.5v11M4.5 10h11" /></svg>
+        </button>
+      </div>
+      <ul className="nav" aria-label="Groups">
+        {(groups || []).map((g) => {
+          const mine = g.tasks.filter((t) => !t.done && t.assignee === me.username).length
+          const open = g.tasks.filter((t) => !t.done).length
+          return (
+            <li key={g.id}>
+              <button className={`nav-item${same(view, { kind: 'group', id: g.id }) ? ' on' : ''}`} onClick={go({ kind: 'group', id: g.id })} title={`${g.members.length} people`}>
+                <span className="nav-icon emoji">{g.emoji}</span>
+                <span className="nav-label">{g.name}</span>
+                {!!open && <span className={`nav-count${mine ? ' mine' : ''}`} title={mine ? `${mine} for you` : undefined}>{open}</span>}
+              </button>
+            </li>
+          )
+        })}
+        {groups && groups.length === 0 && <li><p className="side-empty">No groups yet.</p></li>}
+      </ul>
 
       {tags.length > 0 && (
         <>

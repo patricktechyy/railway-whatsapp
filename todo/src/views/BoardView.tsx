@@ -185,9 +185,9 @@ function Block({ widget, env, editing, onChange, onRemove }: {
         <WidgetBody widget={widget} env={env} onConfig={(config) => onChange({ ...widget, config })} />
       </div>
       {/* resize: right edge = width, bottom edge = height, corner = both; double-click resets */}
-      <div className="widget-resize-x" role="separator" aria-orientation="vertical" aria-label={`Width of ${name}`} tabIndex={0} title="Drag to make wider or narrower (double-click: medium)"
+      <div className="widget-resize-x" role="separator" aria-orientation="vertical" aria-label={`Width of ${name}`} tabIndex={0} title="Drag to resize (double-click for medium)"
         onPointerDown={startResize('x')} onKeyDown={keyResize('x')} onDoubleClick={() => onChange({ ...widget, w: 8, size: 'md' })} />
-      <div className="widget-resize-y" role="separator" aria-orientation="horizontal" aria-label={`Height of ${name}`} tabIndex={0} title="Drag to make taller or shorter (double-click: fit)"
+      <div className="widget-resize-y" role="separator" aria-orientation="horizontal" aria-label={`Height of ${name}`} tabIndex={0} title="Drag to resize (double-click to fit)"
         onPointerDown={startResize('y')} onKeyDown={keyResize('y')} onDoubleClick={() => onChange({ ...widget, h: null })} />
       <div className="widget-resize-xy" aria-hidden="true" onPointerDown={startResize('xy')} onDoubleClick={() => onChange({ ...widget, h: null })} />
       {resizing && <div className="resize-ghost" ref={ghost} aria-hidden="true" />}
@@ -230,15 +230,14 @@ export function BoardView({ board, env, onSave }: { board: Board; env: WidgetEnv
     if (w.type === 'notes' && w.config.text?.trim() && !confirm(`Delete "${w.title || 'Sticky note'}" and its text?`)) return
     save(widgets.filter((x) => x.id !== w.id))
   }
-  const reset = () => { if (confirm('Put your board back to how it started?')) save(DEFAULT_WIDGETS.map((w) => ({ ...w, id: newId(), h: null, hidden: false }))) }
+  const reset = () => { if (confirm('Reset your board to the default?')) save(DEFAULT_WIDGETS.map((w) => ({ ...w, id: newId(), h: null, hidden: false }))) }
   const missing = TYPES.filter((t) => t !== 'notes' && !widgets.some((w) => w.type === t))
 
   return (
     <div className="board">
       <div className="board-bar">
-        <p className="help">Drag blocks by <b>⠿</b> to move them, and their <b>edges</b> to resize. Drag tasks between columns to change priority or status.</p>
         <span className="spacer" />
-        <button className="btn ghost sm" onClick={addSticky} disabled={full} data-add-sticky>📝 + Sticky note</button>
+        <button className="btn ghost sm" onClick={addSticky} disabled={full} data-add-sticky>+ Sticky note</button>
         <button ref={blocks.ref} className="btn ghost sm" onClick={blocks.toggle} aria-haspopup="dialog" aria-expanded={blocks.open} data-blocks>☑ Blocks</button>
         {editing && <button ref={add.ref} className="btn ghost sm" onClick={add.toggle} disabled={full}>+ Add block</button>}
         <button className={`btn sm${editing ? '' : ' ghost'}`} onClick={() => setEditing((e) => !e)} data-board-edit>{editing ? 'Done' : '✎ Edit board'}</button>
@@ -295,7 +294,7 @@ export function BoardView({ board, env, onSave }: { board: Board; env: WidgetEnv
       )}
 
       {visible.length === 0 ? (
-        <div className="empty">{widgets.length ? <>All your blocks are hidden. Tick some in <b>☑ Blocks</b>.</> : <>Your board is empty. Use <b>☑ Blocks</b> or <b>+ Sticky note</b>.</>}</div>
+        <div className="empty">{widgets.length ? <>All your blocks are hidden. Turn some on in <b>☑ Blocks</b>.</> : <>Your board is empty. Add something from <b>☑ Blocks</b>.</>}</div>
       ) : (
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={end}>
           <SortableContext items={visible.map((w) => w.id)} strategy={rectSortingStrategy}>

@@ -41,9 +41,9 @@
       <h1 class="word when-ok" data-egg>Hi, __NAME__</h1>
       <h1 class="word when-bad">Apa yang Diatas<small>Whats Up</small></h1>
       <ol class="steps when-ok">
-        <li class="now"><b>1</b>Choose your password</li>
-        <li><b>2</b>Link your WhatsApp with a QR code</li>
-        <li><b>3</b>Your chats appear here</li>
+        <li class="now"><b>1</b>Pick a password</li>
+        <li><b>2</b>Link WhatsApp</li>
+        <li><b>3</b>Start chatting</li>
       </ol>
     </div>
     <div class="foot">Solusi buat anak IPLU</div>
@@ -51,7 +51,7 @@
   <section class="auth-main">
     <div class="auth-form when-ok">
       <h1>Choose a password</h1>
-      <p class="lede">You'll sign in with the username below and the password you pick here.</p>
+      <p class="lede">You'll sign in with this username.</p>
       <span class="chip">@__USERNAME__</span>
       <form id="f" novalidate>
         <input type="text" autocomplete="username" value="__USERNAME__" hidden>
@@ -59,19 +59,19 @@
           <span class="input-wrap"><input id="p1" type="password" autocomplete="new-password" minlength="__MIN__" required autofocus>
           <button type="button" class="reveal" data-reveal="p1" aria-label="Show password">Show</button></span>
           <span class="meter" id="meter" data-l="0" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
-          <span class="help" id="strength">At least __MIN__ characters. Longer is stronger.</span></label>
+          <span class="help" id="strength">At least __MIN__ characters.</span></label>
         <label class="field"><span>Type it again</span>
           <span class="input-wrap"><input id="p2" type="password" autocomplete="new-password" required>
           <button type="button" class="reveal" data-reveal="p2" aria-label="Show password">Show</button></span>
           <span class="match" id="match"></span></label>
-        <button class="btn lg full" id="go">Save and continue</button>
+        <button class="btn lg full" id="go">Continue</button>
         <div class="error" id="err" role="alert"></div>
       </form>
     </div>
     <div class="auth-form when-bad">
       <h1>This link has expired</h1>
-      <p class="lede">Setup links work once and last 7 days. Ask your admin to send you a new one, or sign in if you've already set up your account.</p>
-      <a class="btn lg full" href="/">Go to sign in</a>
+      <p class="lede">Ask the admin for a new one. Already set up? Just sign in.</p>
+      <a class="btn lg full" href="/">Sign in</a>
     </div>
   </section>
 </main>
@@ -84,11 +84,11 @@ document.querySelectorAll('[data-reveal]').forEach(b => b.addEventListener('clic
   b.setAttribute('aria-label', show ? 'Hide password' : 'Show password'); i.focus();
 }));
 function rate(v) {
-  if (!v) return [0, `At least ${MIN} characters. Longer is stronger.`];
+  if (!v) return [0, `At least ${MIN} characters.`];
   if (v.length < MIN) return [1, `${MIN - v.length} more character${MIN - v.length === 1 ? '' : 's'} to go`];
   const kinds = [/[a-z]/, /[A-Z]/, /\d/, /[^A-Za-z0-9]/].filter(r => r.test(v)).length;
   const score = (v.length >= 14 ? 2 : v.length >= 10 ? 1 : 0) + (kinds >= 3 ? 1 : 0);
-  return score >= 2 ? [4, 'Strong password'] : score === 1 ? [3, 'Good password'] : [2, 'Okay. A longer one would be stronger'];
+  return score >= 2 ? [4, 'Strong'] : score === 1 ? [3, 'Good'] : [2, 'Okay, could be longer'];
 }
 function check() {
   const a = document.getElementById('p1').value, b = document.getElementById('p2').value;
@@ -96,7 +96,7 @@ function check() {
   document.getElementById('meter').dataset.l = l; document.getElementById('strength').textContent = t;
   const m = document.getElementById('match');
   m.className = 'match' + (b ? (a === b ? ' ok' : ' no') : '');
-  m.textContent = b ? (a === b ? 'Passwords match' : "Passwords don't match yet") : '';
+  m.textContent = b ? (a === b ? 'Matches' : "Doesn't match yet") : '';
 }
 ['p1', 'p2'].forEach(id => document.getElementById(id)?.addEventListener('input', check));
 </script>
@@ -105,7 +105,7 @@ const f = document.getElementById('f');
 f && f.addEventListener('submit', async (e) => {
   e.preventDefault();
   const go = document.getElementById('go'), err = document.getElementById('err');
-  if (p1.value !== p2.value) { err.textContent = "The two passwords don't match."; return; }
+  if (p1.value !== p2.value) { err.textContent = "Passwords don't match."; return; }
   go.disabled = true; err.textContent = '';
   try {
     const token = location.pathname.split('/').pop();

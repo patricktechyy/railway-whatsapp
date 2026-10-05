@@ -47,9 +47,9 @@ export function DayNote({ date, note, onSave, onDelete }: {
           onChange={(e) => setLabel(e.target.value)}
           onBlur={() => save()}
           onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
-          placeholder="Label, e.g. Mum’s birthday 🎂"
+          placeholder="Label, like Mum’s birthday"
           maxLength={40}
-          aria-label="Day label (shown next to the date)"
+          aria-label="Day label"
           autoFocus={!note}
         />
         {note && (

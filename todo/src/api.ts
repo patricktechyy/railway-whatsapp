@@ -19,6 +19,15 @@ export function toWhatsUp(msg: Record<string, unknown>) {
   if (framed) try { window.parent.postMessage({ source: 'todolist', ...msg }, location.origin) } catch {}
 }
 
+let home = '/'
+/** Where your Whats Up chats are (set once we know who you are). */
+export const setHome = (h: string) => { home = h }
+/** Open a WhatsApp chat: inside Whats Up just switch to it, on its own go to Whats Up. */
+export function openWhatsAppChat(jid: string) {
+  if (framed) toWhatsUp({ type: 'open-chat', jid })
+  else location.href = `${home}#chat=${encodeURIComponent(jid)}`
+}
+
 /** Signed out of Whats Up: go to its sign-in, and come back here afterwards. */
 export function goSignIn() {
   const next = encodeURIComponent(location.pathname + location.hash)

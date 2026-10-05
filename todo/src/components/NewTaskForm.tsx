@@ -182,7 +182,7 @@ function Form({ lists, defaults, weekStartsMonday, onAdd, onNewList, onAdded, on
               value={tagText}
               onChange={(e) => setTagText(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') addTag(e) }}
-              placeholder="Add Tags"
+              placeholder="Add tags"
               maxLength={25}
               aria-label="Add a tag"
             />
@@ -224,7 +224,7 @@ function Form({ lists, defaults, weekStartsMonday, onAdd, onNewList, onAdded, on
 
       <div className="new-task-foot">
         <span className={`help${tried && error ? ' bad' : ''}`} role={tried && error ? 'alert' : undefined}>
-          {tried && error ? error : parsed.hints.length && text ? `Understood: ${parsed.hints.join(' · ')}` : 'Tip: type “tomorrow 4pm !3 #exam” to fill these in'}
+          {tried && error ? error : parsed.hints.length && text ? `Got it: ${parsed.hints.join(' · ')}` : 'Try “tomorrow 4pm !3 #exam”'}
         </span>
         <span className="spacer" />
         <button type="button" className="btn ghost sm" onClick={onClose}>Cancel</button>

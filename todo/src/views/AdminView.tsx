@@ -61,10 +61,10 @@ const TABS: { key: Tab; label: string }[] = [
 ]
 
 const FEATURES: { key: keyof Settings['whatsapp']; label: string; help: string }[] = [
-  { key: 'reminders', label: 'Reminders on WhatsApp', help: 'People can choose to also get their reminders on WhatsApp (from the bot, or in their “Message yourself” chat).' },
-  { key: 'share', label: 'Share a task to a chat', help: '“Send on WhatsApp” in a task’s details: sent from the person’s own WhatsApp.' },
-  { key: 'inbox', label: 'Add tasks from WhatsApp', help: '“add buy milk tomorrow 5pm” to the bot (or “td: …” in “Message yourself”) adds a task.' },
-  { key: 'buddy', label: 'WhatsApp Buddy 🤖', help: '“💬 WhatsApp me” on tasks, the morning brief and evening check-in, and replies like “done” or “snooze 2h”. Needs Reminders on WhatsApp.' },
+  { key: 'reminders', label: 'Reminders on WhatsApp', help: 'People can get their reminders on WhatsApp too.' },
+  { key: 'share', label: 'Share a task to a chat', help: 'Send a task to a chat from your own WhatsApp.' },
+  { key: 'inbox', label: 'Add tasks from WhatsApp', help: 'Message the bot “add buy milk 5pm” to add a task.' },
+  { key: 'buddy', label: 'WhatsApp Buddy 🤖', help: 'Task messages, daily briefs and replies like “done”. Needs reminders on WhatsApp.' },
 ]
 
 const ST_LABEL: Record<St, string> = { todo: 'Not started', doing: 'In progress', done: 'Completed', removed: 'Deleted it' }
@@ -197,7 +197,6 @@ function OverviewTab({ overview: o, assigned, onGo, onRefresh }: { overview: Ove
         <div className="chart-head">
           <div>
             <h2>Recently given</h2>
-            <p className="help">How people are getting on with the tasks you gave them.</p>
           </div>
           <div className="row">
             <button className="btn ghost sm" onClick={onRefresh}>Refresh</button>
@@ -283,7 +282,7 @@ function TasksTab({ me, people, settings, assigned, preselect, onPreselectUsed, 
         },
       })
       const n = r.assignment.to.length
-      toast(`📌 Given to ${plural(n, 'person', 'people')}${r.pushed ? ` · ${plural(r.pushed, 'notification')}` : ''}${r.whatsapp ? ` · ${r.whatsapp} on WhatsApp` : ''}${r.failed.length ? ` · ${r.failed.length} couldn’t get it` : ''}`)
+      toast(`Given to ${plural(n, 'person', 'people')}${r.pushed ? ` · ${plural(r.pushed, 'notification')}` : ''}${r.whatsapp ? ` · ${r.whatsapp} on WhatsApp` : ''}${r.failed.length ? ` · ${r.failed.length} couldn’t get it` : ''}`)
       reset()
       setOpen(r.assignment.id)
       onChanged()
@@ -294,14 +293,14 @@ function TasksTab({ me, people, settings, assigned, preselect, onPreselectUsed, 
     try {
       const r = await api<{ people: number; pushed: number; whatsapp: number }>(`/admin/assignments/${a.id}/remind`, 'POST', { whatsapp: waOn })
       const how = [r.pushed && plural(r.pushed, 'notification'), r.whatsapp && `${r.whatsapp} on WhatsApp`].filter(Boolean).join(', ')
-      toast(r.people ? `👋 Reminded ${plural(r.people, 'person', 'people')}${how ? ` (${how})` : ''}` : 'Everyone has finished it 🎉')
+      toast(r.people ? `Reminded ${plural(r.people, 'person', 'people')}${how ? ` (${how})` : ''}` : 'Everyone’s finished it')
     } catch (e: any) { toast(e.message) }
   }
   const remove = async (a: Assignment, withdraw: boolean) => {
     setConfirm(null)
     try {
       const r = await api<{ removed: number; people?: number }>(`/admin/assignments/${a.id}${withdraw ? '?withdraw=1' : ''}`, 'DELETE')
-      toast(withdraw ? `Taken back from ${plural(r.people ?? 0, 'person', 'people')} (${r.removed} task${r.removed === 1 ? '' : 's'} removed)` : 'Removed from this list (people keep their tasks)')
+      toast(withdraw ? `Taken back from ${plural(r.people ?? 0, 'person', 'people')} (${r.removed} task${r.removed === 1 ? '' : 's'} removed)` : 'Removed here. People keep their copies.')
       onChanged()
     } catch (e: any) { toast(e.message) }
   }
@@ -310,9 +309,9 @@ function TasksTab({ me, people, settings, assigned, preselect, onPreselectUsed, 
     <div className="admin-cols assign-cols">
       <section className="card">
         <h2>Give people a task</h2>
-        <p className="help">It lands in their list like any other task (marked 📌 from you), with a notification. They can edit, finish or delete it.</p>
+        <p className="help">It shows up in their list marked 📌, with a notification.</p>
         <form className="assign-form" onSubmit={submit}>
-          <input className="input" name="title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="What needs doing? e.g. Bring your guitar to practice" maxLength={300} aria-label="Title" required />
+          <input className="input" name="title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="What needs doing?" maxLength={300} aria-label="Title" required />
           <textarea className="input" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Notes (optional)" maxLength={5000} aria-label="Notes" />
           <div className="assign-grid">
             <label className="range-field"><span>Date</span><input className="input sm" type="date" value={due} onChange={(e) => { setDue(e.target.value); if (!e.target.value) setTime('') }} /></label>
@@ -327,7 +326,7 @@ function TasksTab({ me, people, settings, assigned, preselect, onPreselectUsed, 
           {repeat > 0 && !due && <p className="help">Repeats start today unless you pick a date.</p>}
           <textarea className="input" rows={2} value={steps} onChange={(e) => setSteps(e.target.value)} placeholder="Steps, one per line (optional)" aria-label="Steps" />
           <div className="assign-grid two">
-            <input className="input sm" value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} placeholder="Link, e.g. https://… (optional)" aria-label="Link" aria-invalid={!urlOk} />
+            <input className="input sm" value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} placeholder="Link (optional)" aria-label="Link" aria-invalid={!urlOk} />
             <input className="input sm" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="#tags (optional)" aria-label="Tags" />
           </div>
 
@@ -338,7 +337,7 @@ function TasksTab({ me, people, settings, assigned, preselect, onPreselectUsed, 
               <button type="button" role="radio" aria-checked={!everyone} className={!everyone ? 'on' : ''} onClick={() => setEveryone(false)}>Choose people{!everyone && picked.length ? ` (${picked.length})` : ''}</button>
             </div>
             {everyone ? (
-              <p className="help">Everyone who uses the Todolist ({plural(count, 'person', 'people')}), apart from you.</p>
+              <p className="help">Everyone except you ({plural(count, 'person', 'people')}).</p>
             ) : (
               <>
                 {(people?.length || 0) > 6 && <input className="input sm" value={find} onChange={(e) => setFind(e.target.value)} placeholder="Find someone" aria-label="Find someone" />}
@@ -367,7 +366,7 @@ function TasksTab({ me, people, settings, assigned, preselect, onPreselectUsed, 
           {waOn && (
             <label className="toggle tight">
               <input type="checkbox" checked={whatsapp} onChange={(e) => setWhatsapp(e.target.checked)} />
-              <span>Also send it on WhatsApp <small>(from the Buddy bot to their own WhatsApp, so their phone buzzes)</small></span>
+              <span>Also send it on WhatsApp</span>
             </label>
           )}
           <div className="assign-actions">
@@ -380,8 +379,8 @@ function TasksTab({ me, people, settings, assigned, preselect, onPreselectUsed, 
 
       <section className="card">
         <h2>Tasks you gave</h2>
-        <p className="help">Only these tasks are shown here, never anything else of theirs.</p>
-        {!assigned ? <p className="muted">Loading…</p> : assigned.length === 0 ? <p className="muted admin-empty">Nothing yet. Tasks you give show up here with everyone’s progress.</p> : (
+        <p className="help">You only see these, nothing else of theirs.</p>
+        {!assigned ? <p className="muted">Loading…</p> : assigned.length === 0 ? <p className="muted admin-empty">Nothing yet.</p> : (
           <ul className="assign-list">
             {assigned.map((a) => {
               const total = a.to.length
@@ -419,7 +418,7 @@ function TasksTab({ me, people, settings, assigned, preselect, onPreselectUsed, 
                     </ul>
                   )}
                   <div className="row wrap assign-tools">
-                    <button className="btn ghost sm" disabled={!left} onClick={() => remind(a)} title={left ? 'Send a notification to everyone who hasn’t finished it' : 'Everyone has finished it'}>👋 Remind {left ? `the ${left} not done` : ''}</button>
+                    <button className="btn ghost sm" disabled={!left} onClick={() => remind(a)} title={left ? 'Notify everyone who hasn’t finished it' : 'Everyone’s finished it'}>👋 Remind {left ? `the ${left} not done` : ''}</button>
                     <span className="spacer" />
                     <button className="btn quiet sm" onClick={() => setConfirm(a)}>Remove…</button>
                   </div>
@@ -439,8 +438,8 @@ function TasksTab({ me, people, settings, assigned, preselect, onPreselectUsed, 
           onConfirm={() => remove(confirm, true)}
           secondary={{ label: 'Only remove it from this list', onClick: () => remove(confirm, false) }}
         >
-          <b>Take it back</b> removes every copy of this task from everyone’s list — including <b>completed</b> and <b>in-progress</b> copies. Repeating assignments and their completed rounds are taken back too.
-          <br /><br />Or just remove it from this page and let people keep their tasks.
+          <b>Take it back</b> deletes every copy from everyone’s list, including completed and in-progress ones (and past rounds of repeating tasks).
+          <br /><br />Or just remove it from this page and let people keep theirs.
         </ConfirmDialog>
       )}
     </div>
@@ -453,14 +452,14 @@ function PeopleTab({ people, onRefresh, onGive, onAnnounce }: { people: Person[]
   const q = find.trim().toLowerCase()
   const shown = (people || []).filter((p) => !q || p.name.toLowerCase().includes(q) || p.username.includes(q))
   const tour = async (p: Person) => {
-    try { await api(`/admin/people/${encodeURIComponent(p.username)}/tour`, 'POST', {}); toast(`${p.name} will see the tutorial next time they open the app`); onRefresh() } catch (e: any) { toast(e.message) }
+    try { await api(`/admin/people/${encodeURIComponent(p.username)}/tour`, 'POST', {}); toast(`${p.name} will get the tutorial next time`); onRefresh() } catch (e: any) { toast(e.message) }
   }
   return (
     <section className="card">
       <div className="chart-head">
         <div>
           <h2>People &amp; usage</h2>
-          <p className="help">Everyone with a Whats Up account. Only counts: their tasks stay private.</p>
+          <p className="help">Counts only. Their tasks stay private.</p>
         </div>
         <div className="row">
           {(people?.length || 0) > 6 && <input className="input sm" value={find} onChange={(e) => setFind(e.target.value)} placeholder="Find someone" aria-label="Find someone" />}
@@ -492,7 +491,7 @@ function PeopleTab({ people, onRefresh, onGive, onAnnounce }: { people: Person[]
                   <td className="people-actions">
                     <button className="btn ghost sm" onClick={() => onGive(p.username)}>📌 Give a task</button>
                     <button className="btn quiet sm" onClick={() => onAnnounce(p.username)}>📣 Message</button>
-                    <button className="btn quiet sm" onClick={() => tour(p)} disabled={!p.tourDone} title={p.tourDone ? 'Show them the tutorial next time they open the app' : 'They’ll see it next time they open the app'}>{p.tourDone ? '▶ Tutorial again' : 'Tutorial due'}</button>
+                    <button className="btn quiet sm" onClick={() => tour(p)} disabled={!p.tourDone} title={p.tourDone ? 'Show them the tutorial next time they open the app' : 'They’ll get it next time they open the app'}>{p.tourDone ? '▶ Tutorial again' : 'Tutorial due'}</button>
                   </td>
                 </tr>
               ))}
@@ -515,7 +514,7 @@ function AnnounceTab({ people, settings, to, setTo, onChanged }: { people: Perso
     setBusy(true)
     try {
       const r = await api<{ pushed: number }>('/admin/announce', 'POST', { title, body, to })
-      toast(`Announced · pushed to ${plural(r.pushed, 'device')}`)
+      toast(`Sent to ${plural(r.pushed, 'device')}`)
       setTitle('')
       setBody('')
       onChanged()
@@ -529,9 +528,9 @@ function AnnounceTab({ people, settings, to, setTo, onChanged }: { people: Perso
     <div className="admin-cols">
       <section className="card">
         <h2>Send an announcement</h2>
-        <p className="help">A notification, plus a banner at the top of the app until they close it.</p>
+        <p className="help">Sends a notification and shows a banner until they close it.</p>
         <form onSubmit={announce} className="announce-form">
-          <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title, e.g. New version is out! 🎉" maxLength={80} aria-label="Title" />
+          <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title" maxLength={80} aria-label="Title" />
           <textarea className="input" rows={3} value={body} onChange={(e) => setBody(e.target.value)} placeholder="Message (optional)" maxLength={500} aria-label="Message" />
           <div className="row wrap">
             <label className="sort"><span>To</span>
@@ -552,7 +551,7 @@ function AnnounceTab({ people, settings, to, setTo, onChanged }: { people: Perso
             {settings.announcements.map((a) => (
               <li key={a.id}>
                 <span><b>{a.title}</b>{a.body && <small>{a.body}</small>}<small>{a.to === 'all' ? 'Everyone' : `@${a.to}`} · {ago(a.at)}</small></span>
-                <button className="icon-btn sm" aria-label={`Delete announcement ${a.title}`} title="Delete (the banner disappears for everyone)" onClick={() => remove(a.id)}>
+                <button className="icon-btn sm" aria-label={`Delete announcement ${a.title}`} title="Delete (removes the banner for everyone)" onClick={() => remove(a.id)}>
                   <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6 6l8 8M14 6l-8 8" /></svg>
                 </button>
               </li>
@@ -566,7 +565,7 @@ function AnnounceTab({ people, settings, to, setTo, onChanged }: { people: Perso
 
 // ----------------------------------------------------------------- whatsapp
 const statusText = (a: { connected?: boolean; status?: string }) =>
-  a.connected ? 'Online' : a.status === 'idle' || a.status === 'qr' ? 'Not linked to a phone yet' : a.status === 'logged-out' ? 'Logged out: scan the QR again' : 'Offline (reconnecting)'
+  a.connected ? 'Online' : a.status === 'idle' || a.status === 'qr' ? 'Not linked yet' : a.status === 'logged-out' ? 'Logged out, scan the QR again' : 'Offline, reconnecting'
 
 function WhatsAppTab({ settings, setSettings, onChanged }: { settings: Settings | null; setSettings: (s: Settings) => void; onChanged: () => void }) {
   const [test, setTest] = useState('')
@@ -578,12 +577,12 @@ function WhatsAppTab({ settings, setSettings, onChanged }: { settings: Settings 
     try { await api('/admin/settings', 'POST', { whatsapp: { [key]: on } }) } catch (e: any) { toast(e.message); onChanged() }
   }
   const setBot = async (bot: string) => {
-    if (bot && !confirm('Everyone’s WhatsApp Buddy messages (task titles and notes) will be sent from this account’s WhatsApp, so they show on its phone.\n\nOnly pick an account linked to a spare number used just for the bot, not anyone’s personal WhatsApp.')) { onChanged(); return }
+    if (bot && !confirm('Buddy will send everyone’s messages (task titles and notes) from this account, so they’ll show on its phone.\n\nOnly use a spare number set up for the bot, not someone’s personal WhatsApp.')) { onChanged(); return }
     setTest('')
     try {
       const r = await api<{ bot: Bot | null }>('/admin/settings', 'POST', { bot: bot || null })
       if (settings) setSettings({ ...settings, bot: r.bot })
-      toast(bot ? 'WhatsApp Buddy now writes from this account 🤖' : 'No bot: Buddy writes in everyone’s “Message yourself” chat')
+      toast(bot ? 'Buddy now sends from this account' : 'No bot. Buddy uses everyone’s “Message yourself” chat')
     } catch (e: any) { toast(e.message); onChanged() }
   }
   const runTest = async () => {
@@ -591,9 +590,9 @@ function WhatsAppTab({ settings, setSettings, onChanged }: { settings: Settings 
     setTest('Checking…')
     try {
       const r = await api<{ bot: Bot | null; sent?: boolean }>('/admin/test', 'POST', {})
-      setTest(!r.bot ? 'No bot picked yet.' : r.sent ? `✅ The bot is online. It just messaged you on WhatsApp from ${r.bot.phone}.` : `✅ The bot is online (${r.bot.phone}).`)
+      setTest(!r.bot ? 'No bot picked yet.' : r.sent ? `Online. It just messaged you from ${r.bot.phone}.` : `Online (${r.bot.phone}).`)
     } catch (e: any) {
-      setTest(`⚠️ ${e.message}`)
+      setTest(e.message)
     }
     setBusy(false)
   }
@@ -604,9 +603,8 @@ function WhatsAppTab({ settings, setSettings, onChanged }: { settings: Settings 
       <section className="card admin-narrow">
         <h2>WhatsApp Buddy bot 🤖</h2>
         <p className="help">
-          Pick a Whats Up account that is linked to its <b>own, spare WhatsApp number</b>. Buddy then sends reminders <b>from that number to everyone’s real WhatsApp</b>,
-          like any other contact, so phones buzz even when nobody has Whats Up open. People reply right in that chat: <b>done</b>, <b>snooze 1h</b>, <b>today</b>, <b>add buy milk 5pm</b>.
-          Without a bot, Buddy writes in each person’s own “Message yourself” chat instead (no buzz), and they reply there with <b>td done</b>.
+          Pick an account linked to a <b>spare WhatsApp number</b> and Buddy messages everyone from it, so their phones buzz like a normal chat.
+          Without one, Buddy writes in each person’s “Message yourself” chat, which doesn’t notify.
         </p>
         {!settings ? <p className="muted">Loading…</p> : (
           <>
@@ -624,16 +622,16 @@ function WhatsAppTab({ settings, setSettings, onChanged }: { settings: Settings 
               )}
             </div>
             <div className="row wrap">
-              <button className="btn ghost sm" onClick={runTest} disabled={busy || !bot}>Check the bot &amp; message me</button>
+              <button className="btn ghost sm" onClick={runTest} disabled={busy || !bot}>Test the bot</button>
               {test && <span className="help test-result">{test}</span>}
             </div>
-            <button type="button" className="linkish" onClick={() => setGuide(!guide)} aria-expanded={guide}>{guide ? 'Hide' : 'How to'} set up a bot number</button>
+            <button type="button" className="linkish" onClick={() => setGuide(!guide)} aria-expanded={guide}>{guide ? 'Hide setup steps' : 'How to set up a bot number'}</button>
             {guide && (
               <ol className="bot-guide">
-                <li>Get a <b>spare number</b> with WhatsApp on it: a cheap prepaid SIM in an old phone works, or <b>WhatsApp Business</b> on your own phone with a second number. Don’t use someone’s personal WhatsApp: the bot reads every message people send it.</li>
-                <li>In Whats Up’s admin, <b>Add person</b> e.g. <code>buddy</code> named <i>Buddy 🤖</i>, and open its setup link in a private window to give it a password.</li>
-                <li>Sign in as it and <b>scan the QR code</b> with the spare phone (WhatsApp → Linked devices). Keep that phone charged and online now and then.</li>
-                <li>Pick it above, then press <b>Check the bot</b>. Tell everyone to save the number as a contact (“Buddy 🤖”), so the messages never land in spam.</li>
+                <li>Get a spare number with WhatsApp: a prepaid SIM in an old phone, or WhatsApp Business with a second number. Not someone’s personal WhatsApp, since the bot reads everything sent to it.</li>
+                <li>In Whats Up’s admin, add a person like <code>buddy</code> and open its setup link in a private window to set a password.</li>
+                <li>Sign in as it and scan the QR code from the spare phone (WhatsApp → Linked devices). Keep that phone charged and online.</li>
+                <li>Pick it above and hit <b>Test the bot</b>. Have everyone save the number as a contact so messages don’t end up in spam.</li>
               </ol>
             )}
           </>

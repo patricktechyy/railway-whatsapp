@@ -10,8 +10,8 @@ export function Fire({ days }: { days: number }) {
   const [tip, setTip] = useState(false)
   const t = fireTier(days)
   const text = days < 1
-    ? 'No streak yet: finish a task today to start one'
-    : `🔥 ${days}-day streak${t.next ? ` · ${t.next.in} more day${t.next.in === 1 ? '' : 's'} to ${t.next.name}` : ' · top level!'}`
+    ? 'No streak yet. Finish a task today to start one.'
+    : `🔥 ${days}-day streak${t.next ? ` · ${t.next.in} more day${t.next.in === 1 ? '' : 's'} to ${t.next.name}` : ' · max level'}`
   return (
     <span
       className={`fire fire-${t.level}`}

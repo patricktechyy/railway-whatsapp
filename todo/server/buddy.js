@@ -21,7 +21,8 @@ import { describeRepeat } from './repeat.js'
  * answer there starting with "td".
  */
 
-export const STYLES = ['friendly', 'coach', 'short']
+/** Two ways Buddy writes: 'friendly' is shown as Long, 'short' as Short. (Old 'coach' settings read as Long.) */
+export const STYLES = ['friendly', 'short']
 
 /**
  * The same message for the bot's chat, where you just reply "done" (no "td"):
@@ -40,30 +41,20 @@ const MAX_LIST = 12
 
 // ------------------------------------------------------------------ voices
 const VOICE = {
+  // "Long": the full picture (when it's due, steps, notes), in plain words
   friendly: {
-    hello: ['Hey {name}! 👋', 'Hi {name} 😊', 'Psst, {name} 👀', 'Hello {name}! 🌤️'],
-    nudge: ['Just a little nudge about this one:', 'Here’s that reminder you asked for:', 'Popping in about:', 'Don’t forget:'],
-    cheer: ['You’ve got this 🌟', 'One thing at a time 💛', 'Small steps still count 🐢', 'Future you says thank you 🙌'],
-    done: ['🎉 Nice one! *{title}* is done.', '✅ Ticked off: *{title}*. Well done!', '🥳 Boom, *{title}* is done!'],
-    start: ['🚀 Off you go! *{title}* is now in progress.', '👍 Started: *{title}*. You’ve got this!'],
-    snooze: ['😴 Okay, I’ll nudge you again {when}.', '⏰ No problem, back {when}.'],
-    morning: ['☀️ Good morning, {name}!', '🌅 Morning, {name}! Here’s your day.'],
-    evening: ['🌙 Evening check-in, {name}', '🌆 Hey {name}, how did today go?'],
-    free: ['Nothing due today 🎉 Enjoy it!', 'A clear day 🌈 Nothing due.'],
-    allclear: ['All clear for today 🎉 Sleep well!', 'Nothing left for today ✨ Rest up!'],
+    hello: ['Hi {name}', 'Hey {name}'],
+    nudge: ['Reminder:', 'Don’t forget:', 'Coming up:'],
+    cheer: [''],
+    done: ['✅ Done: *{title}*', '✅ *{title}* ticked off'],
+    start: ['▶️ Started *{title}*'],
+    snooze: ['⏰ Okay, I’ll remind you again {when}.', '⏰ Snoozed. Back {when}.'],
+    morning: ['☀️ Morning {name}', '☀️ Good morning {name}'],
+    evening: ['🌙 Evening {name}', '🌙 Hi {name}, here’s how today went'],
+    free: ['Nothing due today.'],
+    allclear: ['Everything for today is done.', 'All done for today.'],
   },
-  coach: {
-    hello: ['{name}, it’s go time! 🔥', 'Let’s go, {name}! 💪', 'Focus mode, {name} 🎯'],
-    nudge: ['Time to crush this:', 'Next up on the mission:', 'This one’s waiting for you:'],
-    cheer: ['Start now, thank yourself later 💪', 'Five minutes in and it gets easier 🚀', 'Discipline beats motivation 🔥'],
-    done: ['🔥 DONE: *{title}*. That’s how it’s done!', '💪 *{title}* crushed. Keep the momentum!', '🏆 *{title}*: finished. Next!'],
-    start: ['🏁 Clock’s running on *{title}*. Go!', '💥 *{title}* started. Don’t stop now!'],
-    snooze: ['⏳ Fine, {when}. But I’ll be back 👀', '🫡 Snoozed until {when}. No more excuses then!'],
-    morning: ['🔥 Rise and grind, {name}!', '💪 New day, new wins, {name}!'],
-    evening: ['🏁 Daily debrief, {name}', '📊 Scoreboard time, {name}'],
-    free: ['Clean slate today. Add a goal? 🎯', 'Nothing scheduled. Make it count anyway 💪'],
-    allclear: ['Clean sweep today 🧹🔥 Recover well!', 'Everything done. Champion stuff 🏆'],
-  },
+  // "Short": one line
   short: {
     hello: [''], nudge: [''], cheer: [''],
     done: ['✅ {title}'], start: ['▶️ {title}'], snooze: ['⏰ {when}'],
@@ -187,7 +178,10 @@ export class Buddy {
     this.saveState()
   }
 
-  settings(u) { return { ...BUDDY_DEFAULTS, ...(this.store.snapshot(u).profile.buddy || {}) } }
+  settings(u) {
+    const b = { ...BUDDY_DEFAULTS, ...(this.store.snapshot(u).profile.buddy || {}) }
+    return STYLES.includes(b.style) ? b : { ...b, style: 'friendly' }
+  }
   get botUser() { return this.getBot() || null }
   /** Does Buddy write to this person from the bot number (so they reply there, without "td")? */
   viaBot(u) { return !!this.botUser && this.botUser !== u }
@@ -300,7 +294,7 @@ export class Buddy {
     if (style === 'short') {
       return [`⏰ *${t.title}*${due ? ` · ${due}` : ''}`, next ? `next: ${next.title}` : null, this.replyHint(u, `td done · td snooze 1h${next ? ' · td step' : ''}`)].filter(Boolean).join('\n')
     }
-    const lines = [`🤖 ${say(style, 'hello', { name })}`, why === 'assigned' ? 'Someone gave you a task:' : say(style, 'nudge'), '', `📝 *${t.title}*`]
+    const lines = [`${say(style, 'hello', { name })}, ${why === 'assigned' ? 'someone gave you a task.' : say(style, 'nudge').toLowerCase().replace(/:$/, '…')}`, '', `📝 *${t.title}*`]
     if (due) lines.push(`📅 ${due}`)
     const meta = [
       t.priority === 3 && '🚩 High priority', t.priority === 2 && '🚩 Medium priority',
@@ -311,7 +305,7 @@ export class Buddy {
     if (steps.length) lines.push(`☑ ${steps.filter((s) => s.done).length}/${steps.length} steps${next ? ` · next: _${next.title}_` : ''}`)
     const note = t.notes?.split('\n').find((l) => l.trim())
     if (note) lines.push(`🗒 _${note.trim().slice(0, 140)}_`)
-    lines.push('', say(style, 'cheer'), this.replyHint(u, cmds))
+    lines.push('', this.replyHint(u, cmds))
     return lines.join('\n')
   }
 
@@ -337,13 +331,12 @@ export class Buddy {
     const list = this.todayList(u, now)
     this.remember(u, list.slice(0, MAX_LIST).map((t) => t.id))
     const late = list.filter((t) => t.due < today).length
-    if (!list.length) return `${say(style, 'morning', { name })}\n${say(style, 'free')}\n\n_Add one: “td: gym 6pm”_`
+    if (!list.length) return `${say(style, 'morning', { name })}\n${say(style, 'free')}`
     return [
       say(style, 'morning', { name }),
-      `You’ve got *${list.length}* thing${list.length === 1 ? '' : 's'} today${late ? ` (${late} overdue)` : ''}:`, '',
+      `*${list.length}* thing${list.length === 1 ? '' : 's'} today${late ? ` (${late} overdue)` : ''}:`, '',
       ...this.numbered(list, today), list.length > MAX_LIST ? `…and ${list.length - MAX_LIST} more` : null, '',
-      style === 'short' ? null : say(style, 'cheer'),
-      this.replyHint(u, '*td done 1* to tick one off · *td?* for this list'),
+      this.replyHint(u, '*td done 1* to tick one off'),
     ].filter((x) => x !== null).join('\n')
   }
 
@@ -353,34 +346,27 @@ export class Buddy {
     const days = streak(doc.tasks, tz, now)
     const left = this.todayList(u, now)
     this.remember(u, left.slice(0, MAX_LIST).map((t) => t.id))
-    const head = [say(style, 'evening', { name }), `✅ You finished *${doneToday}* today${days > 1 ? ` · 🔥 ${days}-day streak` : ''}`]
+    const head = [say(style, 'evening', { name }), `✅ *${doneToday}* done today${days > 1 ? ` · 🔥 ${days}-day streak` : ''}`]
     if (!left.length) return [...head, '', say(style, 'allclear')].join('\n')
     return [...head, '', `Still open (${left.length}):`, ...this.numbered(left, today), '',
-      this.replyHint(u, '*td move* to push these to tomorrow · *td done 1* to tick one off')].join('\n')
+      this.replyHint(u, '*td done 1* · *td move* to push the rest to tomorrow')].join('\n')
   }
 
   helpMessage(u) {
     return [
-      '🤖 *Buddy commands* (start with *td*)',
-      'In the Buddy chat, you can omit *td* and just reply with the command.', '',
-      '*VIEW*',
-      '• *td?* / *td today* — today + overdue, numbered',
-      '• *td tomorrow* — tomorrow’s open tasks',
-      '• *td upcoming* — the next 7 days',
-      '• *td overdue* — only overdue tasks', '',
-      '*TASKS*',
-      '• *td add buy milk tomorrow 5pm* — add a task (also: *new*, *todo*, *task*, *tambah*)',
-      '• *td done 2* — complete #2 from the last list (same for *start* / *step*)',
-      '• *td snooze 2 1h* — remind #2 again in 1 hour',
-      '• *td move* — move today’s unfinished tasks to tomorrow',
-      '• *td delete 2* — delete #2; *td clear completed* — remove every completed task', '',
-      '*REMINDERS & CHAT*',
-      '• *td remind me to call mum at 8pm* — make a task + WhatsApp reminder',
-      '• *td clear reminders* — cancel all task WhatsApp reminders and remove recent Buddy reminder/nudge messages',
-      '• *td clear buddy* — remove recent Buddy messages it has sent', '',
-      '*QUICK SYNTAX*',
-      'Numbers come from the last Buddy list. Dates: *today*, *tomorrow*, *Mon*, or a date. Times: *5pm* / *17:00*. Add *!3* for high priority, *#tag* for a tag, *@List* for a list. Repeats like *daily*, *weekly*, or *every 2 weeks* are understood.', '',
-      `_${this.brand} · Settings → WhatsApp Buddy controls Buddy_`,
+      '🤖 *Buddy commands* (start with *td*)', '',
+      '• *td?* what’s due, including overdue',
+      '• *td tomorrow* · *td upcoming* · *td overdue*',
+      '• *td add* buy milk tomorrow 5pm',
+      '• *td done 2* · *td start 2* · *td step 2*',
+      '• *td snooze 2 1h*',
+      '• *td move* push today’s leftovers to tomorrow',
+      '• *td delete 2* · *td clear completed*',
+      '• *td remind me to* call mum at 8pm',
+      '• *td clear reminders* cancel reminders and delete my reminder messages',
+      '• *td clear buddy* delete my recent messages', '',
+      'Numbers refer to my last list. Dates: today, tomorrow, Mon, or a date. Times: 5pm or 17:00. Also *!3* priority, *#tag*, *@List*, and repeats like daily or every 2 weeks.', '',
+      `_Buddy settings: ${this.brand} → Settings_`,
     ].join('\n')
   }
 
@@ -389,9 +375,9 @@ export class Buddy {
   target(u, code) {
     const s = this.st(u)
     const id = code ? s.codes?.[code] : s.last
-    if (!id) return { error: code ? `I don’t have a number ${code} on my last list. Send *td?* for a fresh one.` : 'Which one? Send *td?* for today’s list, then *td done 2* (for example).' }
+    if (!id) return { error: code ? `There’s no #${code} on my last list. Send *td?* for a new one.` : 'Which one? Send *td?* for the list, then *td done 2*.' }
     const t = this.store.snapshot(u).tasks.find((x) => x.id === id)
-    if (!t) return { error: 'That task isn’t there anymore (deleted?). Send *td?* for today’s list.' }
+    if (!t) return { error: 'That task is gone. Send *td?* for a new list.' }
     return { task: t }
   }
   changed(u, t) { try { this.onTaskChange(t) } catch {} return t }
@@ -410,7 +396,7 @@ export class Buddy {
 
     const show = (label, list, hint = '_td done 1 · td start 2 · td snooze 3 2h_') => {
       this.remember(u, list.slice(0, MAX_LIST).map((t) => t.id))
-      if (!list.length) return { reply: `📋 *${label}* — nothing open 🎉` }
+      if (!list.length) return { reply: `📋 *${label}*: nothing open` }
       return { reply: [`📋 *${label}* (${list.length})`, ...this.numbered(list, today), list.length > MAX_LIST ? `…and ${list.length - MAX_LIST} more` : null, '', hint].filter((x) => x !== null).join('\n') }
     }
 
@@ -421,7 +407,7 @@ export class Buddy {
       return show('Tomorrow', this.dateList(u, addDaysKey(today, 1), addDaysKey(today, 2)))
     }
     if (/^(upcoming|next 7 days|next week)$/.test(low)) {
-      return show('Upcoming · next 7 days', this.dateList(u, today, addDaysKey(today, 8)))
+      return show('Next 7 days',this.dateList(u, today, addDaysKey(today, 8)))
     }
     if (/^overdue$/.test(low)) {
       return show('Overdue', this.store.snapshot(u).tasks.filter((t) => !t.done && t.due && t.due < today)
@@ -432,7 +418,7 @@ export class Buddy {
     if ((m = text.match(/^(?:add|new|todo|task|tambah)\s*:?\s+(.+)$/is))) {
       const doc = this.store.snapshot(u)
       const parsed = parseQuickAdd(m[1], doc.lists, today)
-      if (!parsed.title) return { reply: 'What should I add? e.g. *td add buy milk tomorrow 5pm*' }
+      if (!parsed.title) return { reply: 'Add what? e.g. *td add buy milk tomorrow 5pm*' }
       const { hints: _h, ...fields } = parsed
       if (fields.time && fields.remind === undefined) fields.remind = 0
       const task = this.store.addTask(u, fields)
@@ -450,11 +436,11 @@ export class Buddy {
       if (verb === 'step') {
         const subtasks = task.subtasks || []
         const i = subtasks.findIndex((s) => !s.done)
-        if (i < 0) return { reply: `☑ All steps of *${task.title}* are already ticked. *td done* to finish it?` }
+        if (i < 0) return { reply: `☑ No steps left on *${task.title}*. *td done* to finish it.` }
         const nextSteps = subtasks.map((s, k) => (k === i ? { ...s, done: true } : s))
         this.changed(u, this.store.updateTask(u, task.id, { subtasks: nextSteps }))
         const left = nextSteps.filter((s) => !s.done)
-        return { reply: left.length ? `☑ Ticked: _${subtasks[i].title}_\nNext: _${left[0].title}_ (${nextSteps.length - left.length}/${nextSteps.length})` : `☑ Last step done! *td done* to finish *${task.title}* 🎉` }
+        return { reply: left.length ? `☑ Ticked: _${subtasks[i].title}_\nNext: _${left[0].title}_ (${nextSteps.length - left.length}/${nextSteps.length})` : `☑ Last step done. *td done* to finish *${task.title}*.` }
       }
       if (task.done) return { reply: `✅ *${task.title}* is already done.` }
       if (verb === 'start') {
@@ -475,7 +461,7 @@ export class Buddy {
       const { task, error } = this.target(u, m[1] && Number(m[1]))
       if (error) return { reply: error }
       const at = snoozeUntil(m[2], tz, now)
-      if (!at) return { reply: 'I didn’t get when 🤔 Try *td snooze 30m*, *2h*, *tonight*, *tomorrow* or *3pm*.' }
+      if (!at) return { reply: 'I didn’t get when. Try *td snooze 30m*, *2h*, *tonight*, *tomorrow* or *3pm*.' }
       this.changed(u, this.store.updateTask(u, task.id, { wa: { at } }))
       return { reply: say(style, 'snooze', { when: whenText(at, tz, now) }) + `\n_${task.title}_` }
     }
@@ -483,10 +469,10 @@ export class Buddy {
     // move: today's unfinished (and overdue) tasks to tomorrow
     if (/^(move|move all)$/.test(low)) {
       const list = this.todayList(u, now)
-      if (!list.length) return { reply: 'Nothing left to move 🎉' }
+      if (!list.length) return { reply: 'Nothing to move.' }
       const tomorrow = addDaysKey(today, 1)
       for (const t of list) this.changed(u, this.store.updateTask(u, t.id, { due: tomorrow }))
-      return { reply: `➡️ Moved ${list.length} task${list.length === 1 ? '' : 's'} to tomorrow. Fresh start! 🌱` }
+      return { reply: `➡️ Moved ${list.length} task${list.length === 1 ? '' : 's'} to tomorrow.` }
     }
 
     // delete/remove/cancel task [n]
@@ -511,12 +497,12 @@ export class Buddy {
     if (/^(?:clear|delete|remove) reminders?$/.test(low)) {
       const count = this.store.clearWaReminders(u)
       this.clearSent(u, ['reminder', 'nudge']).catch(() => {})
-      return { reply: count ? `🧹 Cleared ${count} task WhatsApp reminder${count === 1 ? '' : 's'}. I’m also removing recent Buddy reminder/nudge messages.` : '🧹 No task WhatsApp reminders are set. I’ll still clean recent Buddy reminder/nudge messages.' }
+      return { reply: count ? `🧹 Cleared ${count} reminder${count === 1 ? '' : 's'} and deleting my recent reminder messages.` : '🧹 No reminders set. Deleting my recent reminder messages anyway.' }
     }
 
     if (/^(?:clear|delete|remove) (?:buddy|buddy messages|messages)$/.test(low)) {
       this.clearSent(u).catch(() => {})
-      return { reply: '🧹 I’m removing the recent messages Buddy sent from this chat.' }
+      return { reply: '🧹 Deleting my recent messages.' }
     }
 
     // remind me (to) … : a task and a WhatsApp reminder
@@ -536,7 +522,7 @@ export class Buddy {
       const when = typeof wa.at === 'number' ? whenText(wa.at, tz, now) : whenText(zonedTime(task.due, task.time, tz), tz, now)
       this.st(u).last = task.id
       this.saveState()
-      return { reply: `👌 Got it! I’ll remind you ${when}:\n*${task.title}*`, task }
+      return { reply: `👌 I’ll remind you ${when}:\n*${task.title}*`, task }
     }
     return null
   }

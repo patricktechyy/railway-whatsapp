@@ -40,7 +40,7 @@ export class LocalLink {
   enabled(feature) { return !!this.settings().whatsapp[feature] }
 
   require(feature) {
-    if (!this.settings().whatsapp[feature]) throw new HttpError(403, 'Your admin has turned this WhatsApp feature off.')
+    if (!this.settings().whatsapp[feature]) throw new HttpError(403, 'Your admin turned this WhatsApp feature off.')
   }
 
   // ------------------------------------------------------------- sessions
@@ -55,15 +55,15 @@ export class LocalLink {
     if (endpoint === 'ping') return { ok: true, app: 'whatsup', accounts: this.sessions.size }
     if (endpoint === 'status') {
       const st = this.status(p.username)
-      if (!st.exists) throw new HttpError(404, 'No WhatsApp account')
+      if (!st.exists) throw new HttpError(404, 'WhatsApp isn’t linked')
       return st
     }
     const s = this.sessions.get(p.username)
-    if (!s) throw new HttpError(404, 'No WhatsApp account')
+    if (!s) throw new HttpError(404, 'WhatsApp isn’t linked')
     if (endpoint === 'chats') return { chats: s.store.contactList(String(p.q || ''), 40) }
     if (endpoint === 'send') {
       if (s.status !== 'connected' || !s.sock) {
-        throw new HttpError(503, `The WhatsApp of “${s.label || p.username}” isn’t connected right now (status: ${s.status})`)
+        throw new HttpError(503, `WhatsApp for “${s.label || p.username}” isn’t connected (${s.status})`)
       }
       // no chat given: the person's own "Message yourself" chat
       const jid = p.jid || s.me?.jid
@@ -72,12 +72,12 @@ export class LocalLink {
         const m = await s.send(jid, String(p.text || '').slice(0, 60000))
         return { ok: true, id: m?.id || null, jid: s.store.canon(jid) }
       } catch (e) {
-        throw new HttpError(e.status || 502, `WhatsApp didn’t take the message: ${e.message}`)
+        throw new HttpError(e.status || 502, `WhatsApp couldn’t send it: ${e.message}`)
       }
     }
     if (endpoint === 'delete-message') {
       if (s.status !== 'connected' || !s.sock) {
-        throw new HttpError(503, `The WhatsApp of “${s.label || p.username}” isn’t connected right now (status: ${s.status})`)
+        throw new HttpError(503, `WhatsApp for “${s.label || p.username}” isn’t connected (${s.status})`)
       }
       const jid = s.store.canon(String(p.jid || ''))
       const id = String(p.id || '')
@@ -85,7 +85,7 @@ export class LocalLink {
       try {
         return await s.deleteMessage(jid, id, true)
       } catch (e) {
-        throw new HttpError(e.status || 502, `WhatsApp couldn’t remove the message: ${e.message}`)
+        throw new HttpError(e.status || 502, `Couldn’t delete the message: ${e.message}`)
       }
     }
     throw new HttpError(404, `Unknown WhatsApp call: ${endpoint}`)

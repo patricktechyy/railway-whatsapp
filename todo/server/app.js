@@ -11,6 +11,9 @@ import { Buddy, BUDDY_DEFAULTS, plain } from './buddy.js'
 import { todayIn } from './tz.js'
 import { Holidays, COUNTRIES, countryForTz } from './holidays.js'
 import { Assignments, progressOf } from './assign.js'
+import { Groups } from './groups.js'
+import { CalendarFeeds } from './calendar.js'
+import { parseQuickAdd } from './quickadd.js'
 
 /**
  * Gavin's Todolist, as a part of Whats Up.
@@ -37,6 +40,12 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
   const link = new LocalLink(dataDir, sessions)
   const holidays = new Holidays(dataDir)
   const assignments = new Assignments(dataDir)
+  const calendars = new CalendarFeeds(dataDir)
+  // groups: shared task lists between Whats Up accounts; members' open pages refresh when one changes
+  const groups = new Groups(dataDir, {
+    isUser: (u) => !!auth.get(u) || u === ENV_ADMIN,
+    onChange: (g, members) => { for (const m of members) store.bus.emit(m, { type: 'group', id: g.id }) },
+  })
 
   /** The bot account: BOT_USER in Railway wins, otherwise the admin's pick (Todolist admin → WhatsApp). */
   const envBot = String(process.env.BOT_USER || process.env.WA_BOT_USER || '').trim().toLowerCase() || null
@@ -176,7 +185,7 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
     // single-page app: every other path is the app (signed in only)
     if (!who(req)) return send(res, 302, '', { location: `/?next=${encodeURIComponent('/todo/' + (p.slice(1) || '') + new URL(req.url, 'http://x').search)}` })
     const index = path.join(DIST, 'index.html')
-    if (!fs.existsSync(index)) return send(res, 503, 'The Todolist page isn’t built yet. Deploy with the Dockerfile (it runs the build), or run `npm run build` in todo/.', { 'content-type': 'text/plain; charset=utf-8' })
+    if (!fs.existsSync(index)) return send(res, 503, 'Todolist isn’t built. Run `npm run build` in todo/ (the Dockerfile does this).', { 'content-type': 'text/plain; charset=utf-8' })
     return send(res, 200, fs.readFileSync(index), { 'content-type': TYPES['.html'], 'cache-control': 'no-cache', ...FRAME })
   }
 
@@ -238,7 +247,7 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
       const s = link.settings()
       for (const k of ['reminders', 'share', 'inbox', 'buddy']) if (k in (body.whatsapp || {})) s.whatsapp[k] = !!body.whatsapp[k]
       if ('bot' in body) {
-        if (envBot) throw new HttpError(409, 'The bot account is set by the BOT_USER variable in Railway. Change it there.')
+        if (envBot) throw new HttpError(409, 'The bot account is set by BOT_USER in Railway. Change it there.')
         const b = body.bot ? String(body.bot).toLowerCase() : null
         if (b && !auth.get(b)) throw new HttpError(404, 'No such Whats Up account')
         s.bot = b
@@ -250,11 +259,11 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
     if (p === '/api/admin/test' && M === 'POST') {
       const bot = botView()
       if (!bot) return json(res, { ok: true, bot: null })
-      if (!bot.connected) throw new HttpError(503, `The bot account “${bot.name}” isn’t connected to WhatsApp (${bot.status}). Sign in as it and scan the QR code.`)
+      if (!bot.connected) throw new HttpError(503, `Bot “${bot.name}” isn’t connected (${bot.status}). Sign in as it and scan the QR code.`)
       if (c.u === ENV_ADMIN || c.u === bot.username) return json(res, { ok: true, bot, sent: false })
       const jid = await buddy.jidOf(c.u)
-      if (!jid) throw new HttpError(400, 'Link your own WhatsApp first, so the bot knows where to write.')
-      await link.call('send', { username: bot.username, jid, text: `👋 Hi ${nameOf(c.u).split(' ')[0]}! This is *WhatsApp Buddy* from ${brand}. If you can read this, the bot works 🎉\n\nReply *help* to see what I understand.` })
+      if (!jid) throw new HttpError(400, 'Link your own WhatsApp first.')
+      await link.call('send', { username: bot.username, jid, text: `👋 Hi ${nameOf(c.u).split(' ')[0]}, Buddy here. The bot works.\nReply *help* for commands.` })
       return json(res, { ok: true, bot, sent: true })
     }
     if (p === '/api/admin/announce' && M === 'POST') {
@@ -342,7 +351,7 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
           if (body.whatsapp && link.enabled('reminders') && pr.taskId && (buddy.viaBot(u) || store.snapshot(u).profile.waReminders !== false)) {
             const task = store.snapshot(u).tasks.find((x) => x.id === pr.taskId)
             try {
-              if (task) { await buddy.send(u, `👋 *${rec.byName} is asking about this one*\n\n${buddy.taskMessage(u, task)}`, { kind: 'nudge' }); buddy.remember(u, [task.id]); whatsapp++ }
+              if (task) { await buddy.send(u, `👋 *${rec.byName} is checking on this*\n\n${buddy.taskMessage(u, task)}`, { kind: 'nudge' }); buddy.remember(u, [task.id]); whatsapp++ }
             } catch (e) { console.warn(`[todo/nudge] ${u}: WhatsApp failed: ${e.message}`) }
           }
         }
@@ -402,9 +411,33 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
     if (p === '/api/badge' && M === 'GET') {
       const doc = store.snapshot(u)
       const today = todayIn(tzOf(u))
-      const open = doc.tasks.filter((t) => !t.done && t.due && t.due <= today)
+      const mineInGroups = groups.mine(u).flatMap((g) => g.tasks.filter((t) => t.assignee === u))
+      const open = [...doc.tasks, ...mineInGroups].filter((t) => !t.done && t.due && t.due <= today)
       return json(res, { due: open.length, overdue: open.filter((t) => t.due < today).length })
     }
+    // "Add to todolist" on a WhatsApp message: what the text says (title, date, time) before saving it
+    if (p === '/api/parse' && M === 'GET') {
+      const doc = store.snapshot(u)
+      const raw = String(url.searchParams.get('text') || '').slice(0, 2000).trim()
+      // chat punctuation ("friday 5pm?") shouldn't hide a date; the title is the first sentence
+      const clean = (x) => x.replace(/[?!,;:]+(?=\s|$)/g, ' ').replace(/\.(?=\s|$)/g, ' ').replace(/\s+/g, ' ').trim()
+      const first = raw.split(/(?<=[.?!])\s+/)[0] || raw
+      const today = todayIn(tzOf(u))
+      const whole = parseQuickAdd(clean(raw), [], today)
+      const head = parseQuickAdd(clean(first), [], today)
+      let title = head.title || clean(first)
+      for (let i = 0; i < 3; i++) title = title.replace(/\s+(by|on|at|before|until|for|this|next|the)$/i, '')
+      return json(res, { title, due: whole.due ?? head.due ?? null, time: whole.time ?? head.time ?? null })
+    }
+    // everyone you can share a group with (names only)
+    if (p === '/api/people' && M === 'GET') {
+      return json(res, auth.users.map((x) => ({ username: x.username, name: x.name })).sort((a, b) => a.name.localeCompare(b.name)))
+    }
+    // ---- groups
+    if (p === '/api/groups' && M === 'GET') return json(res, groups.mine(u).map(groupView))
+    // ---- your tasks in your phone's calendar
+    if (p === '/api/calendar' && M === 'GET') return json(res, { url: calendarUrl(req, calendars.token(u)) })
+    if (p === '/api/calendar/renew' && M === 'POST') return json(res, { url: calendarUrl(req, calendars.token(u, true)) })
     if (p === '/api/holidays' && M === 'GET') {
       const doc = store.snapshot(u)
       const country = url.searchParams.get('country') || doc.profile.holidayCountry || countryForTz(doc.profile.tz) || 'off'
@@ -426,6 +459,20 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
       return admin(req, res, p, M, c)
     }
     if (p === '/api/data' && M === 'GET') return json(res, store.snapshot(u))
+    let gm = p.match(/^\/api\/groups\/([A-Za-z0-9_-]{6,20})(?:\/(leave|clear-done|tasks)(?:\/([A-Za-z0-9_-]{1,20}))?)?$/)
+    if (gm && M !== 'GET') {
+      const body = M === 'DELETE' ? {} : await readJson(req)
+      const [, gid, what, tid] = gm
+      if (!what && M === 'PATCH') return json(res, groupView(groups.update(u, gid, body)))
+      if (!what && M === 'DELETE') return json(res, groups.remove(u, gid))
+      if (what === 'leave' && M === 'POST') { groups.leave(u, gid); return json(res, { ok: true }) }
+      if (what === 'clear-done' && M === 'POST') return json(res, groups.clearDone(u, gid))
+      if (what === 'tasks' && !tid && M === 'POST') return json(res, groups.addTask(u, gid, body), 201)
+      if (what === 'tasks' && tid && M === 'PATCH') return json(res, groups.updateTask(u, gid, tid, body))
+      if (what === 'tasks' && tid && M === 'DELETE') return json(res, groups.deleteTask(u, gid, tid))
+      throw new HttpError(404, 'Not found')
+    }
+    if (p === '/api/groups' && M === 'POST') return json(res, groupView(groups.create(u, await readJson(req))), 201)
     if (p === '/api/events' && M === 'GET') return events(req, res, u)
     if (p === '/api/push/key' && M === 'GET') return json(res, { key: push.publicKey, devices: push.devices(u).length })
 
@@ -441,11 +488,11 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
     if (p === '/api/push/test' && M === 'POST') {
       // with `endpoint`: just this device, so you find out whether *this* one works
       const only = typeof body.endpoint === 'string' && push.devices(u).some((d) => d.subscription.endpoint === body.endpoint) ? body.endpoint : null
-      const r = await push.send(u, { title: '🔔 Test notification', body: 'Reminders will pop up like this, even when the site is closed.', tag: `test-${Date.now()}`, kind: 'test' }, { only })
-      if (!r.devices) throw new HttpError(409, 'This device isn’t signed up for notifications any more. Turn them off and on again.')
+      const r = await push.send(u, { title: '🔔 Test notification', body: 'Reminders will look like this.', tag: `test-${Date.now()}`, kind: 'test' }, { only })
+      if (!r.devices) throw new HttpError(409, 'This device isn’t subscribed anymore. Turn notifications off and on again.')
       if (!r.sent) {
         const e = r.errors[0]
-        throw new HttpError(502, `The notification service (${e?.host || '?'}) refused it${e?.status ? ` (${e.status})` : ''}. Turn notifications off and on again; if it keeps failing, tell your admin.`)
+        throw new HttpError(502, `Push service (${e?.host || '?'}) rejected it${e?.status ? ` (${e.status})` : ''}. Turn notifications off and on again.`)
       }
       return json(res, r)
     }
@@ -463,7 +510,7 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
     }
     if (p === '/api/wa/test-reminder' && M === 'POST') {
       link.require('reminders')
-      await buddy.send(u, `🔔 *Test reminder*\nReminders from ${brand} will arrive ${buddy.viaBot(u) ? 'in this chat' : 'here, in your “Message yourself” chat'}.`, { kind: 'reminder' })
+      await buddy.send(u, '🔔 *Test reminder*\nYour reminders will show up here.', { kind: 'reminder' })
       return json(res, { ok: true })
     }
     // WhatsApp Buddy: send me an example now (a task reminder, the morning brief or the evening check-in)
@@ -477,7 +524,7 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
       else if (kind === 'help') text = buddy.helpMessage(u)
       else {
         const open = store.snapshot(u).tasks.filter((t) => !t.done).sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999') || (a.time || '99').localeCompare(b.time || '99'))
-        const t = open[0] || { id: 'demo', title: 'Drink a glass of water 💧', notes: 'This is just an example.', due: null, time: null, priority: 1, subtasks: [], tags: [], status: 'todo' }
+        const t = open[0] || { id: 'demo', title: 'Drink some water', notes: 'Example reminder.', due: null, time: null, priority: 1, subtasks: [], tags: [], status: 'todo' }
         text = buddy.taskMessage(u, t)
         if (open[0]) buddy.remember(u, [open[0].id])
       }
@@ -524,25 +571,25 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
     const low = body.toLowerCase()
     const tz = tzOf(u)
     if (/^(hi|hello|hey|halo|hai|hallo|start|menu|yo)[\s.!]*$/.test(low)) {
-      return `👋 Hi ${nameOf(u).split(' ')[0]}! I’m *WhatsApp Buddy* from ${brand}.\n\n${buddy.helpMessage(u)}`
+      return `👋 Hi ${nameOf(u).split(' ')[0]}, I’m Buddy from ${brand}.\n\n${buddy.helpMessage(u)}`
     }
     let m
     if ((m = body.match(/^(?:add|new|todo|task|tambah)\s*:?\s+(.+)$/is))) {
-      if (!link.enabled('inbox')) return '🙅 Adding tasks from WhatsApp is switched off by your admin.'
+      if (!link.enabled('inbox')) return 'Adding tasks from WhatsApp is turned off.'
       return handleInbox(store, u, `todo: ${m[1]}`, { tz, brand }).reply
     }
     if (!buddy.available) return null
     const r = buddy.command(u, body)
     if (r) return r.reply
     if (prefixed) {
-      if (!link.enabled('inbox')) return '🙅 Adding tasks from WhatsApp is switched off by your admin.'
+      if (!link.enabled('inbox')) return 'Adding tasks from WhatsApp is turned off.'
       return handleInbox(store, u, raw, { tz, brand }).reply
     }
     if (SMALL_TALK.test(body)) return null
     // don't lecture twice in a row
     if (Date.now() - (lastHelp.get(u) || 0) < 10 * 60e3) return null
     lastHelp.set(u, Date.now())
-    return `🤔 I didn’t catch that. I’m a reminder bot, so try:\n• *today* · what’s due\n• *add* buy milk tomorrow 5pm\n• *done* · finish the task I just reminded you about\n• *snooze 1h*\n• *clear reminders* · remove reminder text + cancel reminders\n• *help* · everything I understand`
+    return 'Didn’t get that. Try *today*, *add* buy milk 5pm, *done*, *snooze 1h* or *help*.'
   }
 
   async function onWhatsApp(username, s, msg) {
@@ -598,6 +645,27 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
     s.on('wa:new', (msg) => onWhatsApp(username, s, msg).catch((e) => console.warn(`[todo/whatsapp] ${username}: ${e.message}`)))
   }
 
+  /** A group as members see it: names for everyone in it. */
+  function groupView(g) {
+    return { ...g, members: g.members.map((m) => ({ username: m, name: nameOf(m) })) }
+  }
+
+  const calendarUrl = (req, token) => {
+    const proto = String(req.headers['x-forwarded-proto'] || '').split(',')[0] || 'http'
+    return `${proto}://${req.headers['x-forwarded-host'] || req.headers.host}/todo/cal/${token}.ics`
+  }
+  function feed(req, res, token) {
+    const u = calendars.owner(token)
+    if (!u) return send(res, 404, 'Not found', { 'content-type': 'text/plain' })
+    const doc = store.snapshot(u)
+    const items = [
+      ...doc.tasks.filter((t) => t.due && !t.done).map((task) => ({ task })),
+      ...groups.mine(u).flatMap((g) => g.tasks.filter((t) => t.due && !t.done && (!t.assignee || t.assignee === u)).map((task) => ({ task, group: g }))),
+    ]
+    const body = calendars.ics({ name: `${brand} · ${nameOf(u)}`, tz: tzOf(u), items, host: String(req.headers['x-forwarded-host'] || req.headers.host || 'todo').replace(/[^a-z0-9.:-]/gi, '') })
+    return send(res, 200, body, { 'content-type': 'text/calendar; charset=utf-8', 'cache-control': 'no-cache', 'content-disposition': 'inline; filename="todolist.ics"' })
+  }
+
   /** A Whats Up account was removed: put its todolist aside (kept on the volume, not shown to anyone). */
   function forget(username) {
     if (!USERNAME_RE.test(username)) return
@@ -610,6 +678,8 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
       // with the same username starts clean
       fs.rmSync(push.file(username), { force: true })
       buddy.forget(username)
+      groups.forget(username)
+      calendars.forget(username)
     } catch (e) { console.warn(`[todo] couldn't put ${username}'s todolist aside: ${e.message}`) }
   }
 
@@ -619,6 +689,9 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
     if (p === '/todo') return send(res, 302, '', { location: '/todo/' + url.search }), true
     if (!p.startsWith('/todo/')) return false
     const sub = p.slice('/todo'.length) // "/", "/api/…", "/assets/…"
+    // the calendar feed: no cookie (calendar apps fetch it), the secret in the address is the key
+    const cm = sub.match(/^\/cal\/([A-Za-z0-9_-]{20,64})\.ics$/)
+    if (cm) return feed(req, res, cm[1]), true
     if (sub.startsWith('/api/')) await api(req, res, sub, url)
     else serveStatic(req, res, sub)
     return true

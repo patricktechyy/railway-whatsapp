@@ -14,7 +14,13 @@ A to-do list for Gavin (and friends), **built into Whats Up** (Apa yang Diatas).
 
 ---
 
-## What's in it (v2.0)
+## What's in it (v2.2)
+
+**New in 2.2**
+- **Groups**: a shared task list for a few people (a project, a household). Give a task to someone or leave it open; see who ticked what. Your own list stays private.
+- **Calendar link**: Settings → Calendar. Subscribe to it from your phone's calendar and your dated tasks show up there, with their reminders.
+- **Tasks from WhatsApp messages**: they show 💬 who it came from, and "Open chat" takes you back to it.
+- Buddy: **Long** or **Short**, nothing else.
 
 **New in 2.0: one app with Whats Up**
 - The Todolist is part of Whats Up now: the ✓ button opens it, the 💬 Whats Up button on phones goes back to chats, and <kbd>T</kbd> still swaps views. No second website, no second sign-in, no `LINK_KEY`.
@@ -23,7 +29,7 @@ A to-do list for Gavin (and friends), **built into Whats Up** (Apa yang Diatas).
 
 **New in 1.11: Gavin's Todolist, and WhatsApp Buddy 🤖**
 - **It's Gavin's Todolist now**: the name in the app, the sign-in page, the browser tab, the installed-app name and notifications. (If your Railway service has a `BRAND` variable, change or delete it too: it names the app in WhatsApp messages.)
-- **🤖 WhatsApp Buddy**: a little reminder bot in your WhatsApp, with a personality (😊 Friendly, 💪 Coach or ⚡ Short). See [WhatsApp Buddy](#whatsapp-buddy-) below
+- **🤖 WhatsApp Buddy**: a little reminder bot in your WhatsApp, Long or Short. See [WhatsApp Buddy](#whatsapp-buddy-) below
   - **💬 WhatsApp me** on any task (the chip when adding or editing, or the details panel): at due time, 15 min / 1 hour / 1 day before, in 1 hour, this evening, tomorrow morning, or any date and time. The task shows when, then **Sent ✓**
   - Buddy's message says how long until it's due (or how late it is), its priority, your next step and the first line of its notes
   - **Answer Buddy in WhatsApp**: `td done`, `td start`, `td snooze 30m` (or 2h, tonight, tomorrow, 3pm), `td step` (ticks the next step), `td move` (today's leftovers to tomorrow), `td help`. You can also `td tomorrow`, `td upcoming`, `td overdue`, `td add …`, `td delete 2`, `td clear completed`, `td clear reminders` or `td clear buddy`. Changes show up in the app straight away
@@ -252,8 +258,6 @@ Every signed-in response has an `x-rev` header: the version of your data right a
 
 ## Roadmap: ideas for later
 
-- **Shared lists** so two people can work on the same list, since everyone already has an account
-- Turn a WhatsApp message into a task from the chat itself (long-press → ✓ Add to todolist)
 - Export / import (CSV or JSON)
 - A cute mascot for the empty screens
 

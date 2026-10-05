@@ -106,7 +106,7 @@ async function subscribe() {
     sub ||= await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: want })
   } catch (e: any) {
     console.warn('Push subscribe failed:', e)
-    throw new Error('Your browser couldn’t reach its notification service. Check you’re online (and not in a private window), then try again.')
+    throw new Error('Couldn’t reach the browser’s notification service. Check you’re online and not in a private window, then try again.')
   }
   await api('/push/subscribe', 'POST', { subscription: sub.toJSON(), tz: Intl.DateTimeFormat().resolvedOptions().timeZone })
   remember(true)
@@ -221,24 +221,24 @@ export async function showLocalNotification(title: string, body: string, taskId?
 
 export function supportMessage(s: PushSupport) {
   switch (s) {
-    case 'insecure': return 'Notifications need a secure (https) address. Open the site from its Railway link, or http://localhost on this computer.'
-    case 'ios-needs-install': return 'On iPhone/iPad, Apple only allows notifications for apps on your Home Screen: in Safari tap Share → Add to Home Screen, open Whats Up from your Home Screen, sign in, then turn notifications on here.'
+    case 'insecure': return 'Notifications need https. Open the site from its Railway link, or from http://localhost.'
+    case 'ios-needs-install': return 'On iPhone and iPad, notifications only work from the Home Screen. In Safari tap Share → Add to Home Screen, open it from there, sign in, then turn them on here.'
     case 'unsupported': return 'This browser can’t show notifications.'
     default: return ''
   }
 }
 
 function blockedMessage() {
-  if (isIOS()) return 'Notifications are blocked. Turn them on in the iPhone’s Settings → Notifications → Whats Up, then try again.'
-  if (isMac()) return 'Notifications are blocked for this site. Allow them with the 🔒 / ⓘ next to the address (Safari: Settings → Websites → Notifications), then try again.'
-  return 'Notifications are blocked. Allow them for this site in your browser settings (the 🔒 next to the address), then try again.'
+  if (isIOS()) return 'Notifications are blocked. Turn them on in Settings → Notifications → Whats Up, then try again.'
+  if (isMac()) return 'Notifications are blocked for this site. Allow them from the 🔒 by the address (in Safari: Settings → Websites → Notifications), then try again.'
+  return 'Notifications are blocked. Allow them from the 🔒 by the address, then try again.'
 }
 
 /** Where to look when a test notification doesn't show up, for this kind of device. */
 export function deviceTip(): string {
-  if (isIOS()) return 'Nothing showed? On the iPhone: Settings → Notifications → Whats Up → Allow Notifications, with Sounds on. Focus modes can hide them too.'
-  if (isMac()) return 'Nothing showed? On a Mac, also allow your browser itself: System Settings → Notifications → (Chrome / Safari / Edge…) → Allow notifications, style Banners or Alerts, sound on. Focus / Do Not Disturb hides them.'
-  if (/Android/.test(navigator.userAgent)) return 'Nothing showed? Check Android Settings → Apps → your browser → Notifications are allowed, and battery saver isn’t blocking it.'
-  if (/Win/.test(navigator.platform)) return 'Nothing showed? Check Windows Settings → System → Notifications → your browser is on, and Do not disturb is off.'
+  if (isIOS()) return 'Nothing showed? Check Settings → Notifications → Whats Up, and that a Focus mode isn’t hiding it.'
+  if (isMac()) return 'Nothing showed? The browser itself needs permission too: System Settings → Notifications → your browser. Do Not Disturb also hides them.'
+  if (/Android/.test(navigator.userAgent)) return 'Nothing showed? Check Settings → Apps → your browser → Notifications, and that battery saver isn’t blocking it.'
+  if (/Win/.test(navigator.platform)) return 'Nothing showed? Check Windows Settings → System → Notifications for your browser, and that Do not disturb is off.'
   return ''
 }

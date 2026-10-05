@@ -28,16 +28,16 @@ export interface WidgetEnv {
 }
 
 export const WIDGET_INFO: Record<WidgetType, { icon: string; name: string; help: string }> = {
-  priority: { icon: '🚩', name: 'Priority board', help: 'High · Medium · Low · None. Drag a task to another column to change its priority.' },
-  todo: { icon: '✅', name: 'To-do list', help: 'All your open tasks. Drag to reorder, add new ones.' },
-  status: { icon: '🚦', name: 'Status board', help: 'Not started · In progress · Completed. Drag to change the status.' },
+  priority: { icon: '🚩', name: 'Priority board', help: 'Drag tasks between columns to change priority.' },
+  todo: { icon: '✅', name: 'To-do list', help: 'All your open tasks.' },
+  status: { icon: '🚦', name: 'Status board', help: 'Drag tasks between columns to change status.' },
   today: { icon: '☀️', name: 'Today', help: 'Overdue and due today.' },
-  upcoming: { icon: '🗓️', name: 'Next 7 days', help: 'What’s coming up this week.' },
+  upcoming: { icon: '🗓️', name: 'Next 7 days', help: 'The week ahead.' },
   doing: { icon: '⏳', name: 'In progress', help: 'Tasks you’ve started.' },
-  overdue: { icon: '⚠️', name: 'Overdue', help: 'Past their date and not done.' },
-  list: { icon: '📋', name: 'One list', help: 'The open tasks of a list you choose.' },
-  stats: { icon: '📊', name: 'Quick stats', help: 'Still to do, done today and your streak.' },
-  notes: { icon: '📝', name: 'Sticky note', help: 'Your own free-text note.' },
+  overdue: { icon: '⚠️', name: 'Overdue', help: 'Past due and not done.' },
+  list: { icon: '📋', name: 'One list', help: 'Open tasks from one list.' },
+  stats: { icon: '📊', name: 'Quick stats', help: 'Open, done today, streak.' },
+  notes: { icon: '📝', name: 'Sticky note', help: 'Free text.' },
 }
 
 const sensorsConfig = () => [
@@ -122,7 +122,7 @@ function TodoWidget({ env }: { env: WidgetEnv }) {
   return (
     <>
       <form className="widget-add" onSubmit={add}>
-        <input className="input sm" value={text} onChange={(e) => setText(e.target.value)} placeholder="+ Add a task, e.g. Maths tomorrow 4pm !3" aria-label="Add a task" />
+        <input className="input sm" value={text} onChange={(e) => setText(e.target.value)} placeholder="+ Add a task" aria-label="Add a task" />
       </form>
       {tasks.length ? (
         <DndContext sensors={sensors} collisionDetection={closestCorners} onDragEnd={end}>
@@ -130,7 +130,7 @@ function TodoWidget({ env }: { env: WidgetEnv }) {
             <ul className="mini-list-ul">{tasks.map((t) => <SortableMini key={t.id} task={t} env={env} list={t.listId ? byId.get(t.listId) : undefined} />)}</ul>
           </SortableContext>
         </DndContext>
-      ) : <Empty>Nothing to do. Add something above ✨</Empty>}
+      ) : <Empty>Nothing to do.</Empty>}
     </>
   )
 }
@@ -226,7 +226,7 @@ function NotesWidget({ widget, onConfig }: { widget: Widget; onConfig: (c: Widge
         value={text}
         onChange={(e) => setText(e.target.value)}
         onBlur={() => { if (text !== (widget.config.text || '')) onConfig({ ...widget.config, text }) }}
-        placeholder="Write anything… (saved when you click away)"
+        placeholder="Write anything…"
         maxLength={2000}
         aria-label={`${widget.title || 'Sticky note'} text`}
       />
@@ -250,13 +250,13 @@ export function WidgetBody({ widget, env, onConfig }: { widget: Widget; env: Wid
     case 'todo': return <TodoWidget env={env} />
     case 'stats': return <StatsWidget env={env} />
     case 'notes': return <NotesWidget widget={widget} onConfig={onConfig} />
-    case 'today': return <MiniList env={env} tasks={active.filter((t) => t.due && t.due <= today).sort(byDue)} empty="Nothing due today 🌤️" />
+    case 'today': return <MiniList env={env} tasks={active.filter((t) => t.due && t.due <= today).sort(byDue)} empty="Nothing due today." />
     case 'upcoming': {
       const end = addDays(today, 7)
       return <MiniList env={env} tasks={active.filter((t) => t.due && t.due > today && t.due <= end).sort(byDue)} empty="Nothing in the next 7 days." />
     }
-    case 'doing': return <MiniList env={env} tasks={active.filter((t) => statusOf(t) === 'doing').sort(byDue)} empty="Nothing in progress. Tap a task’s circle once to start it." />
-    case 'overdue': return <MiniList env={env} tasks={active.filter((t) => t.due && t.due < today).sort(byDue)} empty="Nothing overdue 🎉" />
+    case 'doing': return <MiniList env={env} tasks={active.filter((t) => statusOf(t) === 'doing').sort(byDue)} empty="Nothing in progress." />
+    case 'overdue': return <MiniList env={env} tasks={active.filter((t) => t.due && t.due < today).sort(byDue)} empty="Nothing overdue." />
     case 'list': {
       const l = env.lists.find((x) => x.id === widget.config.listId)
       if (!l) return <Empty>Pick a list with “Edit board”.</Empty>

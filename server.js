@@ -6,6 +6,8 @@ import { Session } from './session.js'
 import { getHistoryDays } from './store.js'
 import { Auth, COOKIE, HttpError, MIN_PASSWORD } from './auth.js'
 import { createTodo } from './todo/server/app.js'
+import { Scheduler } from './schedule.js'
+import { streamBackup } from './backup.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 // Works both flat (repo root) and in the Docker layout (src/ + public/).
@@ -161,6 +163,10 @@ const safeNext = (n) => {
 // Gavin's Todolist lives at /todo/, signed in with the same accounts. Its data is
 // kept on the same volume, in /data/todo.
 todo = createTodo({ dataDir: path.join(DATA_DIR, 'todo'), auth, sessions, whoami, version: VERSION })
+
+// messages written now, sent later (from the person's own WhatsApp)
+const scheduler = new Scheduler(DATA_DIR, sessions)
+scheduler.start(Number(process.env.SCHEDULE_TICK_MS) || 15000)
 for (const [username, s] of sessions) todo.attach(username, s)
 
 function readBody(req, limit) {
@@ -311,6 +317,21 @@ async function route(req, res) {
         })
       )
     }
+    // everything on the volume, as one .tar.gz
+    if (p === '/admin/api/backup' && M === 'GET') {
+      // it has everyone's WhatsApp logins and chats in it: the ADMIN_PASSWORD login only
+      if (c?.k !== 'admin') throw new HttpError(403, 'Only the main admin login can download backups')
+      const stamp = new Date().toISOString().slice(0, 16).replace(/[-:]/g, '').replace('T', '-')
+      res.writeHead(200, {
+        'content-type': 'application/gzip',
+        'content-disposition': `attachment; filename="whatsup-backup-${stamp}.tar.gz"`,
+        'cache-control': 'no-store',
+        'x-content-type-options': 'nosniff',
+      })
+      const r = await streamBackup(DATA_DIR, res)
+      console.log(`[admin] ${actor} ${r.aborted ? 'cancelled' : 'downloaded'} a backup: ${r.files} files, ${Math.round(r.bytes / 1048576)} MB`)
+      return
+    }
     if (p === '/admin/api/stats' && M === 'GET') {
       const list = auth.users.map((u) => sessions.get(u.username))
       const mem = process.memoryUsage()
@@ -386,6 +407,7 @@ async function route(req, res) {
         auth.remove(username)
         await s?.destroy()
         todo.forget(username) // their todolist is put aside too
+        scheduler.forget(username)
         console.log(`[admin] removed user ${username}`)
         return json(res, { ok: true })
       }
@@ -447,6 +469,7 @@ async function route(req, res) {
     const cur = history.find((h) => h.version === APP_VERSION)
     return json(res, { version: APP_VERSION, notes: cur?.notes || '', seen: u?.seenVersion === APP_VERSION, history: history.slice(0, 10) })
   }
+  if (api === '/scheduled' && M === 'GET') return json(res, scheduler.list(username, jid))
   if (api === '/state') {
     s.wake()
     return json(res, { ...s.info(), historyDays: getHistoryDays() })
@@ -501,6 +524,8 @@ async function route(req, res) {
 
   requireJson(req)
   const body = await readJson(req)
+  if (api === '/scheduled') return json(res, scheduler.add(username, body), 201)
+  if (api === '/scheduled/cancel') return json(res, scheduler.cancel(username, String(body.id || '')))
   if (api === '/send') {
     const text = String(body.text || '').trim()
     if (!body.jid || !text) throw new HttpError(400, 'jid and text required')
