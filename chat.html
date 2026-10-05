@@ -151,7 +151,10 @@ html[data-locked] #lock{display:flex}
 .dlg .chips button.on{background:var(--leaf);border-color:var(--leaf);color:var(--leaf-ink,#fff)}
 #schedBar{background:var(--panel);border-top:1px solid var(--line);padding:6px 12px;font-size:13px}
 #schedBar[hidden]{display:none}
-#schedToggle{background:none;border:0;color:var(--muted);font:inherit;cursor:pointer;padding:2px 0;display:flex;align-items:center;gap:6px}
+#schedToggle{background:none;border:0;color:var(--muted);font:inherit;line-height:1;cursor:pointer;padding:4px 0;display:flex;align-items:center;gap:7px}
+#schedToggle svg{flex:none;display:block}
+#schedToggle .caret{opacity:.7;transition:transform .15s}
+#schedToggle.open .caret{transform:rotate(180deg)}
 #schedToggle:hover{color:var(--fg)}
 #schedList{list-style:none;margin:6px 0 2px;padding:0;display:grid;gap:4px}
 #schedList li{display:flex;align-items:center;gap:10px;padding:6px 8px;border-radius:8px;background:var(--hover)}
@@ -710,7 +713,7 @@ html:root[data-theme="dark"][data-accent]{--out:color-mix(in srgb,var(--accent) 
       <button class="ib" id="attX" title="Remove">✕</button>
     </div>
     <div id="schedBar" hidden>
-      <button type="button" id="schedToggle"><span id="schedCount"></span></button>
+      <button type="button" id="schedToggle"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.6"/><path d="M12 7.5V12l3 2"/></svg><span id="schedCount"></span><svg class="caret" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
       <ul id="schedList" hidden></ul>
     </div>
     <div id="composer">
@@ -1960,7 +1963,9 @@ function renderScheduled() {
   $('#schedBar').hidden = !scheduled.length;
   if (!scheduled.length) { schedOpen = false; return; }
   const failed = scheduled.filter(x => x.failed).length;
-  $('#schedCount').innerHTML = `${'<svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.6"/><path d="M12 7.5V12l3 2"/></svg>'} ${scheduled.length} scheduled${failed ? ` · <span style="color:var(--danger)">${failed} not sent</span>` : ''} <span style="opacity:.7">${schedOpen ? '▴' : '▾'}</span>`;
+  $('#schedCount').innerHTML = `${scheduled.length} scheduled${failed ? ` · <span style="color:var(--danger)">${failed} not sent</span>` : ''}`;
+  $('#schedToggle').classList.toggle('open', schedOpen);
+  $('#schedToggle').setAttribute('aria-expanded', schedOpen ? 'true' : 'false');
   $('#schedList').hidden = !schedOpen;
   $('#schedList').innerHTML = scheduled.map(x => `<li><span class="when ${x.failed ? 'bad' : ''}">${esc(x.failed ? 'Not sent' : fmtAt(x.at))}</span><span class="txt" title="${esc(x.failed || x.text)}">${esc(x.text)}</span><button type="button" data-id="${esc(x.id)}" title="Cancel">✕</button></li>`).join('');
 }

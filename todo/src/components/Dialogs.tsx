@@ -369,7 +369,7 @@ function BuddySetting({ me, onChange }: { me: Me; onChange: (b: BuddySettings) =
       )}
       <WaWarning me={me} />
       <div className="field">
-        <span className="label">Personality</span>
+        <span className="label">Message length</span>
         <div className="seg" role="radiogroup" aria-label="Buddy's personality">
           {STYLES.map((x) => <button key={x.key} role="radio" aria-checked={b.style === x.key} className={b.style === x.key ? 'on' : ''} onClick={() => set({ style: x.key })}>{x.label}</button>)}
         </div>

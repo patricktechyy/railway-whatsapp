@@ -321,6 +321,8 @@ async function route(req, res) {
     if (p === '/admin/api/backup' && M === 'GET') {
       // it has everyone's WhatsApp logins and chats in it: the ADMIN_PASSWORD login only
       if (c?.k !== 'admin') throw new HttpError(403, 'Only the main admin login can download backups')
+      // the page asks first, so a problem shows up as a message instead of a broken download
+      if (url.searchParams.has('check')) return json(res, { ok: true })
       const stamp = new Date().toISOString().slice(0, 16).replace(/[-:]/g, '').replace('T', '-')
       res.writeHead(200, {
         'content-type': 'application/gzip',

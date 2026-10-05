@@ -101,14 +101,14 @@ a { color: var(--leaf); }
 .field > span:first-child, .label { display: block; font-size: var(--t-sm); font-weight: 600; margin-bottom: 6px; }
 .field > .input-wrap, .field > .meter, .field > .help, .field > .match { display: block; }
 .field > .meter { display: flex; }
-.input, .field input, .field textarea, textarea.input {
+.input, .field input:not([type="checkbox"]):not([type="radio"]), .field textarea, textarea.input {
   width: 100%; min-height: 46px; padding: 11px 14px; border-radius: var(--r-sm);
   border: 1px solid var(--line); background: var(--field); outline: none;
   transition: border-color .15s, box-shadow .15s, background-color .15s;
 }
 textarea.input, .field textarea { min-height: 0; resize: vertical; line-height: 1.5; }
-.input:hover, .field input:hover { border-color: color-mix(in srgb, var(--leaf) 30%, var(--line)); }
-.input:focus, .field input:focus, .field textarea:focus, textarea.input:focus {
+.input:hover, .field input:not([type="checkbox"]):not([type="radio"]):hover { border-color: color-mix(in srgb, var(--leaf) 30%, var(--line)); }
+.input:focus, .field input:not([type="checkbox"]):not([type="radio"]):focus, .field textarea:focus, textarea.input:focus {
   border-color: var(--leaf); background: var(--surface); box-shadow: var(--ring);
 }
 .input-wrap { position: relative; }

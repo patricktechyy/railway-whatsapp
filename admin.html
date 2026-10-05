@@ -156,7 +156,7 @@ details.older summary { cursor: pointer; color: var(--muted); font-size: var(--t
     <aside class="side">
       <section class="card">
         <h2>Backup</h2>
-        <p class="help">Has everyone's logins, chats and todolists in it. Keep it private.</p>
+        <p class="help">Has everyone's logins, chats and todolists in it. Keep it private. Needs the main admin login (username <b>admin</b>, the <code>ADMIN_PASSWORD</code>).</p>
         <div class="actions"><a class="btn" id="bkdl" href="/admin/api/backup" download>Download backup</a><span class="help" id="bkstate"></span></div>
       </section>
       <section class="card">
@@ -381,7 +381,20 @@ loadStats(); setInterval(loadStats, 15000);
 load(); setInterval(load, 5000);
 
 // ---- backup: the browser downloads it; just say it's on its way (big volumes take a moment)
-$('#bkdl').addEventListener('click', () => { $('#bkstate').textContent = 'Preparing…'; setTimeout(() => { $('#bkstate').textContent = ''; }, 8000); });
+$('#bkdl').addEventListener('click', async (e) => {
+  e.preventDefault();
+  const st = $('#bkstate');
+  st.textContent = 'Preparing…';
+  try {
+    const r = await fetch('/admin/api/backup?check=1', { cache: 'no-store' });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(r.status === 401 ? 'You’ve been signed out. Sign in again and retry.' : d.error || `Couldn’t start it (${r.status})`);
+    location.href = '/admin/api/backup'; // the browser saves it as a download
+    setTimeout(() => { st.textContent = ''; }, 6000);
+  } catch (err) {
+    st.textContent = err.message || 'Couldn’t reach the server';
+  }
+});
 
 // ---- WhatsApp ⇄ Todolist admin
 let todoAdminFrame = null;
