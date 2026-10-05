@@ -13,6 +13,16 @@ username and a password **they** choose; you only decide who exists.
 
 ---
 
+## New in 3.1: notifications that actually show up
+
+- **Todolist notifications reach the notification bar on phones and Macs**, not just Windows. One service worker now looks after the whole site (it used to cover only `/todo/`, so Whats Up itself and installed phones missed out), and permission is asked through the Whats Up page, which Safari needs. Devices already set up are moved over by themselves.
+- **A chime** (“ding-dong”) when a Todolist notification arrives while Whats Up is open, even while you're on your chats. Rings once, can be switched off in the Todolist's Settings → Notifications → Sound.
+- **Send test notification** now tests *this* device through the real push path, and says why if it failed, plus where to look on Mac / iPhone / Android / Windows.
+- **Whats Up can be installed** (Add to Home Screen) with its own icon. iPhones need this for notifications: Safari → Share → Add to Home Screen → open Whats Up from the Home Screen → sign in → Todolist → Settings → Turn on notifications.
+- The Todolist's buttons back to Whats Up use the Whats Up logo.
+
+Nothing to set up when deploying: commit, push, Railway redeploys.
+
 ## New in 3.0: Gavin's Todolist is part of Whats Up
 
 ![The Todolist inside Whats Up](todo/docs/in-whatsup.png)

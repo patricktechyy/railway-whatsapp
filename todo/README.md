@@ -181,14 +181,17 @@ Tasks you give are stored in each person's own file like their other tasks, with
 
 ## Notifications (reminders that pop up)
 
-Reminders arrive as normal phone and computer notifications, **even when the site is closed**. The server sends them with Web Push at the right time in *your* timezone.
+Reminders, tasks people give you, nudges and announcements arrive as normal phone and computer notifications (the notification bar on Android, Notification Center on Mac and iPhone, the Action Center on Windows), **even when the site is closed**, with the device's own notification sound. While Whats Up or the Todolist is open, a short **chime** plays too (Settings → Notifications → Sound, with ▶ Hear it).
 
 1. Open the site from its **https** address (your Railway domain). Browsers only allow notifications on secure addresses.
-2. **iPhone / iPad:** open `https://your-app/todo/`, tap **Share → Add to Home Screen**, then open the Todolist from the Home Screen. Apple only allows web notifications for installed web apps (iOS 16.4+).
-3. On your first Todolist visit, keep the recommended reminder options checked, then allow browser notifications. You can change them later in **Settings → Notifications**; WhatsApp reminders are also on by default when available.
-4. Give a task a date and time. Its reminder is set to **At due time** automatically (change it with the 🔔 chip). Tapping the notification opens that task.
+2. **iPhone / iPad (iOS 16.4+):** in Safari open Whats Up, tap **Share → Add to Home Screen**, open **Whats Up** from the Home Screen and sign in. Apple only allows web notifications for apps on the Home Screen.
+3. **Settings → Notifications → Turn on notifications**, allow it, then press **Send test notification**: it goes through the server and the push service to *this* device, exactly like a real reminder. If it says it was sent but nothing appears, the hint under it says where to look for your kind of device.
+4. **Mac:** also allow your browser itself in **System Settings → Notifications → (Chrome / Safari / Edge…)**: Allow notifications, Banners or Alerts, Play sound. Focus / Do Not Disturb hides them.
+5. Give a task a date and time. Its reminder is set to **At due time** automatically (change it with the 🔔 chip). Tapping the notification opens Whats Up on that task.
 
-Keys for push (VAPID) are created on first start and saved in `/data/todo`; set `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` if you'd rather manage them yourself.
+How it works: one service worker (`/todo/sw.js`) looks after the whole site, so the Whats Up page itself holds the subscription and hears reminders (devices set up before 3.1 are moved over automatically, no new prompt). Inside Whats Up the permission is asked by the Whats Up page, because Safari ignores it from the Todolist frame. Reminders stay on screen until you deal with them where the system allows it.
+
+Keys for push (VAPID) are created on first start and saved in `/data/todo`; set `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` if you'd rather manage them yourself, and `VAPID_SUBJECT` to `mailto:you@example.com`.
 
 ## Deploy
 

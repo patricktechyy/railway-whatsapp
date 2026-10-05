@@ -71,21 +71,29 @@ export class Push {
     return { ok: true }
   }
 
-  /** Send to every device the person has. Dead subscriptions are forgotten. */
-  async send(username, payload) {
-    const devices = this.devices(username)
+  /**
+   * Send to every device the person has (or just one, with `only` = its endpoint).
+   * Dead subscriptions are forgotten. `errors` says what the push services answered
+   * when they refused, so a test can explain itself.
+   */
+  async send(username, payload, { only = null } = {}) {
+    const all = this.devices(username)
+    const devices = only ? all.filter((d) => d.subscription.endpoint === only) : all
     let sent = 0
     const dead = new Set()
+    const errors = []
     await Promise.all(devices.map(async (d) => {
       try {
         await webpush.sendNotification(d.subscription, JSON.stringify(payload), { TTL: 12 * 3600, urgency: 'high' })
         sent++
       } catch (e) {
+        const host = (() => { try { return new URL(d.subscription.endpoint).host } catch { return '?' } })()
         if (e.statusCode === 404 || e.statusCode === 410) dead.add(d.subscription.endpoint)
-        else console.warn(`[push] ${username}: ${e.statusCode || ''} ${e.body || e.message}`.trim())
+        else console.warn(`[push] ${username} (${host}): ${e.statusCode || ''} ${e.body || e.message}`.trim())
+        errors.push({ host, status: e.statusCode || null, text: String(e.body || e.message || '').slice(0, 200) })
       }
     }))
-    if (dead.size) this.save(username, devices.filter((d) => !dead.has(d.subscription.endpoint)))
-    return { sent, devices: devices.length - dead.size }
+    if (dead.size) this.save(username, all.filter((d) => !dead.has(d.subscription.endpoint)))
+    return { sent, devices: devices.length - dead.size, errors }
   }
 }

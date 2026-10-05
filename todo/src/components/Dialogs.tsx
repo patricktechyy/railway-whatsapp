@@ -4,7 +4,8 @@ import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'rea
 import { LIST_COLORS, type Appearance, type BuddySettings, type BuddyStyle, type List, type ListColor, type Me } from '../types'
 import { AppearanceSettings, HexInput } from './AppearanceSettings'
 import type { Prefs, Theme } from '../prefs'
-import { disablePush, enablePush, pushEnabledHere, pushSupport, supportMessage, testPush } from '../push'
+import { deviceTip, disablePush, enablePush, permission, pushEnabledHere, pushSupport, supportMessage, testPush } from '../push'
+import { chime } from '../sound'
 import { toast } from './Toast'
 import { api } from '../api'
 
@@ -195,6 +196,16 @@ export function SettingsDialog({ me, prefs, setPrefs, onRename, onWaReminders, o
       <section className="set-section">
         <h3 className="set-title">Notifications</h3>
         <NotificationsSetting />
+        <div className="field">
+          <span className="label">Sound</span>
+          <span className="row wrap">
+            <label className="toggle tight">
+              <input type="checkbox" checked={prefs.sound} onChange={(e) => setPrefs({ sound: e.target.checked })} />
+              <span>Play a sound for notifications <small>(while Whats Up or the Todolist is open; closed, your device plays its own notification sound)</small></span>
+            </label>
+            <button type="button" className="btn ghost sm" disabled={!prefs.sound} onClick={() => { try { localStorage.removeItem('todo-chime-at') } catch {}; chime().unlock(); chime().play() }}>▶ Hear it</button>
+          </span>
+        </div>
         {me.whatsapp.configured && me.whatsapp.reminders && <WhatsAppSetting me={me} on={me.waReminders} onChange={onWaReminders} />}
       </section>
 
@@ -231,7 +242,8 @@ export function NotificationsSetting() {
   const [on, setOn] = useState<boolean | null>(null)
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
-  const blocked = support === 'ok' && Notification.permission === 'denied'
+  const blocked = support === 'ok' && permission() === 'denied'
+  const [tip, setTip] = useState('')
   useEffect(() => { pushEnabledHere().then(setOn) }, [])
 
   const run = async (fn: () => Promise<unknown>, after?: () => void) => {
@@ -247,12 +259,12 @@ export function NotificationsSetting() {
       {support !== 'ok' ? (
         <p className="help">{supportMessage(support)}</p>
       ) : blocked ? (
-        <p className="help">Notifications are blocked for this site. Allow them in your browser's site settings (the 🔒 next to the address), then come back here.</p>
+        <p className="help">Notifications are blocked for this site. Allow them in your browser's site settings (the 🔒 next to the address), then come back here. {deviceTip().replace(/^Nothing showed\? /, '')}</p>
       ) : on ? (
         <>
           <span className="badge ok"><i className="dot" />On: reminders pop up even when the site is closed</span>
           <div className="row wrap notif-actions">
-            <button className="btn ghost sm" disabled={busy} onClick={() => run(testPush, () => toast('Test sent. It should pop up in a moment 🔔'))}>Send test notification</button>
+            <button className="btn ghost sm" disabled={busy} onClick={() => run(testPush, () => { toast('Test sent. It should pop up in a moment 🔔'); setTip(deviceTip()) })}>Send test notification</button>
             <button className="btn quiet sm" disabled={busy} onClick={() => run(disablePush, () => setOn(false))}>Turn off</button>
           </div>
         </>
@@ -265,6 +277,7 @@ export function NotificationsSetting() {
         </>
       )}
       {msg && <p className="error" role="alert">{msg}</p>}
+      {tip && !msg && <p className="help notif-tip">{tip}</p>}
     </div>
   )
 }

@@ -6,7 +6,7 @@ import { DndContext, PointerSensor, TouchSensor, closestCenter, useSensor, useSe
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import type { List, Me, View } from '../types'
-import { Mark } from './Login'
+import { Mark, WhatsUpLogo } from './Login'
 
 export const SIDEBAR_MIN = 200
 export const SIDEBAR_MAX = 420
@@ -258,7 +258,7 @@ export const Sidebar = memo(function Sidebar({ me, view, lists, tags, counts, on
 
       {onWhatsApp && (
         <button className="btn ghost full wa-btn side-wa" onClick={onWhatsApp} title={me.home.startsWith('/u/') ? 'Back to your Whats Up chats' : 'Back to the admin page'} aria-label={me.home.startsWith('/u/') ? 'Back to your Whats Up chats' : 'Back to the admin page'}>
-          <span className="wa-logo" aria-hidden="true">💬</span>
+          <WhatsUpLogo className="wa-logo" size={20} />
           <span className="wa-logo-label">{me.home.startsWith('/u/') ? 'Whats Up' : 'Whats Up admin'}</span>
         </button>
       )}

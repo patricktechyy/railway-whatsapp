@@ -19,7 +19,8 @@ import { useData } from './useData'
 import { nextOccurrence } from './repeat'
 import { nextStatus, statusOf, type Status as TaskStatus } from './status'
 import { StatusBar } from './components/StatusBar'
-import { enablePush, pushEnabledHere, pushSupport, supportMessage } from './push'
+import { enablePush, permission, pushEnabledHere, pushedHere, pushSupport, supportMessage } from './push'
+import { chime } from './sound'
 import { Fire } from './components/Fire'
 import { ChatPicker } from './components/ChatPicker'
 import { waStyle } from './components/WaPicker'
@@ -28,7 +29,7 @@ import { streakDays } from './stats'
 import { useReminders } from './useReminders'
 import { ResizeHandle, Sidebar, SidebarIcon, type Counts } from './components/Sidebar'
 import { InlineEditor } from './components/InlineEditor'
-import { Mark } from './components/Login'
+import { Mark, WhatsUpLogo } from './components/Login'
 import { TaskList, type Group } from './components/TaskList'
 import { TaskEditor } from './components/TaskEditor'
 import { NewTaskForm } from './components/NewTaskForm'
@@ -230,6 +231,8 @@ function Shell({ me, setMe }: { me: Me; setMe: (m: Me | null) => void }) {
   useEffect(() => {
     const onEv = (e: Event) => {
       const ev = (e as CustomEvent).detail
+      // (with notifications on, the push for it rings already)
+      if ((ev?.type === 'assigned' || (ev?.type === 'nudge' && ev.taskId)) && !pushedHere()) chime().play()
       if (ev?.type === 'assigned') toast(`📌 ${ev.by} gave you a task: ${ev.title}`, { label: 'Open', run: () => setSelectedId(ev.taskId) })
       else if (ev?.type === 'nudge' && ev.taskId) toast(`👋 ${ev.by} reminds you: ${ev.title}`, { label: 'Open', run: () => setSelectedId(ev.taskId) })
     }
@@ -278,7 +281,11 @@ function Shell({ me, setMe }: { me: Me; setMe: (m: Me | null) => void }) {
   useEffect(() => {
     const load = () => api<Announcement[]>('/announcements').then(setAnnouncements).catch(() => {})
     load()
-    const onEv = (e: Event) => { if ((e as CustomEvent).detail?.type === 'announcement') load() }
+    const onEv = (e: Event) => {
+      if ((e as CustomEvent).detail?.type !== 'announcement') return
+      load()
+      if (!pushedHere()) chime().play()
+    }
     window.addEventListener('todo:event', onEv)
     return () => window.removeEventListener('todo:event', onEv)
   }, [])
@@ -289,7 +296,7 @@ function Shell({ me, setMe }: { me: Me; setMe: (m: Me | null) => void }) {
   }
   const [sharing, setSharing] = useState<Task | null>(null)
   const hasReminders = !!data?.tasks.some((t) => !t.done && t.remind !== null && t.due)
-  const showNudge = hasReminders && pushOn === false && !nudgeHidden && pushSupport() === 'ok' && Notification.permission !== 'denied'
+  const showNudge = hasReminders && pushOn === false && !nudgeHidden && pushSupport() === 'ok' && permission() !== 'denied'
 
   // an unknown list in the URL (deleted on another device) falls back to Today
   useEffect(() => {
@@ -645,7 +652,7 @@ function Shell({ me, setMe }: { me: Me; setMe: (m: Me | null) => void }) {
           <header className="main-head">
             {framed && (
               <button className="icon-btn wa-back wa-brand-btn" onClick={openWhatsApp} aria-label="Back to Whats Up chats" title="Back to Whats Up chats">
-                <span aria-hidden="true">💬</span>
+                <WhatsUpLogo size={22} />
               </button>
             )}
             <button className="icon-btn menu-btn" onClick={() => setMenu(true)} aria-label="Open menu">

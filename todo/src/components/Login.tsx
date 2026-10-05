@@ -9,3 +9,13 @@ export function Mark({ size = 52, inverse = false }: { size?: number; inverse?: 
     </span>
   )
 }
+
+/** Whats Up's logo: its upside-down speech bubble with the ^ (the same mark Whats Up uses), in Whats Up green. */
+export function WhatsUpLogo({ size = 20, className = '' }: { size?: number; className?: string }) {
+  return (
+    <svg className={`wa-mark${className ? ` ${className}` : ''}`} viewBox="0 0 48 48" width={size} height={size} aria-hidden="true">
+      <path fill="#17805a" d="M15 3.5 L22.5 13 H33 A11 11 0 0 1 44 24 V31 A11 11 0 0 1 33 42 H15 A11 11 0 0 1 4 31 V24 A11 11 0 0 1 11.5 13.4 Z" />
+      <path d="M16 31.5 24 23.5 32 31.5" fill="none" stroke="#ffffff" strokeWidth="4.2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}

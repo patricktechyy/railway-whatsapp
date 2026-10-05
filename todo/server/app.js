@@ -168,7 +168,8 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
     if (p !== '/' && p !== '/index.html' && file.startsWith(DIST + path.sep) && fs.existsSync(file) && fs.statSync(file).isFile()) {
       // Vite puts content hashes in /assets/ names, so those can be cached forever
       const cache = p.startsWith('/assets/') ? 'public, max-age=31536000, immutable' : 'no-cache'
-      const extra = p === '/sw.js' ? { 'service-worker-allowed': '/todo/' } : {}
+      // the worker looks after the whole site, so Whats Up's own page gets the notifications (and chime) too
+      const extra = p === '/sw.js' ? { 'service-worker-allowed': '/', 'cache-control': 'no-cache' } : {}
       return send(res, 200, fs.readFileSync(file), { 'content-type': TYPES[path.extname(file)] || 'application/octet-stream', 'cache-control': cache, ...extra })
     }
     if (/\.[a-z0-9]{2,5}$/i.test(p)) return send(res, 404, 'Not found', { 'content-type': 'text/plain' })
@@ -268,7 +269,7 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
       link.saveSettings(s)
       let sent = 0
       for (const u of to === 'all' ? people() : [to]) {
-        sent += (await push.send(u, { title: `📣 ${title}`, body: text, tag: `announce-${a.id}` })).sent
+        sent += (await push.send(u, { title: `📣 ${title}`, body: text, tag: `announce-${a.id}`, kind: 'announcement' })).sent
         store.bus.emit(u, { type: 'announcement', id: a.id })
       }
       return json(res, { ok: true, announcement: a, pushed: sent })
@@ -308,7 +309,7 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
         let task
         try { task = store.addTask(u, fields, { from }) } catch (e) { failed.push({ username: u, error: e.message }); continue }
         store.bus.emit(u, { type: 'assigned', id: rec.id, taskId: task.id, title: task.title, by: byName })
-        pushed += (await push.send(u, { title: `📌 New task from ${byName}`, body: [task.title, task.due && formatWhen(task)].filter(Boolean).join(' · '), tag: `assign-${rec.id}`, taskId: task.id })).sent
+        pushed += (await push.send(u, { title: `📌 New task from ${byName}`, body: [task.title, task.due && formatWhen(task)].filter(Boolean).join(' · '), tag: `assign-${rec.id}`, taskId: task.id, kind: 'assigned' })).sent
         // "also tell them on WhatsApp": from the bot when there is one; without a bot only into the
         // "Message yourself" chat of people who asked for WhatsApp reminders
         if (waOk && (buddy.viaBot(u) || store.snapshot(u).profile.waReminders !== false)) {
@@ -337,7 +338,7 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
           if (pr.status === 'done' || pr.status === 'removed') continue
           n++
           store.bus.emit(u, { type: 'nudge', id: rec.id, taskId: pr.taskId, title: rec.title, by: rec.byName })
-          pushed += (await push.send(u, { title: `👋 Reminder from ${rec.byName}`, body: rec.title, tag: `nudge-${rec.id}`, taskId: pr.taskId })).sent
+          pushed += (await push.send(u, { title: `👋 Reminder from ${rec.byName}`, body: rec.title, tag: `nudge-${rec.id}`, taskId: pr.taskId, kind: 'nudge' })).sent
           if (body.whatsapp && link.enabled('reminders') && pr.taskId && (buddy.viaBot(u) || store.snapshot(u).profile.waReminders !== false)) {
             const task = store.snapshot(u).tasks.find((x) => x.id === pr.taskId)
             try {
@@ -438,8 +439,14 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
     if (p === '/api/push/subscribe' && M === 'POST') return json(res, push.subscribe(u, body))
     if (p === '/api/push/unsubscribe' && M === 'POST') return json(res, push.unsubscribe(u, String(body.endpoint || '')))
     if (p === '/api/push/test' && M === 'POST') {
-      const r = await push.send(u, { title: '🔔 Test notification', body: 'Reminders will pop up like this, even when the site is closed.', tag: 'test' })
-      if (!r.devices) throw new HttpError(400, 'Notifications aren\'t turned on for any of your devices yet')
+      // with `endpoint`: just this device, so you find out whether *this* one works
+      const only = typeof body.endpoint === 'string' && push.devices(u).some((d) => d.subscription.endpoint === body.endpoint) ? body.endpoint : null
+      const r = await push.send(u, { title: '🔔 Test notification', body: 'Reminders will pop up like this, even when the site is closed.', tag: `test-${Date.now()}`, kind: 'test' }, { only })
+      if (!r.devices) throw new HttpError(409, 'This device isn’t signed up for notifications any more. Turn them off and on again.')
+      if (!r.sent) {
+        const e = r.errors[0]
+        throw new HttpError(502, `The notification service (${e?.host || '?'}) refused it${e?.status ? ` (${e.status})` : ''}. Turn notifications off and on again; if it keeps failing, tell your admin.`)
+      }
       return json(res, r)
     }
     if (p === '/api/wa/share' && M === 'POST') {

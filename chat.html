@@ -2,6 +2,13 @@
 <html lang="en">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- installable: Add to Home Screen gives Whats Up (with the Todolist) its own app, which iPhones need for notifications -->
+<link rel="manifest" href="/todo/whatsup.webmanifest">
+<link rel="apple-touch-icon" href="/todo/wa-icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Whats Up">
+<meta name="theme-color" content="#17805a">
 <title>__LABEL__ · __BRAND__</title>
 <script>try{if(sessionStorage.getItem('wah-panic')==='1')document.documentElement.dataset.panic='1'}catch(e){}</script>
 <script>try{if(localStorage.getItem('wah-lock-__USER__'))document.documentElement.dataset.locked='1';var bp=JSON.parse(localStorage.getItem('wah-prefs')||'{}');document.documentElement.dataset.blur=bp.blur||'off'}catch(e){}</script>
@@ -2195,17 +2202,49 @@ $('#rChats').addEventListener('click', (e) => { closeTodo(); railGo('all')(e); }
 $('#rArch').addEventListener('click', (e) => { closeTodo(); railGo(filter === 'archived' ? 'all' : 'archived')(e); });
 
 // ------------------------------------------------------------- todolist
+// The Todolist's notification chime ("ding-dong", made with Web Audio, no file to load).
+// The Todolist inside uses this same one (window.todoChime), so a notification rings once
+// and from this page, even while you're on your chats. Settings → Notifications → Sound
+// in the Todolist turns it off (saved as todo-prefs.sound on this device).
+const todoChime = window.todoChime = (() => {
+  let ctx = null;
+  const AC = window.AudioContext || window.webkitAudioContext;
+  const context = () => (ctx ||= AC ? new AC() : null);
+  const soundOn = () => { try { return JSON.parse(localStorage.getItem('todo-prefs') || '{}').sound !== false; } catch { return true; } };
+  const note = (c, freq, at, len, peak) => {
+    const o = c.createOscillator(), g = c.createGain();
+    o.type = 'sine'; o.frequency.setValueAtTime(freq, at);
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.exponentialRampToValueAtTime(peak, at + 0.015);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + len);
+    o.connect(g).connect(c.destination); o.start(at); o.stop(at + len + 0.05);
+  };
+  return {
+    unlock() { const c = context(); if (c && c.state === 'suspended') c.resume().catch(() => {}); },
+    play() {
+      if (!soundOn()) return false;
+      const now = Date.now();
+      try { if (now - Number(localStorage.getItem('todo-chime-at') || 0) < 2500) return false; localStorage.setItem('todo-chime-at', String(now)); } catch {}
+      const c = context(); if (!c) return false;
+      const go = () => { const t = c.currentTime + 0.02; note(c, 880, t, 0.55, 0.22); note(c, 1318.5, t + 0.14, 0.75, 0.18); };
+      if (c.state === 'suspended') c.resume().then(go).catch(() => {}); else go();
+      return true;
+    },
+  };
+})();
+for (const ev of ['pointerdown', 'keydown', 'touchend']) window.addEventListener(ev, () => todoChime.unlock(), { capture: true, passive: true });
 // Gavin's Todolist is part of this app: the ✓ button (rail, or the top bar on phones)
 // swaps the chats for your todolist. It's the same account, and only ever your own tasks.
 // The page loads the first time you open it and then stays, so switching back is instant.
 let todoFrame = null;
-function openTodo(fromHistory = false) {
+function openTodo(fromHistory = false, taskId = null) {
   const pane = $('#todoPane');
+  if (todoFrame && taskId) { try { todoFrame.contentWindow.postMessage({ type: 'open-task', taskId }, location.origin); } catch {} }
   if (!todoFrame) {
     todoFrame = document.createElement('iframe');
     todoFrame.title = 'Todolist';
     todoFrame.allow = 'clipboard-write';
-    todoFrame.src = '/todo/?in=wa' + (location.hash.startsWith('#todo/') ? '#/' + location.hash.slice(6) : '');
+    todoFrame.src = '/todo/?in=wa' + (taskId ? '&task=' + encodeURIComponent(taskId) : '') + (location.hash.startsWith('#todo/') ? '#/' + location.hash.slice(6) : '');
     todoFrame.addEventListener('load', () => { todoFrame.classList.add('ready'); pane.querySelector('.tp-wait')?.classList.add('gone'); });
     pane.append(todoFrame);
   }
@@ -2264,7 +2303,12 @@ window.addEventListener('message', (e) => {
   }
 });
 // a tapped reminder notification, while the todolist is open in here
-navigator.serviceWorker?.addEventListener?.('message', (e) => { if (e.data?.type === 'open-todo') openTodo(); });
+// from the Todolist's service worker: a tapped notification (open that task here), or a
+// notification arriving while this page is open (play the chime)
+navigator.serviceWorker?.addEventListener?.('message', (e) => {
+  if (e.data?.type === 'open-todo') openTodo(false, e.data.taskId || null);
+  else if (e.data?.type === 'todo-notify') { todoChime.play(); refreshTodoBadge(); }
+});
 try { navigator.serviceWorker?.startMessages?.(); } catch {}
 $('#rLock').addEventListener('click', (e) => { e.stopPropagation(); $('#lockBtn').click(); });
 $('#rBlur').addEventListener('click', (e) => { e.stopPropagation(); setPref('blur', prefs.blur === 'on' ? 'off' : 'on'); syncRail(); });

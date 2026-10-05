@@ -65,6 +65,7 @@ export class Reminders {
             body: [formatDue(t), t.notes?.split('\n')[0]].filter(Boolean).join(' · '),
             tag: base,
             taskId: t.id,
+            kind: 'reminder',
           })
           console.log(`[reminders] ${username}: "${t.title}" → ${r.sent} device(s)`)
         }

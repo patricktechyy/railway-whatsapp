@@ -12,6 +12,7 @@ import { ClockIcon, TimePicker } from './TimePicker'
 import { CalendarIcon, DatePicker } from './DatePicker'
 import { RepeatIcon, RepeatPicker } from './RepeatPicker'
 import { Switch } from './Switch'
+import { enablePush, permission, pushSupport } from '../push'
 import { AddLinkForm, ExtLink, LinkIcon } from './Links'
 import { WaIcon, WaPicker, describeWa } from './WaPicker'
 
@@ -222,7 +223,8 @@ export function TaskEditor({ task, lists, weekStartsMonday, onChange, onToggle, 
               onPick={(v) => {
                 onChange({ remind: v })
                 remind.close()
-                if (v !== null && 'Notification' in window && Notification.permission === 'default') Notification.requestPermission()
+                // first reminder on this device: offer notifications (and subscribe, so they work with the site closed)
+                if (v !== null && pushSupport() === 'ok' && permission() === 'default') enablePush().catch(() => {})
               }}
             />
           </Popover>

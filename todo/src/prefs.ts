@@ -16,8 +16,9 @@ export interface Prefs {
   listsShowAll: boolean // "View more": every list, not just the first 4
   doneFolded: boolean // the Completed / Done today group at the bottom of a page is rolled up
   defaultRemind: number | null // early reminder given to a task when it first gets a time
+  sound: boolean // a chime when a notification arrives while the site is open (sound.ts reads it too)
 }
-const DEFAULTS: Prefs = { theme: 'auto', celebrate: true, weekStartsMonday: true, sidebarWidth: 272, sidebarCollapsed: false, calendarMode: typeof window !== 'undefined' && window.innerWidth < 700 ? 'week' : 'month', calendarRange: null, overdueShowAll: false, showProgress: true, showStatus: true, defaultRemind: 0, listsCollapsed: false, listsShowAll: false, doneFolded: false }
+const DEFAULTS: Prefs = { theme: 'auto', celebrate: true, weekStartsMonday: true, sidebarWidth: 272, sidebarCollapsed: false, calendarMode: typeof window !== 'undefined' && window.innerWidth < 700 ? 'week' : 'month', calendarRange: null, overdueShowAll: false, showProgress: true, showStatus: true, defaultRemind: 0, listsCollapsed: false, listsShowAll: false, doneFolded: false, sound: true }
 const KEY = 'todo-prefs'
 
 function read(): Prefs {

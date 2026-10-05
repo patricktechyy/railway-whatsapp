@@ -2,7 +2,8 @@ import { useEffect, useRef } from 'react'
 import { formatDue, remindAt } from './dates'
 import type { Task } from './types'
 import { toast } from './components/Toast'
-import { showLocalNotification } from './push'
+import { pushedHere, showLocalNotification } from './push'
+import { chime } from './sound'
 
 const KEY = 'todo-reminded'
 
@@ -37,10 +38,12 @@ export function useReminders(tasks: Task[] | undefined, onOpen: (t: Task) => voi
         if (now - at > 864e5) continue
         const body = t.due ? `Due ${formatDue(t)}` : ''
         toast(`🔔 ${t.title}`, { label: 'Open', run: () => latest.current.onOpen(t) })
-        // if this device gets server push, the server sends the system notification
-        let pushed = false
-        try { pushed = localStorage.getItem('todo-push') === '1' } catch {}
-        if (!pushed) showLocalNotification(`🔔 ${t.title}`, body, t.id)
+        // if this device gets server push, the server sends the system notification (and the
+        // service worker rings); otherwise this page does both
+        if (!pushedHere()) {
+          showLocalNotification(`🔔 ${t.title}`, body, t.id)
+          chime().play()
+        }
       }
       if (changed) {
         // forget reminders older than 30 days so this never grows forever

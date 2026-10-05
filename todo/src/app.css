@@ -1378,9 +1378,15 @@ body.resizing-board.y { cursor: ns-resize; } body.resizing-board.xy { cursor: nw
    The Todolist now lives inside Whats Up (/todo/). These bits are for that. */
 /* inside Whats Up's page on a phone: the Whats Up logo to return to chats */
 .wa-back { display: none; }
-.wa-brand-btn { font-size: 18px; line-height: 1; }
+.wa-brand-btn { line-height: 1; }
+.wa-brand-btn .wa-mark { display: block; }
+.wa-mark { flex: none; }
+/* the logo keeps its own colours (the buttons' line-icon styles would outline it) */
+.wa-btn svg.wa-mark, .icon-btn svg.wa-mark { stroke: none; fill: none; }
+.wa-btn svg.wa-mark { width: 20px; height: 20px; }
+.icon-btn svg.wa-mark { width: 24px; height: 24px; }
 .side-wa { display: flex; align-items: center; justify-content: center; gap: 8px; }
-.wa-logo { font-size: 19px; line-height: 1; }
+.wa-logo { display: block; }
 .wa-logo-label { line-height: 1.1; }
 .sidebar.collapsed .side-wa .wa-logo-label { display: none; }
 @media (max-width: 760px) {
