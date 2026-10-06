@@ -2377,8 +2377,10 @@ document.addEventListener('click', e => {
 // ------------------------------------------------------------------ rail
 function syncRail() {
   const arch = typeof filter !== 'undefined' && filter === 'archived';
-  $('#rChats').classList.toggle('on', !arch);
-  $('#rArch').classList.toggle('on', arch);
+  // with the todolist open only its button is lit (this runs on every chat-list refresh too)
+  const todo = document.body.classList.contains('todo');
+  $('#rChats').classList.toggle('on', !arch && !todo);
+  $('#rArch').classList.toggle('on', arch && !todo);
   const n = (typeof chats !== 'undefined' ? chats : []).filter(c => c.archived).length;
   $('#rArchN').hidden = !n; $('#rArchN').textContent = n > 99 ? '99+' : n;
   const bl = document.documentElement.dataset.blur === 'on';

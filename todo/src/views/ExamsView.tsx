@@ -79,9 +79,8 @@ export function ExamsView({ exams: x, weekStartsMonday, onPlan }: { exams: Exams
             {d.schools.map((s) => <option key={s.id} value={s.id}>{s.name}{s.id === d.school ? ' (yours)' : ''}</option>)}
           </Select>
         ) : d.school ? (
-          <Select className="input sm" value={d.school} onChange={(e) => x.setMine({ school: e.target.value })} aria-label="Your school">
-            {d.schools.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </Select>
+          // picked once; the admin changes it if it's wrong
+          <span className="ex-school" title="Your admin can change this">🏫 {schoolName(d.school)}</span>
         ) : null}
         {!noSchool && (
           <div className="seg sm" role="radiogroup" aria-label="Show as">
@@ -200,7 +199,7 @@ function PickSchool({ schools, onPick }: { schools: School[]; onPick: (id: strin
             </Select>
             <button className="btn" disabled={!sid} onClick={() => onPick(sid)}>Done</button>
           </div>
-          <p className="help">Not on the list? Ask your admin to add it.</p>
+          <p className="help">You can’t change it yourself afterwards, so pick carefully. Not on the list? Ask your admin to add it.</p>
         </>
       ) : (
         <p className="help">No schools yet. Your admin adds them.</p>

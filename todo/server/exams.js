@@ -73,11 +73,13 @@ export class Exams {
   }
 
   // ---------------------------------------------------------- yours
-  setMine(u, body) {
+  /** Your school and subjects. You pick your school once; after that only the admin changes it. */
+  setMine(u, body, { byAdmin = false } = {}) {
     const cur = { ...this.mine(u) }
     if ('school' in body) {
       const sid = body.school ? String(body.school) : null
       if (sid && !this.school(sid)) throw new HttpError(404, 'That school isn’t on the list')
+      if (!byAdmin && cur.school && this.school(cur.school) && sid !== cur.school) throw new HttpError(403, 'Ask your admin to change your school')
       cur.school = sid
     }
     if ('subjects' in body) {
@@ -211,7 +213,7 @@ export class Exams {
   /** The admin puts someone in a school. */
   setSchoolOf(u, sid) {
     if (!this.isUser(u)) throw new HttpError(404, 'No such person')
-    return this.setMine(u, { school: sid })
+    return this.setMine(u, { school: sid }, { byAdmin: true })
   }
 
   pending() { return this.d.requests.filter((r) => r.status === 'pending').length }
