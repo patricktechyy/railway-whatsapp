@@ -14,12 +14,7 @@ A to-do list for Gavin (and friends), **built into Whats Up** (Apa yang Diatas).
 
 ---
 
-## What's in it (v2.3)
-
-**New in 2.3**
-- New logo: an open ring (a G) with the tick swinging out of it.
-- Dropdowns are the app's own now (same look on every device and theme), with keyboard support.
-- Tidier everywhere: settings fields no longer stretch or clip, sidebar sections line up, board columns stay readable on phones, banners keep their buttons together.
+## What's in it (v2.2)
 
 **New in 2.2**
 - **Groups**: a shared task list for a few people (a project, a household). Give a task to someone or leave it open; see who ticked what. Your own list stays private.

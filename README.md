@@ -13,14 +13,6 @@ username and a password **they** choose; you only decide who exists.
 
 ---
 
-## New in 3.3
-
-- **Unread counts are real.** The badge was stuck at 2 for every chat; it now counts every unread message, and clears when you read the chat here or on your phone.
-- **Blue ticks go out reliably.** Every unread message gets its read receipt (in groups too, per sender), only when you're actually looking at the chat, and they're retried after a reconnect. (If read receipts are off in your WhatsApp privacy settings, WhatsApp never shows blue ticks.)
-- **Lighter privacy blur.** Same look, no heavy blur effects, and sending a message no longer reloads every profile photo in the list.
-- **No autocorrect in the message box** (it was rewriting messages on Chromebooks).
-- **Todolist:** new logo, dropdowns that look the same everywhere, a nicer checkbox, and a pass over alignment, spacing and clipping across every screen.
-
 ## New in 3.2
 
 - **Message → task.** Long-press (or the ⌄ on) any message → ✅ Add to todolist. The date and time in the message are picked up ("by friday 5pm"), and the task links back to the chat.

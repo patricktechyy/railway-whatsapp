@@ -3,10 +3,8 @@ export function Mark({ size = 52, inverse = false }: { size?: number; inverse?: 
   return (
     <span className="mark" style={{ width: size, height: size }}>
       <svg viewBox="0 0 48 48" aria-hidden="true">
-        {/* an open ring (a G, for Gavin) with the tick swinging out through the gap */}
-        <rect x="3" y="3" width="42" height="42" rx="13" fill={inverse ? '#f3f7f5' : 'var(--leaf)'} />
-        <path d="M33.4 15.4A12.4 12.4 0 1 0 36.4 24.6" fill="none" stroke={inverse ? '#5865f2' : 'var(--leaf-ink)'} strokeOpacity=".55" strokeWidth="3.6" strokeLinecap="round" />
-        <path d="M17.6 24.2 22.5 29.1 36.6 14.9" fill="none" stroke={inverse ? '#5865f2' : 'var(--leaf-ink)'} strokeWidth="4.4" strokeLinecap="round" strokeLinejoin="round" />
+        <rect x="4" y="4" width="40" height="40" rx="12" fill={inverse ? '#f3f7f5' : 'var(--leaf)'} />
+        <path d="M15 24.5 21.5 31 33.5 18" fill="none" stroke={inverse ? '#17805a' : 'var(--leaf-ink)'} strokeWidth="4.4" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
     </span>
   )

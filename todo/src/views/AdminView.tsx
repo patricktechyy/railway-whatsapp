@@ -6,7 +6,6 @@ import { ConfirmDialog } from '../components/ConfirmDialog'
 import { formatDay, formatTime } from '../dates'
 import { describeRepeat } from '../repeat'
 import type { Repeat } from '../types'
-import { Select } from '../components/Select'
 
 interface Person {
   username: string
@@ -318,10 +317,10 @@ function TasksTab({ me, people, settings, assigned, preselect, onPreselectUsed, 
             <label className="range-field"><span>Date</span><input className="input sm" type="date" value={due} onChange={(e) => { setDue(e.target.value); if (!e.target.value) setTime('') }} /></label>
             <label className="range-field"><span>Time</span><input className="input sm" type="time" value={time} disabled={!due} onChange={(e) => setTime(e.target.value)} title={due ? '' : 'Pick a date first'} /></label>
             <label className="range-field"><span>Priority</span>
-              <Select className="input sm" value={priority} onChange={(e) => setPriority(Number(e.target.value))}>{PRIORITIES.map((p, i) => <option key={p} value={i}>{p}</option>)}</Select>
+              <select className="input sm" value={priority} onChange={(e) => setPriority(Number(e.target.value))}>{PRIORITIES.map((p, i) => <option key={p} value={i}>{p}</option>)}</select>
             </label>
             <label className="range-field"><span>Repeat</span>
-              <Select className="input sm" value={repeat} onChange={(e) => setRepeat(Number(e.target.value))}>{REPEATS.map((r, i) => <option key={r.label} value={i}>{r.label}</option>)}</Select>
+              <select className="input sm" value={repeat} onChange={(e) => setRepeat(Number(e.target.value))}>{REPEATS.map((r, i) => <option key={r.label} value={i}>{r.label}</option>)}</select>
             </label>
           </div>
           {repeat > 0 && !due && <p className="help">Repeats start today unless you pick a date.</p>}
@@ -535,10 +534,10 @@ function AnnounceTab({ people, settings, to, setTo, onChanged }: { people: Perso
           <textarea className="input" rows={3} value={body} onChange={(e) => setBody(e.target.value)} placeholder="Message (optional)" maxLength={500} aria-label="Message" />
           <div className="row wrap">
             <label className="sort"><span>To</span>
-              <Select className="input sm" value={to} onChange={(e) => setTo(e.target.value)}>
+              <select className="input sm" value={to} onChange={(e) => setTo(e.target.value)}>
                 <option value="all">Everyone</option>
                 {people?.map((p) => <option key={p.username} value={p.username}>{p.name}</option>)}
-              </Select>
+              </select>
             </label>
             <span className="spacer" />
             <button className="btn" disabled={busy || !title.trim()}>Send announcement</button>
@@ -612,10 +611,10 @@ function WhatsAppTab({ settings, setSettings, onChanged }: { settings: Settings 
             <div className="bot-pick">
               <label className="field">
                 <span className="label">Bot account</span>
-                <Select className="input" value={bot?.username || ''} disabled={settings.botFromEnv} onChange={(e) => setBot(e.target.value)} aria-label="Bot account">
+                <select className="input" value={bot?.username || ''} disabled={settings.botFromEnv} onChange={(e) => setBot(e.target.value)} aria-label="Bot account">
                   <option value="">No bot (use “Message yourself”)</option>
                   {choices.map((a) => <option key={a.username} value={a.username}>{a.name} (@{a.username}){a.phone ? ` · ${a.phone}` : ''}</option>)}
-                </Select>
+                </select>
                 {settings.botFromEnv && <span className="help">Set by the <b>BOT_USER</b> variable in Railway.</span>}
               </label>
               {bot && (

@@ -110,16 +110,8 @@ html[data-locked] #lock{display:flex}
 #lock .lnk{background:none;border:0;color:var(--muted);text-decoration:underline;font-size:13px;margin-top:14px}
 #lock.shake .box{animation:shake .35s}
 @keyframes shake{25%{transform:translateX(-8px)}50%{transform:translateX(8px)}75%{transform:translateX(-4px)}}
-/* privacy blur, without filter: blur() (one blur layer per name, preview and photo made the
-   whole list slow). Text becomes its own soft shadow and photos fade out; hover to peek. */
-:root[data-blur="on"] #chats .row .nm,:root[data-blur="on"] #chats .row .pvt{color:transparent!important;text-shadow:0 0 9px var(--fg)}
-:root[data-blur="on"] #chats .row .pvt{text-shadow:0 0 9px var(--muted)}
-:root[data-blur="on"] #chats .row .av{color:transparent}
-:root[data-blur="on"] #chats .row .av img{opacity:0}
-:root[data-blur="on"] #chats .row:hover .nm,:root[data-blur="on"] #chats .row:hover .pvt{color:inherit!important;text-shadow:none}
-:root[data-blur="on"] #chats .row:hover .av{color:inherit}
-:root[data-blur="on"] #chats .row:hover .av img{opacity:1}
-#chats .row .av img{transition:opacity .15s}
+:root[data-blur="on"] #chats .row .nm,:root[data-blur="on"] #chats .row .pv,:root[data-blur="on"] #chats .row .av{filter:blur(6px);transition:filter .15s}
+:root[data-blur="on"] #chats .row:hover .nm,:root[data-blur="on"] #chats .row:hover .pv,:root[data-blur="on"] #chats .row:hover .av{filter:none}
 .m .mm{position:absolute;top:32px;right:-30px;width:26px;height:26px;border:0;border-radius:50%;background:var(--panel);
   color:var(--muted);font-size:14px;opacity:0;transition:opacity .15s;box-shadow:0 1px 2px rgba(0,0,0,.15)}
 .m.me .mm{right:auto;left:-30px}
@@ -633,7 +625,7 @@ html:root[data-theme="dark"][data-accent]{--out:color-mix(in srgb,var(--accent) 
   <nav id="rail" aria-label="Main">
     <button class="rb on" id="rChats" title="Chats"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 11.5a8.5 8.5 0 0 1-12.3 7.6L3.5 20.5l1.4-4.5a8.5 8.5 0 1 1 15.6-4.5z"/></svg></button>
     <button class="rb" id="rArch" title="Archived chats"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="4.5" rx="1.2"/><path d="M5 8.5V19a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 19 19V8.5"/><path d="M10 12.5h4"/></svg><span class="rcount" id="rArchN" hidden></span></button>
-    <button class="rb" id="rTodo" title="Todolist (T)"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16.8 7.4A6.9 6.9 0 1 0 18.5 12.6" stroke-opacity=".55"/><path d="m8.4 12.2 2.8 2.8 7.6-7.6" stroke-width="2.1"/></svg><span class="rcount due" id="rTodoN" hidden></span></button>
+    <button class="rb" id="rTodo" title="Todolist (T)"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="4.5"/><path d="m8 12.2 2.7 2.7L16.2 9.3"/></svg><span class="rcount due" id="rTodoN" hidden></span></button>
     <span class="grow"></span>
     <button class="rb" id="rLock" title="Lock now (L)"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="10.5" width="15" height="10" rx="2.2"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/></svg></button>
     <button class="rb" id="rBlur" title="Blur chat list (B)"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.8"/></svg></button>
@@ -650,7 +642,7 @@ html:root[data-theme="dark"][data-accent]{--out:color-mix(in srgb,var(--accent) 
       <span class="grow"></span>
       <button class="ib mob" id="lockBtn" title="Lock now (L)"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="10.5" width="15" height="10" rx="2.2"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/></svg></button>
       <button class="ib mob" id="blurBtn" title="Blur chat list (hover to peek)">👁</button>
-      <button class="ib mob todo-ib" id="todoBtn" title="Todolist"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16.8 7.4A6.9 6.9 0 1 0 18.5 12.6" stroke-opacity=".55"/><path d="m8.4 12.2 2.8 2.8 7.6-7.6" stroke-width="2.1"/></svg><span class="rcount due" id="todoBtnN" hidden></span></button>
+      <button class="ib mob todo-ib" id="todoBtn" title="Todolist"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="4.5"/><path d="m8 12.2 2.7 2.7L16.2 9.3"/></svg><span class="rcount due" id="todoBtnN" hidden></span></button>
       <button class="ib" id="newBtn" title="New chat"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4.5H6.5a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V13"/><path d="M17.8 3.7a1.9 1.9 0 0 1 2.7 2.7L12 14.9l-3.5.8.8-3.5z"/></svg></button>
     </div>
     <div id="menu">
@@ -728,7 +720,7 @@ html:root[data-theme="dark"][data-accent]{--out:color-mix(in srgb,var(--accent) 
       <button class="ib" id="attach" title="Attach photo or file" disabled><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
       <input type="file" id="file" hidden>
       <div class="cwrap">
-        <textarea id="text" autocorrect="off" autocomplete="off" autocapitalize="sentences" data-gramm="false" data-gramm_editor="false" data-enable-grammarly="false" rows="1" placeholder="Type a message" disabled></textarea>
+        <textarea id="text" data-gramm="false" data-gramm_editor="false" data-enable-grammarly="false" rows="1" placeholder="Type a message" disabled></textarea>
         <button class="ib" id="emojiBtn" title="Emoji (or type :name)" disabled><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.8"/><path d="M8.6 14.2a4.6 4.6 0 0 0 6.8 0"/><path d="M9.2 9.6h.01M14.8 9.6h.01" stroke-width="2.4"/></svg></button>
       </div>
       <button class="ib" id="schedBtn" title="Send later" hidden><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.6"/><path d="M12 7.5V12l3 2"/></svg></button>
@@ -981,16 +973,6 @@ function fmtDay(ts) {
   if (d.toDateString() === y.toDateString()) return 'Yesterday';
   return d.toLocaleDateString([], {weekday: 'short', day: 'numeric', month: 'long', year: d.getFullYear() === now.getFullYear() ? undefined : 'numeric'});
 }
-// one <img> per chat for the whole visit, reused by every re-render of the list
-const rowEls = new Map(), avatarEls = new Map();
-function avatarFor(jid) {
-  if (avatarEls.has(jid)) return avatarEls.get(jid);
-  const img = new Image(); img.alt = ''; img.loading = 'lazy'; img.decoding = 'async';
-  img.onerror = () => { img.remove(); avatarEls.set(jid, null); };
-  img.src = api('/avatar?jid=' + encodeURIComponent(jid || ''));
-  avatarEls.set(jid, img);
-  return img;
-}
 const avImg = (jid) => `<img src="${esc(api('/avatar?jid=' + encodeURIComponent(jid || '')))}" loading="lazy" alt="" onerror="this.remove()">`;
 const initials = (n) => (n || '?').replace(/[^\p{L}\p{N} ]/gu, '').trim().split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase() || '#';
 const fmtSize = (b) => b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB';
@@ -1034,9 +1016,9 @@ async function subscribePresence(jid) {
 }
 
 // ------------------------------------------------------------ chat list
-function row(c, extra = '', img = true) {
+function row(c, extra = '') {
   return `<div class="row ${c.jid === current ? 'sel' : ''}" data-jid="${esc(c.jid)}" data-name="${esc(c.name)}">
-    <div class="av ${c.group ? 'g' : ''}">${esc(c.group ? '👥' : initials(c.name))}${img ? avImg(c.jid) : ''}</div>
+    <div class="av ${c.group ? 'g' : ''}">${esc(c.group ? '👥' : initials(c.name))}${avImg(c.jid)}</div>
     <div class="ct">
       <div class="top"><span class="nm">${esc(c.profile && c.name === c.profile ? '~' + c.name : c.name)}</span><span class="tm">${c.t ? fmtWhen(c.t) : ''}${c.pinned ? '<span class="pin" title="Pinned">📌</span>' : ''}</span></div>
       <div class="pv"><span class="pvt">${extra || esc(c.preview || c.phone || '')}</span>${c.unread ? `<span class="badge">${c.unread}</span>` : ''}</div>
@@ -1048,27 +1030,10 @@ function renderChats() {
     .filter(c => filter === 'archived' ? c.archived : !c.archived && (filter === 'all' || (filter === 'unread' ? c.unread > 0 : c.group)))
     .filter(c => !q || c.name.toLowerCase().includes(q) || (c.phone || '').includes(q.replace(/\D/g, '') || '§'))
     .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
-  const box = $('#chats');
-  if (list.length) {
-    // Rows are kept and only rebuilt when what they show changed; photos are never rebuilt.
-    // (This used to redo the whole list, reloading every picture, on every new message.)
-    const els = list.map(c => {
-      const d = c.jid !== current && drafts.get(c.jid);
-      const html = row(c, d ? `<span class="draft">Draft:</span> ${esc(d)}` : '', false);
-      let r = rowEls.get(c.jid);
-      if (!r || r.html !== html) {
-        const t = document.createElement('template'); t.innerHTML = html.trim();
-        const el = t.content.firstElementChild, img = avatarFor(c.jid);
-        if (img) el.querySelector('.av').appendChild(img); // moves it from the old row, already loaded
-        r = {html, el}; rowEls.set(c.jid, r);
-      }
-      return r.el;
-    });
-    const keep = new Set(els);
-    for (const ch of [...box.children]) if (!keep.has(ch)) ch.remove();
-    els.forEach((el, i) => { if (box.children[i] !== el) box.insertBefore(el, box.children[i] || null); });
-    if (rowEls.size > list.length * 2 + 50) { const on = new Set(list.map(c => c.jid)); for (const j of rowEls.keys()) if (!on.has(j)) rowEls.delete(j); }
-  } else box.innerHTML =
+  $('#chats').innerHTML = list.map(c => {
+    const d = c.jid !== current && drafts.get(c.jid);
+    return row(c, d ? `<span class="draft">Draft:</span> ${esc(d)}` : '');
+  }).join('') ||
     `<div class="empty">${q ? 'No chats match.' : filter === 'unread' ? 'No unread chats 🎉' : filter === 'groups' ? 'No groups yet.' : filter === 'archived' ? 'No archived chats.' : status === 'connected' ? 'No chats yet. They show up as history syncs, or start one with <svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align:-3px" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4.5H6.5a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V13"/><path d="M17.8 3.7a1.9 1.9 0 0 1 2.7 2.7L12 14.9l-3.5.8.8-3.5z"/></svg>.' : 'Waiting for WhatsApp…'}</div>`;
   const n = chats.filter(c => c.unread > 0 && !c.archived).length;
   if (!panicOn && !locked) document.title = (n ? `(${n}) ` : '') + BASE_TITLE;
@@ -1248,7 +1213,7 @@ async function openChat(jid, name) {
   updateTitle(); setComposer();
   $('#msgs').innerHTML = '<div class="empty">Loading…</div>';
   try {
-    msgs = await call('GET', `/messages?jid=${encodeURIComponent(jid)}&limit=200` + (chatVisible() ? '&read=1' : ''));
+    msgs = await call('GET', `/messages?jid=${encodeURIComponent(jid)}&limit=200`);
     if (current !== jid) return;
     storeMore = msgs.length >= 200;
     renderMsgs(true);
@@ -1269,7 +1234,6 @@ const reloadThread = throttle(async () => {
     const grew = fresh.length && msgs.length && fresh[0].ts < (msgs.find(m => !m.pending)?.ts ?? Infinity);
     msgs = fresh; pend.forEach(upsert);
     renderMsgs(grew ? 'keep' : false);
-    if (fresh.some(m => !m.fromMe)) scheduleRead(); // blue ticks for anything new, if you're looking
   } catch {}
 }, 800);
 
@@ -1539,9 +1503,6 @@ $('#send').addEventListener('click', send);
 $('#text').addEventListener('keydown', e => { if (suggestKey(e)) return; if (e.key === 'Enter' && !e.shiftKey && enterSends()) { e.preventDefault(); send(); } });
 $('#text').addEventListener('input', () => { if (current && !editing) drafts.set(current, $('#text').value); noteComposerActivity(); });
 $('#text').addEventListener('blur', stopTyping);
-// ChromeOS's keyboard autocorrects any box that has spellcheck on (autocorrect="off" alone isn't
-// always enough there), which rewrites messages as you type. Chromebooks only; elsewhere spellcheck stays.
-if (/\bCrOS\b/.test(navigator.userAgent)) $('#text').spellcheck = false;
 function showJump(on) { $('#jump').hidden = !on; $('#jump span').textContent = unseen ? String(unseen) : ''; }
 $('#jump').addEventListener('click', () => { const b = $('#msgs'); b.scrollTo({top: b.scrollHeight, behavior: 'smooth'}); unseen = 0; showJump(false); });
 $('#msgs').addEventListener('scroll', () => {
@@ -2360,9 +2321,7 @@ function scheduleRead() {
     call('POST', '/read', {jid}).catch(() => {});
   }, 400);
 }
-// back on the tab (or window): acknowledge whatever came in while you were away
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') scheduleRead(); });
-window.addEventListener('focus', () => scheduleRead());
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && chats.find(x => x.jid === current)?.unread) scheduleRead(); });
 
 
 // ------------------------------------------------ header actions on phones

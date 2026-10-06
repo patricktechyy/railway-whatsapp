@@ -8,7 +8,6 @@ import { deviceTip, disablePush, enablePush, permission, pushEnabledHere, pushSu
 import { chime } from '../sound'
 import { toast } from './Toast'
 import { api } from '../api'
-import { Select } from './Select'
 
 /**
  * A modal window. Only the person closes it (Esc, backdrop, a button): we never
@@ -166,10 +165,10 @@ export function SettingsDialog({ me, prefs, setPrefs, onRename, onWaReminders, o
         </div>
         <div className="field">
           <span className="label">Default early reminder</span>
-          <Select className="input" value={prefs.defaultRemind === null ? 'none' : String(prefs.defaultRemind)} onChange={(e) => setPrefs({ defaultRemind: e.target.value === 'none' ? null : Number(e.target.value) })} aria-label="Default early reminder">
+          <select className="input" value={prefs.defaultRemind === null ? 'none' : String(prefs.defaultRemind)} onChange={(e) => setPrefs({ defaultRemind: e.target.value === 'none' ? null : Number(e.target.value) })} aria-label="Default early reminder">
             {REMIND_OPTIONS.map((o) => <option key={String(o.value)} value={o.value === null ? 'none' : String(o.value)}>{o.value === null ? 'No reminder' : o.label}</option>)}
             {prefs.defaultRemind !== null && !REMIND_OPTIONS.some((o) => o.value === prefs.defaultRemind) && <option value={String(prefs.defaultRemind)}>{describeRemind(prefs.defaultRemind)}</option>}
-          </Select>
+          </select>
           <span className="help">Used when you first give a task a time.</span>
         </div>
       </section>
@@ -178,10 +177,10 @@ export function SettingsDialog({ me, prefs, setPrefs, onRename, onWaReminders, o
         <h3 className="set-title">Calendar</h3>
         <div className="field">
           <span className="label">Public holidays</span>
-          <Select className="input" value={me.holidayCountry} onChange={(e) => onHolidayCountry(e.target.value)} aria-label="Public holidays country">
+          <select className="input" value={me.holidayCountry} onChange={(e) => onHolidayCountry(e.target.value)} aria-label="Public holidays country">
             <option value="off">Don’t show holidays</option>
             {me.holidayCountries.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
-          </Select>
+          </select>
         </div>
         <div className="field">
           <span className="label">Week starts on</span>
@@ -221,7 +220,7 @@ export function SettingsDialog({ me, prefs, setPrefs, onRename, onWaReminders, o
         <div className="field">
           <span className="label">Tutorial</span>
           <span className="row wrap">
-            <button type="button" className="btn ghost sm" onClick={onTour}>Start the tutorial</button>
+            <button type="button" className="btn ghost" onClick={onTour}>Start the tutorial</button>
           </span>
         </div>
         <p className="help about">Version {me.version} · Name, look and holidays sync with your account. Everything else is saved on this device.</p>
@@ -399,12 +398,12 @@ function BuddySetting({ me, onChange }: { me: Me; onChange: (b: BuddySettings) =
       <div className="field">
         <span className="label">Try it</span>
         <span className="row wrap">
-          <Select className="input sm" value={kind} onChange={(e) => setKind(e.target.value)} aria-label="Which example">
+          <select className="input sm" value={kind} onChange={(e) => setKind(e.target.value)} aria-label="Which example">
             <option value="task">A task reminder</option>
             <option value="morning">The morning brief</option>
             <option value="evening">The evening check-in</option>
             <option value="help">The command list</option>
-          </Select>
+          </select>
           <button className="btn ghost sm" disabled={busy} onClick={test}>{busy ? 'Sending…' : 'Send me an example'}</button>
         </span>
       </div>
