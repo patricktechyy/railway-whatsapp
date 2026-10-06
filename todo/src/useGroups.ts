@@ -39,21 +39,19 @@ export function useGroups() {
   return {
     groups,
     reload: load,
+    // making and changing groups is the admin's job (the admin needn't be in the group)
     create: async (body: { name: string; emoji: string; members: string[] }) => {
-      const g = await run(api<Group>('/groups', 'POST', body))
-      if (g) setGroups((gs) => [...(gs || []), g])
+      const g = await run(api<Group>('/admin/groups', 'POST', body))
+      if (g) load()
       return g
     },
     update: async (gid: string, body: { name?: string; emoji?: string; members?: string[] }) => {
-      const g = await run(api<Group>(`/groups/${gid}`, 'PATCH', body))
-      if (g) setGroups((gs) => gs && gs.map((x) => (x.id === gid ? g : x)))
+      const g = await run(api<Group>(`/admin/groups/${gid}`, 'PATCH', body))
+      if (g) load()
       return g
     },
-    leave: async (gid: string) => {
-      if (await run(api(`/groups/${gid}/leave`, 'POST', {}))) setGroups((gs) => gs && gs.filter((x) => x.id !== gid))
-    },
     remove: async (gid: string) => {
-      if (await run(api(`/groups/${gid}`, 'DELETE'))) setGroups((gs) => gs && gs.filter((x) => x.id !== gid))
+      if (await run(api(`/admin/groups/${gid}`, 'DELETE'))) setGroups((gs) => gs && gs.filter((x) => x.id !== gid))
     },
     addTask: async (gid: string, body: GroupTaskInput) => {
       const t = await run(api<GroupTask>(`/groups/${gid}/tasks`, 'POST', body))

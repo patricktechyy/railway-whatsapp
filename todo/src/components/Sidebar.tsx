@@ -129,6 +129,8 @@ const ICONS: Record<string, ReactNode> = {
   completed: <><circle cx="10" cy="10" r="7" /><path d="M6.8 10.2 9 12.4l4.3-4.6" /></>,
   stats: <><path d="M4 16V9M8.5 16V4M13 16v-5M17 16H3" /></>,
   admin: <><path d="M10 2.5 16 5v4.5c0 3.8-2.6 6.6-6 8-3.4-1.4-6-4.2-6-8V5z" /><path d="M7.5 10 9.3 11.8 12.8 8.2" /></>,
+  study: <><path d="M10 5.5c-1.8-1.3-4-1.8-6.5-1.5v11c2.5-.3 4.7.2 6.5 1.5 1.8-1.3 4-1.8 6.5-1.5v-11c-2.5-.3-4.7.2-6.5 1.5z" /><path d="M10 5.5v11" /></>,
+  exams: <><path d="M5.5 2.5h6l3 3v12h-9z" /><path d="M11.5 2.5v3h3M7.8 10.6l1.6 1.6 3-3.2M7.8 15h4.4" /></>,
 }
 
 function Item({ icon, label, count, danger, active, onClick }: { icon: ReactNode; label: ReactNode; count?: number; danger?: boolean; active: boolean; onClick: () => void }) {
@@ -181,6 +183,8 @@ export const Sidebar = memo(function Sidebar({ me, view, lists, tags, counts, on
         <Item icon={svg('today')} label="Today" count={counts.today + counts.overdue} danger={counts.overdue > 0} active={same(view, { kind: 'today' })} onClick={go({ kind: 'today' })} />
         <Item icon={svg('upcoming')} label="Upcoming" count={counts.upcoming} active={same(view, { kind: 'upcoming' })} onClick={go({ kind: 'upcoming' })} />
         <Item icon={svg('calendar')} label="Calendar" active={same(view, { kind: 'calendar' })} onClick={go({ kind: 'calendar' })} />
+        <Item icon={svg('study')} label="Study planner" active={same(view, { kind: 'study' })} onClick={go({ kind: 'study' })} />
+        <Item icon={svg('exams')} label="Exams" active={same(view, { kind: 'exams' })} onClick={go({ kind: 'exams' })} />
         <li className="nav-sep" aria-hidden="true" />
         <Item icon={svg('all')} label="All tasks" count={counts.all} active={same(view, { kind: 'all' })} onClick={go({ kind: 'all' })} />
         <Item icon={svg('inbox')} label="No list" count={counts.inbox} active={same(view, { kind: 'inbox' })} onClick={go({ kind: 'inbox' })} />
@@ -247,28 +251,35 @@ export const Sidebar = memo(function Sidebar({ me, view, lists, tags, counts, on
         )
       })()}
 
-      <div className="nav-section lists-head">
-        <span className="section-label">Groups</span>
-        <button className="icon-btn sm" onClick={onNewGroup} aria-label="New group" title="New group">
-          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4.5v11M4.5 10h11" /></svg>
-        </button>
-      </div>
-      <ul className="nav" aria-label="Groups">
-        {(groups || []).map((g) => {
-          const mine = g.tasks.filter((t) => !t.done && t.assignee === me.username).length
-          const open = g.tasks.filter((t) => !t.done).length
-          return (
-            <li key={g.id}>
-              <button className={`nav-item${same(view, { kind: 'group', id: g.id }) ? ' on' : ''}`} onClick={go({ kind: 'group', id: g.id })} title={`${g.members.length} people`}>
-                <span className="nav-icon emoji">{g.emoji}</span>
-                <span className="nav-label">{g.name}</span>
-                {!!open && <span className={`nav-count${mine ? ' mine' : ''}`} title={mine ? `${mine} for you` : undefined}>{open}</span>}
-              </button>
-            </li>
-          )
-        })}
-        {groups && groups.length === 0 && <li><p className="side-empty">No groups yet.</p></li>}
-      </ul>
+      {/* groups: the admin makes them; people only see the section once they're in one */}
+      {(me.admin || !!groups?.length) && (
+        <>
+        <div className="nav-section lists-head">
+          <span className="section-label">Groups</span>
+          {me.admin && (
+            <button className="icon-btn sm" onClick={onNewGroup} aria-label="New group" title="New group">
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4.5v11M4.5 10h11" /></svg>
+            </button>
+          )}
+        </div>
+        <ul className="nav" aria-label="Groups">
+          {(groups || []).map((g) => {
+            const mine = g.tasks.filter((t) => !t.done && t.assignee === me.username).length
+            const open = g.tasks.filter((t) => !t.done).length
+            return (
+              <li key={g.id}>
+                <button className={`nav-item${same(view, { kind: 'group', id: g.id }) ? ' on' : ''}`} onClick={go({ kind: 'group', id: g.id })} title={`${g.members.length} people`}>
+                  <span className="nav-icon emoji">{g.emoji}</span>
+                  <span className="nav-label">{g.name}</span>
+                  {!!open && <span className={`nav-count${mine ? ' mine' : ''}`} title={mine ? `${mine} for you` : undefined}>{open}</span>}
+                </button>
+              </li>
+            )
+          })}
+          {groups && groups.length === 0 && <li><p className="side-empty">No groups yet.</p></li>}
+        </ul>
+        </>
+      )}
 
       {tags.length > 0 && (
         <>

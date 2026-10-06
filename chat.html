@@ -938,9 +938,10 @@ let filter = 'all', unseen = 0;
 const drafts = new Map();
 // URLs in messages become links (runs on already-escaped text)
 const linkify = (html) => html.replace(/\bhttps?:\/\/[^\s<]+[^\s<.,;:!?)\]'"]/g, u => `<a class="lnk" href="${u}" target="_blank" rel="noopener noreferrer">${u}</a>`);
-// WhatsApp formatting on already-escaped text: *bold*, ~strike~
+// WhatsApp formatting on already-escaped text: *bold*, _italic_, ~strike~ (and any mix, like *_this_*)
 const waFmt = (h) => h
   .replace(/(^|[\s>(\[{;])\*(?=\S)([^*\n]*?\S)\*(?=$|[\s<.,!?;:)\]}&])/g, '$1<b>$2</b>')
+  .replace(/(^|[\s>(\[{;~])_(?=\S)([^_\n]*?\S)_(?=$|[\s<.,!?;:)\]}&~])/g, '$1<i>$2</i>')
   .replace(/(^|[\s>(\[{;])~(?=\S)([^~\n]*?\S)~(?=$|[\s<.,!?;:)\]}&])/g, '$1<s>$2</s>');
 const rich = (t) => linkify(waFmt(esc(t)));
 let status = 'starting', me = null, chats = [], current = null, currentName = '', msgs = [], attach = null, tmpN = 0;

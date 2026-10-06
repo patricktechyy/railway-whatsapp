@@ -14,6 +14,8 @@ import { Assignments, progressOf } from './assign.js'
 import { Groups } from './groups.js'
 import { CalendarFeeds } from './calendar.js'
 import { parseQuickAdd } from './quickadd.js'
+import { Exams } from './exams.js'
+import { StudyPlans } from './study.js'
 
 /**
  * Gavin's Todolist, as a part of Whats Up.
@@ -46,6 +48,16 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
     isUser: (u) => !!auth.get(u) || u === ENV_ADMIN,
     onChange: (g, members) => { for (const m of members) store.bus.emit(m, { type: 'group', id: g.id }) },
   })
+
+  // exams: one timetable per school, kept by the admin; everyone's open page refreshes on a change
+  const exams = new Exams(dataDir, {
+    isUser: (u) => !!auth.get(u) || u === ENV_ADMIN,
+    onChange: () => { for (const u of [...people(), ENV_ADMIN]) store.bus.emit(u, { type: 'exams' }) },
+  })
+  // the study planner: everyone's own; their other devices pick up a save
+  const study = new StudyPlans(dataDir, { onChange: (u, rev) => store.bus.emit(u, { type: 'study', rev }) })
+  /** Whoever can manage things: the ADMIN_PASSWORD login and anyone marked admin. */
+  const admins = () => [ENV_ADMIN, ...auth.users.filter((x) => x.isAdmin).map((x) => x.username)]
 
   /** The bot account: BOT_USER in Railway wins, otherwise the admin's pick (Todolist admin → WhatsApp). */
   const envBot = String(process.env.BOT_USER || process.env.WA_BOT_USER || '').trim().toLowerCase() || null
@@ -226,7 +238,7 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
     // ---- the big picture: numbers only
     if (p === '/api/admin/overview' && M === 'GET') {
       const week = Date.now() - 7 * 864e5
-      const out = { people: 0, active7: 0, open: 0, overdue: 0, doneWeek: 0, notifications: 0, assignments: assignments.all().length, assignedOpen: 0 }
+      const out = { people: 0, active7: 0, open: 0, overdue: 0, doneWeek: 0, notifications: 0, assignments: assignments.all().length, assignedOpen: 0, examRequests: exams.pending(), groups: groups.all().length }
       for (const u of people()) {
         const doc = store.snapshot(u)
         const today = todayIn(doc.profile.tz || 'UTC')
@@ -242,7 +254,42 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
     }
 
     if (p === '/api/admin/assignments' && M === 'GET') return json(res, assignments.all().map(assignmentView))
+    // ---- groups: only admins make them and decide who's in them (counts only, never the tasks)
+    if (p === '/api/admin/groups' && M === 'GET') {
+      return json(res, groups.all().map((g) => ({
+        id: g.id, name: g.name, emoji: g.emoji, createdAt: g.createdAt,
+        members: g.members.map((m) => ({ username: m, name: nameOf(m) })),
+        open: g.tasks.filter((t) => !t.done).length, done: g.tasks.filter((t) => t.done).length,
+      })))
+    }
+    // ---- who's at which school (for the Exams page's Schools panel)
+    if (p === '/api/admin/schools/people' && M === 'GET') {
+      return json(res, auth.users.map((x) => ({ username: x.username, name: nameOf(x.username), school: exams.mine(x.username).school })).sort((a, b) => a.name.localeCompare(b.name)))
+    }
     const body = M === 'DELETE' ? {} : await readJson(req)
+    if (p === '/api/admin/groups' && M === 'POST') return json(res, groupView(groups.adminCreate(c.u, body)), 201)
+    const gma = p.match(/^\/api\/admin\/groups\/([A-Za-z0-9_-]{6,20})$/)
+    if (gma && M === 'PATCH') return json(res, groupView(groups.adminUpdate(gma[1], body)))
+    if (gma && M === 'DELETE') return json(res, groups.adminRemove(gma[1]))
+    // ---- exams, schools and the requests people send in
+    if (p === '/api/admin/exams' && M === 'POST') return json(res, exams.addExam(c.u, body), 201)
+    const xm = p.match(/^\/api\/admin\/exams\/([A-Za-z0-9_-]{4,20})$/)
+    if (xm && M === 'PATCH') return json(res, exams.updateExam(xm[1], body))
+    if (xm && M === 'DELETE') return json(res, exams.deleteExam(xm[1]))
+    const rq = p.match(/^\/api\/admin\/exams\/requests\/([A-Za-z0-9_-]{4,20})$/)
+    if (rq && M === 'POST') {
+      const r = exams.answer(c.u, rq[1], { approve: !!body.approve, changes: body.changes || {}, reason: body.reason || '' })
+      const text = r.status === 'added' ? `Added: ${r.subject}${r.paper ? ` ${r.paper}` : ''}, ${r.date}` : `Not added: ${r.subject}${r.paper ? ` ${r.paper}` : ''}${r.reason ? ` (${r.reason})` : ''}`
+      store.bus.emit(r.by, { type: 'exams' })
+      await push.send(r.by, { title: r.status === 'added' ? '📝 Exam request added' : '📝 Exam request', body: text, tag: `examreq-${r.id}`, kind: 'exam' }).catch(() => {})
+      return json(res, r)
+    }
+    if (p === '/api/admin/schools' && M === 'POST') return json(res, exams.addSchool(body), 201)
+    const sm = p.match(/^\/api\/admin\/schools\/([A-Za-z0-9_-]{4,20})$/)
+    if (sm && M === 'PATCH') return json(res, exams.updateSchool(sm[1], body))
+    if (sm && M === 'DELETE') return json(res, exams.deleteSchool(sm[1]))
+    const ps = p.match(/^\/api\/admin\/people\/([a-z0-9._-]{1,40})\/school$/)
+    if (ps && M === 'PATCH') return json(res, exams.setSchoolOf(ps[1], body.school || null))
     if (p === '/api/admin/settings' && M === 'POST') {
       const s = link.settings()
       for (const k of ['reminders', 'share', 'inbox', 'buddy']) if (k in (body.whatsapp || {})) s.whatsapp[k] = !!body.whatsapp[k]
@@ -463,16 +510,36 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
     if (gm && M !== 'GET') {
       const body = M === 'DELETE' ? {} : await readJson(req)
       const [, gid, what, tid] = gm
-      if (!what && M === 'PATCH') return json(res, groupView(groups.update(u, gid, body)))
-      if (!what && M === 'DELETE') return json(res, groups.remove(u, gid))
-      if (what === 'leave' && M === 'POST') { groups.leave(u, gid); return json(res, { ok: true }) }
+      // who's in a group, its name and the group itself are the admin's to change
+      if ((!what && (M === 'PATCH' || M === 'DELETE')) || what === 'leave') throw new HttpError(403, 'Only an admin can change groups')
       if (what === 'clear-done' && M === 'POST') return json(res, groups.clearDone(u, gid))
       if (what === 'tasks' && !tid && M === 'POST') return json(res, groups.addTask(u, gid, body), 201)
       if (what === 'tasks' && tid && M === 'PATCH') return json(res, groups.updateTask(u, gid, tid, body))
       if (what === 'tasks' && tid && M === 'DELETE') return json(res, groups.deleteTask(u, gid, tid))
       throw new HttpError(404, 'Not found')
     }
-    if (p === '/api/groups' && M === 'POST') return json(res, groupView(groups.create(u, await readJson(req))), 201)
+    if (p === '/api/groups' && M === 'POST') throw new HttpError(403, 'Only an admin can make groups')
+    // ---- exams: your school's timetable (admins: any school, or ?school=all)
+    if (p === '/api/exams' && M === 'GET') {
+      const v = exams.view(u, { admin: c.admin, school: url.searchParams.get('school') || undefined })
+      return json(res, { ...v, admin: c.admin, requests: v.requests.map((r) => ({ ...r, byName: nameOf(r.by) })) })
+    }
+    if (p === '/api/exams/me' && M === 'PATCH') return json(res, exams.setMine(u, await readJson(req)))
+    if (p === '/api/exams/requests' && M === 'POST') {
+      const r = exams.request(u, await readJson(req))
+      // tell the admins (their open Exams page shows it; a push if they have notifications on)
+      for (const a of admins()) {
+        if (a === u) continue
+        store.bus.emit(a, { type: 'exams' })
+        push.send(a, { title: '📝 Exam request', body: `${nameOf(u)}: ${r.subject}${r.paper ? ` ${r.paper}` : ''}, ${r.date}`, tag: `examreq-${r.id}`, kind: 'exam' }).catch(() => {})
+      }
+      return json(res, r, 201)
+    }
+    const wr = p.match(/^\/api\/exams\/requests\/([A-Za-z0-9_-]{4,20})$/)
+    if (wr && M === 'DELETE') return json(res, exams.withdraw(u, wr[1]))
+    // ---- the study planner (yours only)
+    if (p === '/api/study' && M === 'GET') return json(res, study.get(u))
+    if (p === '/api/study' && M === 'PUT') return json(res, study.put(u, await readJson(req)))
     if (p === '/api/events' && M === 'GET') return events(req, res, u)
     if (p === '/api/push/key' && M === 'GET') return json(res, { key: push.publicKey, devices: push.devices(u).length })
 
@@ -661,6 +728,14 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
     const items = [
       ...doc.tasks.filter((t) => t.due && !t.done).map((task) => ({ task })),
       ...groups.mine(u).flatMap((g) => g.tasks.filter((t) => t.due && !t.done && (!t.assignee || t.assignee === u)).map((task) => ({ task, group: g }))),
+      // your school's exams (your subjects, if you picked some), with a reminder the day before
+      ...exams.examsFor(u).map((e) => ({
+        minutes: e.minutes || 60,
+        task: {
+          id: `exam-${e.id}`, title: `📝 ${e.subject}${e.paper ? ` ${e.paper}` : ''}`, due: e.date, time: e.start, remind: e.start ? 24 * 60 : null,
+          notes: [e.venue && `Venue: ${e.venue}`, e.who, e.notes].filter(Boolean).join('\n'), subtasks: [], updatedAt: e.at,
+        },
+      })),
     ]
     const body = calendars.ics({ name: `${brand} · ${nameOf(u)}`, tz: tzOf(u), items, host: String(req.headers['x-forwarded-host'] || req.headers.host || 'todo').replace(/[^a-z0-9.:-]/gi, '') })
     return send(res, 200, body, { 'content-type': 'text/calendar; charset=utf-8', 'cache-control': 'no-cache', 'content-disposition': 'inline; filename="todolist.ics"' })
@@ -680,6 +755,8 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
       buddy.forget(username)
       groups.forget(username)
       calendars.forget(username)
+      exams.forget(username)
+      study.forget(username)
     } catch (e) { console.warn(`[todo] couldn't put ${username}'s todolist aside: ${e.message}`) }
   }
 

@@ -14,7 +14,11 @@ A to-do list for Gavin (and friends), **built into Whats Up** (Apa yang Diatas).
 
 ---
 
-## What's in it (v2.3)
+## What's in it (v2.4)
+
+**New in 2.4**
+- **Study planner** and **Exams** pages (see the main README).
+- Groups: only admins make them and choose who's in them.
 
 **New in 2.3**
 - New logo: an open ring (a G) with the tick swinging out of it.

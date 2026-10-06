@@ -141,31 +141,49 @@ function GroupTaskEditor({ task, members, onSave, onDelete, onClose }: { task: G
 
 const EMOJIS = ['👥', '🧪', '📚', '🏠', '💼', '🎉', '⚽', '🎵', '✈️', '🛒', '💡', '❤️']
 
-/** Make a group, or change one: its name, icon and who's in it. */
-export function GroupDialog({ group, me, onSave, onLeave, onDelete, onClose }: {
-  group?: Group
-  me: string
-  onSave: (v: { name: string; emoji: string; members?: string[] }) => void
-  onLeave?: () => void
+/** The bits of a group this dialog needs (the admin's list has counts instead of tasks). */
+export type GroupInfo = Pick<Group, 'id' | 'name' | 'emoji'> & { members: Person[] }
+
+/**
+ * Make a group, or change one: its name, icon and who's in it. Only admins can;
+ * for everyone else it just shows who's in the group.
+ */
+export function GroupDialog({ group, readOnly = false, onSave, onDelete, onClose }: {
+  group?: GroupInfo
+  readOnly?: boolean
+  onSave?: (v: { name: string; emoji: string; members?: string[] }) => void
   onDelete?: () => void
   onClose: () => void
 }) {
   const [name, setName] = useState(group?.name || '')
   const [emoji, setEmoji] = useState(group?.emoji || '👥')
-  const [members, setMembers] = useState<string[]>(group ? group.members.map((m) => m.username) : [me])
+  const [members, setMembers] = useState<string[]>(group ? group.members.map((m) => m.username) : [])
   const [people, setPeople] = useState<Person[] | null>(null)
   const [q, setQ] = useState('')
-  useEffect(() => { api<Person[]>('/people').then(setPeople).catch(() => setPeople([])) }, [])
-  const owner = !group || group.owner === me
+  useEffect(() => { if (!readOnly) api<Person[]>('/people').then(setPeople).catch(() => setPeople([])) }, [readOnly])
   const wasIn = new Set(group?.members.map((m) => m.username) || [])
   const toggle = (u: string) => setMembers((ms) => (ms.includes(u) ? ms.filter((x) => x !== u) : [...ms, u]))
-  const list = (people || []).filter((p) => p.username !== me && (!q || p.name.toLowerCase().includes(q.toLowerCase()) || p.username.includes(q.toLowerCase())))
+  const list = (people || []).filter((p) => !q || p.name.toLowerCase().includes(q.toLowerCase()) || p.username.includes(q.toLowerCase()))
+
+  if (readOnly && group) {
+    return (
+      <Dialog title={`${group.emoji} ${group.name}`} onClose={onClose} className="group-dialog" closeButton>
+        <ul className="g-people">
+          {group.members.map((p) => (
+            <li key={p.username}><span className="g-row"><span className="g-av">{initials(p.name)}</span><span>{p.name}<small>@{p.username}</small></span></span></li>
+          ))}
+        </ul>
+        <p className="help">Your admin decides who’s in this group.</p>
+      </Dialog>
+    )
+  }
+
   const submit = (e: FormEvent) => {
     e.preventDefault()
-    if (!name.trim()) return
+    if (!name.trim() || !members.length) return
     // only send people if they changed, so a rename doesn't undo someone else's edit
     const same = group && members.length === wasIn.size && members.every((m) => wasIn.has(m))
-    onSave({ name: name.trim(), emoji, ...(same ? {} : { members }) })
+    onSave?.({ name: name.trim(), emoji, ...(same ? {} : { members }) })
     onClose()
   }
   return (
@@ -182,31 +200,26 @@ export function GroupDialog({ group, me, onSave, onLeave, onDelete, onClose }: {
           </div>
         </div>
         <div className="field">
-          <span className="label">People</span>
+          <span className="label">People <small className="muted">{members.length ? `${members.length} picked` : ''}</small></span>
           {(people?.length || 0) > 8 && <input className="input sm" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Find someone" aria-label="Find someone" />}
           <ul className="g-people">
             {people === null && <li className="muted">Loading…</li>}
-            {list.map((p) => {
-              const on = members.includes(p.username)
-              const locked = on && wasIn.has(p.username) && !owner
-              return (
-                <li key={p.username}>
-                  <label className={locked ? 'locked' : ''}>
-                    <input type="checkbox" checked={on} disabled={locked} onChange={() => toggle(p.username)} />
-                    <span className="g-av">{initials(p.name)}</span>
-                    <span>{p.name}<small>@{p.username}{group?.owner === p.username ? ' · made this group' : ''}</small></span>
-                  </label>
-                </li>
-              )
-            })}
+            {list.map((p) => (
+              <li key={p.username}>
+                <label>
+                  <input type="checkbox" checked={members.includes(p.username)} onChange={() => toggle(p.username)} />
+                  <span className="g-av">{initials(p.name)}</span>
+                  <span>{p.name}<small>@{p.username}</small></span>
+                </label>
+              </li>
+            ))}
           </ul>
         </div>
         <div className="dialog-actions">
-          {group && onDelete && owner && <button type="button" className="btn danger" onClick={() => { if (confirm(`Delete “${group.name}” and its tasks for everyone?`)) { onClose(); onDelete() } }}>Delete group</button>}
-          {group && onLeave && <button type="button" className="btn quiet" onClick={() => { if (confirm(`Leave “${group.name}”?`)) { onClose(); onLeave() } }}>Leave</button>}
+          {group && onDelete && <button type="button" className="btn danger" onClick={() => { if (confirm(`Delete “${group.name}” and its tasks for everyone?`)) { onClose(); onDelete() } }}>Delete group</button>}
           <span className="spacer" />
           <button type="button" className="btn ghost" onClick={onClose}>Cancel</button>
-          <button className="btn" disabled={!name.trim()}>{group ? 'Save' : 'Create'}</button>
+          <button className="btn" disabled={!name.trim() || !members.length}>{group ? 'Save' : 'Create'}</button>
         </div>
       </form>
     </Dialog>

@@ -61,12 +61,12 @@ export class CalendarFeeds {
       'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Whats Up//Todolist//EN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
       `X-WR-CALNAME:${ESC(name)}`, `X-WR-TIMEZONE:${ESC(tz)}`, 'REFRESH-INTERVAL;VALUE=DURATION:PT1H', 'X-PUBLISHED-TTL:PT1H',
     ]
-    for (const { task: t, group } of items) {
+    for (const { task: t, group, minutes } of items) {
       if (t.done || !t.due) continue
       lines.push('BEGIN:VEVENT', `UID:${t.id}${group ? `-${group.id}` : ''}@${host}`, `DTSTAMP:${now}`, `LAST-MODIFIED:${utc(t.updatedAt || Date.now())}`)
       if (t.time) {
         const start = zonedTime(t.due, t.time, tz)
-        lines.push(`DTSTART:${utc(start)}`, `DTEND:${utc(start + 30 * 60e3)}`)
+        lines.push(`DTSTART:${utc(start)}`, `DTEND:${utc(start + (minutes || 30) * 60e3)}`)
       } else {
         lines.push(`DTSTART;VALUE=DATE:${dateOnly(t.due)}`, `DTEND;VALUE=DATE:${nextDay(t.due)}`, 'TRANSP:TRANSPARENT')
       }

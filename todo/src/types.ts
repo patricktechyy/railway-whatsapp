@@ -145,6 +145,8 @@ export type View =
   | { kind: 'admin' }
   | { kind: 'board' }
   | { kind: 'group'; id: string }
+  | { kind: 'exams' }
+  | { kind: 'study' }
 
 /** Someone with a Whats Up account. */
 export interface Person { username: string; name: string }
@@ -152,5 +154,42 @@ export interface Person { username: string; name: string }
 export interface GroupTask extends Task { assignee: string | null; by: string; doneBy: string | null }
 /** A few people sharing one task list. */
 export interface Group { id: string; name: string; emoji: string; owner: string; members: Person[]; tasks: GroupTask[]; rev: number; createdAt: number }
+
+// ------------------------------------------------------------------ exams
+export type ColorName = 'blue' | 'orange' | 'aqua' | 'yellow' | 'magenta' | 'green' | 'violet' | 'none'
+export interface School { id: string; name: string; color: ColorName; people?: number }
+/** One paper on a school's exam timetable. */
+export interface Exam {
+  id: string; school: string; subject: string; paper: string; date: string
+  start: string | null; minutes: number | null; who: string; venue: string; notes: string; at: number
+}
+export interface ExamRequest extends Omit<Exam, 'id' | 'at'> {
+  id: string; by: string; byName?: string; status: 'pending' | 'added' | 'declined'; reason: string; at: number; examId: string | null
+}
+export interface ExamsData {
+  schools: School[]
+  school: string | null // yours
+  subjects: string[] // the ones you take (empty: all of them)
+  showing: string | null // the school these exams are for ('all' for admins looking at everything)
+  exams: Exam[]
+  requests: ExamRequest[]
+  admin: boolean
+}
+
+// ---------------------------------------------------------- study planner
+export type StudyMode = '' | 'RE' | 'P' | 'RE+P'
+export interface StudySubject { id: string; name: string; color: ColorName; priority: boolean }
+export interface StudyTopic { id: string; text: string; done: boolean }
+/** One subject to study on one day: how (revise / practice) and which topics. */
+export interface StudyBlock { id: string; date: string; subject: string; mode: StudyMode; topics: StudyTopic[]; note: string; done: boolean; order: number }
+/** A test happening that day that isn't on the Exams page (class tests, AFRs…). */
+export interface StudyTest { id: string; date: string; title: string; note: string }
+export interface StudyPlan {
+  rev: number
+  subjects: StudySubject[]
+  days: Record<string, 'rest' | 'late'>
+  tests: StudyTest[]
+  blocks: StudyBlock[]
+}
 
 export type TaskInput = Partial<Omit<Task, 'id' | 'order' | 'createdAt' | 'updatedAt' | 'doneAt'>>

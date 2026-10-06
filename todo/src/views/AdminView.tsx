@@ -7,6 +7,9 @@ import { formatDay, formatTime } from '../dates'
 import { describeRepeat } from '../repeat'
 import type { Repeat } from '../types'
 import { Select } from '../components/Select'
+import { GroupDialog, Avatars, type GroupInfo } from './GroupView'
+import { ExamsView } from './ExamsView'
+import { useExams } from '../useExams'
 
 interface Person {
   username: string
@@ -34,7 +37,7 @@ interface Settings {
   botFromEnv: boolean
   accounts: Account[]
 }
-interface Overview { people: number; active7: number; open: number; overdue: number; doneWeek: number; notifications: number; assignments: number; assignedOpen: number }
+interface Overview { people: number; active7: number; open: number; overdue: number; doneWeek: number; notifications: number; assignments: number; assignedOpen: number; examRequests: number; groups: number }
 type St = 'todo' | 'doing' | 'done' | 'removed'
 interface Assignment {
   id: string
@@ -52,11 +55,13 @@ interface Assignment {
   counts: Record<St, number>
 }
 
-type Tab = 'overview' | 'tasks' | 'people' | 'announce' | 'whatsapp'
+type Tab = 'overview' | 'tasks' | 'people' | 'groups' | 'exams' | 'announce' | 'whatsapp'
 const TABS: { key: Tab; label: string }[] = [
   { key: 'overview', label: 'Overview' },
   { key: 'tasks', label: 'Tasks' },
   { key: 'people', label: 'People' },
+  { key: 'groups', label: 'Groups' },
+  { key: 'exams', label: 'Exams' },
   { key: 'announce', label: 'Announcements' },
   { key: 'whatsapp', label: 'WhatsApp' },
 ]
@@ -144,6 +149,7 @@ export function AdminView({ me }: { me: string }) {
           <button key={t.key} role="tab" aria-selected={tab === t.key} className={tab === t.key ? 'on' : ''} onClick={() => go(t.key)}>
             {t.label}
             {t.key === 'tasks' && !!assigned?.length && <span className="tab-count">{assigned.length}</span>}
+            {t.key === 'exams' && !!overview?.examRequests && <span className="tab-count">{overview.examRequests}</span>}
           </button>
         ))}
       </div>
@@ -168,10 +174,66 @@ export function AdminView({ me }: { me: string }) {
           onAnnounce={(u) => { setAnnounceTo(u); go('announce') }}
         />
       )}
+      {tab === 'groups' && <GroupsTab />}
+      {tab === 'exams' && <ExamsTab />}
       {tab === 'announce' && <AnnounceTab people={people} settings={settings} to={announceTo} setTo={setAnnounceTo} onChanged={load} />}
       {tab === 'whatsapp' && <WhatsAppTab settings={settings} setSettings={setSettings} onChanged={load} />}
     </div>
   )
+}
+
+// ------------------------------------------------------------------ groups
+type AdminGroup = GroupInfo & { open: number; done: number; createdAt: number }
+
+/** Only admins make groups and decide who's in them. Counts only: the tasks are the group's business. */
+function GroupsTab() {
+  const [groups, setGroups] = useState<AdminGroup[] | null>(null)
+  const [dialog, setDialog] = useState<{ group?: AdminGroup } | null>(null)
+  const load = () => api<AdminGroup[]>('/admin/groups').then(setGroups).catch((e) => toast(e.message))
+  useEffect(() => { load() }, [])
+  const run = async (p: Promise<unknown>, done: string) => { try { await p; toast(done); load() } catch (e: any) { toast(e.message) } }
+  return (
+    <section className="card">
+      <div className="chart-head">
+        <div>
+          <h2>Groups</h2>
+          <p className="help">People in a group share one task list. Only admins make groups and choose who’s in them.</p>
+        </div>
+        <button className="btn sm" onClick={() => setDialog({})}>+ New group</button>
+      </div>
+      {groups === null ? <p className="muted">Loading…</p> : !groups.length ? <p className="muted">No groups yet.</p> : (
+        <ul className="admin-groups">
+          {groups.map((g) => (
+            <li key={g.id}>
+              <button className="admin-group" onClick={() => setDialog({ group: g })}>
+                <span className="admin-group-emoji" aria-hidden="true">{g.emoji}</span>
+                <span className="admin-group-main">
+                  <b>{g.name}</b>
+                  <small>{plural(g.members.length, 'person', 'people')} · {g.open} open · {g.done} done</small>
+                </span>
+                <Avatars people={g.members} max={5} />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {dialog && (
+        <GroupDialog
+          group={dialog.group}
+          onClose={() => setDialog(null)}
+          onSave={(v) => run(dialog.group ? api(`/admin/groups/${dialog.group.id}`, 'PATCH', v) : api('/admin/groups', 'POST', v), dialog.group ? 'Saved' : 'Group made')}
+          onDelete={dialog.group ? () => run(api(`/admin/groups/${dialog.group!.id}`, 'DELETE'), 'Group deleted') : undefined}
+        />
+      )}
+    </section>
+  )
+}
+
+// ------------------------------------------------------------------- exams
+/** The Exams page with the admin's tools: every school, adding exams, requests, schools. */
+function ExamsTab() {
+  const exams = useExams()
+  return <ExamsView exams={exams} weekStartsMonday={true} />
 }
 
 // ----------------------------------------------------------------- overview
@@ -193,6 +255,7 @@ function OverviewTab({ overview: o, assigned, onGo, onRefresh }: { overview: Ove
         <Tile label="Done this week" value={o.doneWeek} note="By everyone" tone="ok" />
         <Tile label="Notifications on" value={o.notifications} note={`of ${plural(o.people, 'person', 'people')}`} />
         <Tile label="Tasks you gave" value={o.assignments} note={`${o.assignedOpen} still open`} onClick={() => onGo('tasks')} />
+        <Tile label="Exam requests" value={o.examRequests} note={o.examRequests ? 'Waiting for you' : 'Nothing waiting'} onClick={() => onGo('exams')} />
       </div>
       <section className="card">
         <div className="chart-head">

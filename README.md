@@ -13,6 +13,13 @@ username and a password **they** choose; you only decide who exists.
 
 ---
 
+## New in 3.4
+
+- **Study planner** (Todolist). Your revision timetable, one column per day: the tests happening that day on top, and what you'll study underneath (subject, RE = revise/memorise or P = practice, and the topics, which you strike off as you go). Exam days show purple, late days yellow, rest days green, priority subjects red. Drag blocks between days, push a day's unfinished work to the next, or let **Plan from exams** fill in revision before each paper.
+- **Exams** (Todolist). Your school's exam timetable as a list or a calendar, counting down to the next paper. Pick your subjects to hide the rest; they also go into your calendar link and the planner. Admins add exams and schools (Admin → Exams, or the Exams page); everyone else can request an exam, and the admin adds it or turns it down.
+- **Groups are made by admins** (Admin → Groups), who also decide who's in them. People in a group still share and edit its list.
+- **_Italic_** in Whats Up, like WhatsApp.
+
 ## New in 3.3
 
 - **Unread counts are real.** The badge was stuck at 2 for every chat; it now counts every unread message, and clears when you read the chat here or on your phone.

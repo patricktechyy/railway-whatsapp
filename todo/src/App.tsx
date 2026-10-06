@@ -41,13 +41,17 @@ import { Toaster, toast } from './components/Toast'
 import { celebrate, rain } from './components/confetti'
 import { CalendarView } from './views/CalendarView'
 import { StatsView } from './views/StatsView'
+import { ExamsView } from './views/ExamsView'
+import { StudyView } from './views/StudyView'
+import { useExams } from './useExams'
+import { useStudy } from './useStudy'
 import { Select } from './components/Select'
 
 // ------------------------------------------------------------------ routing
 function parseHash(): View {
   const [, kind, arg] = location.hash.split('/')
   switch (kind) {
-    case 'upcoming': case 'all': case 'completed': case 'calendar': case 'stats': case 'inbox': case 'today': case 'admin': case 'board':
+    case 'upcoming': case 'all': case 'completed': case 'calendar': case 'stats': case 'inbox': case 'today': case 'admin': case 'board': case 'exams': case 'study':
       return { kind }
     case 'list': return arg ? { kind: 'list', id: arg } : { kind: 'today' }
     case 'group': return arg ? { kind: 'group', id: arg } : { kind: 'today' }
@@ -90,6 +94,23 @@ export function App() {
       <Toaster />
     </>
   )
+}
+
+/** The Exams page (its data loads when you open it). */
+function ExamsPage({ weekStartsMonday, onPlan }: { weekStartsMonday: boolean; onPlan: () => void }) {
+  const exams = useExams()
+  return <ExamsView exams={exams} weekStartsMonday={weekStartsMonday} onPlan={onPlan} />
+}
+
+/** The study planner, with your exams (your school, your subjects) on it. */
+function StudyPage({ weekStartsMonday, onExams }: { weekStartsMonday: boolean; onExams: () => void }) {
+  const study = useStudy()
+  const { data } = useExams()
+  const mine = useMemo(() => {
+    const subs = (data?.subjects || []).map((s) => s.toLowerCase())
+    return (data?.exams || []).filter((e) => e.school === data?.school && (!subs.length || subs.includes(e.subject.toLowerCase())))
+  }, [data])
+  return <StudyView study={study} exams={mine} weekStartsMonday={weekStartsMonday} onExams={onExams} />
 }
 
 /** Whats Up's admin page → Todolist tab: just the Todolist admin, live. */
@@ -571,6 +592,12 @@ function Shell({ me, setMe }: { me: Me; setMe: (m: Me | null) => void }) {
     case 'admin':
       title = 'Admin'
       break
+    case 'exams':
+      title = 'Exams'
+      break
+    case 'study':
+      title = 'Study planner'
+      break
   }
   const sortable = canSort && sort === 'manual' && !q
   const doneCountHere = groups.find((g) => g.key === 'done')?.tasks.length || 0
@@ -583,9 +610,10 @@ function Shell({ me, setMe }: { me: Me; setMe: (m: Me | null) => void }) {
   const clearButton = <button className="btn quiet sm" onClick={clearCompleted}>Clear completed</button>
   // "Clear completed" sits on the Completed group it clears, not above the whole list
   if (listTools && doneCountHere > 0) groups = groups.map((g) => (g.key === 'done' ? { ...g, title: g.title || 'Completed', action: clearButton } : g))
-  const hasSearch = view.kind !== 'calendar' && view.kind !== 'stats' && view.kind !== 'board' && view.kind !== 'admin' && view.kind !== 'group'
-  const hasStatusBar = view.kind !== 'calendar' && view.kind !== 'stats' && view.kind !== 'completed' && view.kind !== 'admin' && view.kind !== 'board'
-  const wide = view.kind === 'calendar' || view.kind === 'stats' || view.kind === 'board' || view.kind === 'admin'
+  const planner = view.kind === 'exams' || view.kind === 'study'
+  const hasSearch = view.kind !== 'calendar' && view.kind !== 'stats' && view.kind !== 'board' && view.kind !== 'admin' && view.kind !== 'group' && !planner
+  const hasStatusBar = view.kind !== 'calendar' && view.kind !== 'stats' && view.kind !== 'completed' && view.kind !== 'admin' && view.kind !== 'board' && !planner
+  const wide = view.kind === 'calendar' || view.kind === 'stats' || view.kind === 'board' || view.kind === 'admin' || planner
 
   const list = (gs: Group[], sortableHere: boolean, emptyText: string) => (
     <TaskList
@@ -728,6 +756,10 @@ function Shell({ me, setMe }: { me: Me; setMe: (m: Me | null) => void }) {
               if (!g) return <div className="empty">{groupsApi.groups ? 'You’re not in this group.' : 'Loading…'}</div>
               return <GroupView group={g} me={me.username} actions={groupsApi} onEdit={() => setGroupDialog({ group: g })} />
             })()
+          ) : view.kind === 'exams' ? (
+            <ExamsPage weekStartsMonday={prefs.weekStartsMonday} onPlan={() => navigate({ kind: 'study' })} />
+          ) : view.kind === 'study' ? (
+            <StudyPage weekStartsMonday={prefs.weekStartsMonday} onExams={() => navigate({ kind: 'exams' })} />
           ) : view.kind === 'admin' ? (
             me.admin ? <AdminView me={me.username} /> : <div className="empty">Only the admin can see this page.</div>
           ) : view.kind === 'stats' ? (
@@ -915,14 +947,17 @@ function Shell({ me, setMe }: { me: Me; setMe: (m: Me | null) => void }) {
       {groupDialog && (
         <GroupDialog
           group={groupDialog.group}
-          me={me.username}
+          readOnly={!me.admin}
           onClose={() => setGroupDialog(null)}
           onSave={async (v) => {
             if (groupDialog.group) await groupsApi.update(groupDialog.group.id, v)
-            else { const g = await groupsApi.create({ ...v, members: v.members || [me.username] }); if (g) navigate({ kind: 'group', id: g.id }) }
+            else {
+              const g = await groupsApi.create({ ...v, members: v.members || [] })
+              if (g && g.members.some((m) => m.username === me.username)) navigate({ kind: 'group', id: g.id })
+              else if (g) toast(`Made “${g.name}”`)
+            }
           }}
-          onLeave={groupDialog.group ? async () => { const id = groupDialog.group!.id; await groupsApi.leave(id); navigate({ kind: 'today' }) } : undefined}
-          onDelete={groupDialog.group ? async () => { const id = groupDialog.group!.id; await groupsApi.remove(id); navigate({ kind: 'today' }) } : undefined}
+          onDelete={me.admin && groupDialog.group ? async () => { const id = groupDialog.group!.id; await groupsApi.remove(id); navigate({ kind: 'today' }) } : undefined}
         />
       )}
       {listDialog && (

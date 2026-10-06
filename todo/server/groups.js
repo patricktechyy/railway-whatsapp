@@ -10,6 +10,9 @@ import { applyTask } from './store.js'
  * member ("assignee") or left for anyone. Personal todolists stay private: a group
  * only ever holds the tasks put in it.
  *
+ * Only an admin makes groups and decides who's in them (the admin* methods); the
+ * people in a group just use its list.
+ *
  *   /data/todo/groups/<id>.json  →  { id, name, emoji, owner, members: [usernames], tasks: [...], rev, createdAt }
  */
 
@@ -172,6 +175,53 @@ export class Groups {
     g.tasks = g.tasks.filter((t) => !t.done)
     this.save(g)
     return { removed: n }
+  }
+
+  // ------------------------------------------------------------ admin
+  /** Every group (the admin's list). */
+  all() {
+    return [...this.cache.values()].sort((a, b) => a.createdAt - b.createdAt)
+  }
+
+  adminGet(gid) {
+    const g = ID_RE.test(String(gid)) ? this.cache.get(gid) : null
+    if (!g) throw new HttpError(404, 'Group not found')
+    return g
+  }
+
+  adminCreate(by, body) {
+    const name = str(body.name, 60)
+    if (!name) throw new HttpError(400, 'Give the group a name')
+    const members = this.cleanMembers(body.members, [])
+    if (!members.length) throw new HttpError(400, 'Put at least one person in it')
+    const g = { id: id(), name, emoji: str(body.emoji, 8) || '👥', owner: by, members, tasks: [], rev: 0, createdAt: Date.now() }
+    return this.save(g, [])
+  }
+
+  adminUpdate(gid, body) {
+    const g = this.adminGet(gid)
+    const before = [...g.members]
+    if ('name' in body) {
+      const name = str(body.name, 60)
+      if (!name) throw new HttpError(400, 'Give the group a name')
+      g.name = name
+    }
+    if ('emoji' in body) g.emoji = str(body.emoji, 8) || '👥'
+    if ('members' in body) {
+      const next = this.cleanMembers(body.members, [])
+      if (!next.length) throw new HttpError(400, 'Put at least one person in it (or delete the group)')
+      g.members = next
+      for (const t of g.tasks) if (t.assignee && !g.members.includes(t.assignee)) t.assignee = null
+    }
+    return this.save(g, before)
+  }
+
+  adminRemove(gid) {
+    const g = this.adminGet(gid)
+    fs.rmSync(path.join(this.dir, `${g.id}.json`), { force: true })
+    this.cache.delete(g.id)
+    this.onChange({ ...g, deleted: true }, g.members)
+    return { ok: true }
   }
 
   /** Someone's account was removed: take them out of every group. */

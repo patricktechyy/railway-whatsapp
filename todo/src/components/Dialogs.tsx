@@ -293,6 +293,12 @@ function WaWarning({ me }: { me: Me }) {
   return null
 }
 
+/** WhatsApp's *bold* and _italic_, for previews of what Buddy sends. */
+function waText(s: string) {
+  return s.split(/(\*[^*\n]+\*|_[^_\n]+_)/g).map((part, i) =>
+    /^\*.+\*$/.test(part) ? <b key={i}>{part.slice(1, -1)}</b> : /^_.+_$/.test(part) ? <i key={i}>{part.slice(1, -1)}</i> : part)
+}
+
 /** Reminders on WhatsApp: from the Buddy bot when the admin set one up, else your "Message yourself" chat. */
 function WhatsAppSetting({ me, on, onChange }: { me: Me; on: boolean; onChange: (on: boolean) => void }) {
   const [busy, setBusy] = useState(false)
@@ -374,7 +380,7 @@ function BuddySetting({ me, onChange }: { me: Me; onChange: (b: BuddySettings) =
         <div className="seg" role="radiogroup" aria-label="Buddy's personality">
           {STYLES.map((x) => <button key={x.key} role="radio" aria-checked={b.style === x.key} className={b.style === x.key ? 'on' : ''} onClick={() => set({ style: x.key })}>{x.label}</button>)}
         </div>
-        <div className="wa-bubble" aria-label="Example message">{style.sample.replace('Gavin', (me.name || me.username).split(' ')[0]).split('*').map((part, i) => (i % 2 ? <b key={i}>{part}</b> : part))}</div>
+        <div className="wa-bubble" aria-label="Example message">{waText(style.sample.replace('Gavin', (me.name || me.username).split(' ')[0]))}</div>
       </div>
       <div className="field">
         <label className="toggle tight">
