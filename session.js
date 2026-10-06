@@ -206,6 +206,7 @@ export class Session extends EventEmitter {
     this.store = new Store(path.join(dir, 'store.json'))
     this.groupCache = new Map()
     this.lidTried = new Set()
+    this.readPending = new Set() // chats whose blue ticks still need sending
     this.status = 'starting'
     this.qr = null
     this.me = null
@@ -409,6 +410,7 @@ export class Session extends EventEmitter {
         this.log('connected as', this.me.phone || pn)
         this.loadGroups(sock)
         this.scheduleLidResolve()
+        setTimeout(() => this.flushReadPending(), 1500)
       }
       if (u.connection === 'close') {
         try {
@@ -435,7 +437,7 @@ export class Session extends EventEmitter {
           try { this.onContact(c) } catch (e) { this.log('history contact failed:', e?.message || e) }
         }
         for (const c of chats) {
-          try { this.onChat(c) } catch (e) { this.log('history chat failed:', e?.message || e) }
+          try { this.onChat(c, 'history') } catch (e) { this.log('history chat failed:', e?.message || e) }
         }
         let n = 0
         let failed = 0
@@ -474,12 +476,12 @@ export class Session extends EventEmitter {
 
     sock.ev.on('chats.upsert', (cs) => {
       if (!live()) return
-      for (const c of cs) this.onChat(c)
+      for (const c of cs) this.onChat(c, 'upsert')
       this.emit('event', { type: 'chats' })
     })
     sock.ev.on('chats.update', (cs) => {
       if (!live()) return
-      for (const c of cs) this.onChat(c, true)
+      for (const c of cs) this.onChat(c, 'update')
       this.emit('event', { type: 'chats' })
     })
 
@@ -767,7 +769,9 @@ export class Session extends EventEmitter {
     })
   }
 
-  onChat(c, isUpdate = false) {
+  /** `from`: 'history' (a full snapshot), 'upsert' (a chat appeared) or 'update' (a live change). */
+  onChat(c, from = 'history') {
+    const isUpdate = from === 'update'
     if (!c?.id) return
     for (const alt of [c.pnJid, c.lidJid, c.accountLid]) if (alt) this.linkAndNotify(c.id, alt)
     const jid = this.store.canon(c.id)
@@ -781,7 +785,14 @@ export class Session extends EventEmitter {
     const t = num(c.conversationTimestamp || c.lastMessageRecvTimestamp)
     if (t) patch.t = t
     if (c.unreadCount != null) {
-      patch.unread = c.unreadCount < 0 ? Math.max(1, this.store.chats.get(jid)?.unread || 0) : c.unreadCount
+      const cur = this.store.chats.get(jid)?.unread || 0
+      // Only the history snapshot gives the real total. Live, Baileys sends +1 per new message
+      // (which ingest() already counts, once per message id), 0 when the chat was read on
+      // another device, and -1 when it was marked unread. Taking that +1 as the total is what
+      // kept every badge stuck at 2.
+      if (c.unreadCount < 0) patch.unread = Math.max(1, cur)
+      else if (from === 'history') patch.unread = c.unreadCount
+      else if (c.unreadCount === 0) patch.unread = 0
     }
     if (!isUpdate || Object.keys(patch).length) this.store.touchChat(jid, patch)
   }
@@ -1499,19 +1510,44 @@ export class Session extends EventEmitter {
     this.emit('event', { type: 'chats' })
   }
 
+  /**
+   * You've seen this chat: clear its badge and send blue ticks.
+   *
+   * Receipts go out for every incoming message not acknowledged yet, not just the newest:
+   * WhatsApp acknowledges per message (and per sender in groups), so ticking only the last
+   * one left the rest grey. If WhatsApp isn't connected right now, or sending fails, the
+   * chat is remembered and tried again on reconnect.
+   */
   async markRead(jid) {
+    jid = this.store.canon(jid)
     this.metrics.lastEventAt = Date.now()
-    const had = this.store.chats.get(jid)?.unread
+    const chat = this.store.chats.get(jid)
+    const had = chat?.unread || 0
     this.store.markRead(jid)
     if (had) this.emit('event', { type: 'chats' })
-    try {
-      const last = [...(this.store.messages.get(jid) || [])].reverse().find((m) => !m.fromMe)
-      if (last && this.sock && this.status === 'connected') {
-        await this.sock.readMessages([{ remoteJid: last.rj || jid, id: last.id, participant: last.rp }])
-      }
-    } catch {
-      /* receipts are best effort */
+    const list = this.store.messages.get(jid) || []
+    const batch = list.filter((m) => !m.fromMe && !m.rs).slice(-Math.min(Math.max(had, 30), 300))
+    if (!batch.length) return
+    if (!this.sock || this.status !== 'connected') {
+      this.readPending.add(jid)
+      return
     }
+    try {
+      await this.sock.readMessages(batch.map((m) => ({ remoteJid: m.rj || jid, id: m.id, participant: m.rp, fromMe: false })))
+      for (const m of batch) m.rs = 1 // receipt sent
+      this.store.dirty = true
+      this.readPending.delete(jid)
+    } catch (e) {
+      this.readPending.add(jid)
+      this.log('read receipt failed:', jid, e?.message || e)
+    }
+  }
+
+  /** Receipts that couldn't go out while WhatsApp was disconnected. */
+  flushReadPending() {
+    const jids = [...this.readPending]
+    this.readPending.clear()
+    for (const j of jids) this.markRead(j).catch(() => {})
   }
 
   async media(jid, id) {
