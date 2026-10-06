@@ -7,6 +7,7 @@ import { Dialog } from '../components/Dialogs'
 import { Collapsible } from '../components/Collapsible'
 import type { Group, GroupTask, Person } from '../types'
 import type { GroupTaskInput } from '../useGroups'
+import { Select } from '../components/Select'
 
 type Actions = {
   addTask: (gid: string, b: GroupTaskInput) => Promise<GroupTask | null>
@@ -84,10 +85,10 @@ export function GroupView({ group: g, me, actions, onEdit }: { group: Group; me:
 
       <form className="g-add" onSubmit={add}>
         <input className="input" value={text} onChange={(e) => setText(e.target.value)} placeholder={`Add to ${g.name}…`} aria-label="New group task" maxLength={300} />
-        <select className="input" value={assignee} onChange={(e) => setAssignee(e.target.value)} aria-label="For">
+        <Select className="input" value={assignee} onChange={(e) => setAssignee(e.target.value)} aria-label="For">
           <option value="">Anyone</option>
           {g.members.map((m) => <option key={m.username} value={m.username}>{m.username === me ? 'Me' : m.name}</option>)}
-        </select>
+        </Select>
         <button className="btn" disabled={!parsed?.title}>Add</button>
       </form>
       {parsed?.due && <p className="help g-hint">{formatDue({ due: parsed.due, time: parsed.time ?? null })}</p>}
@@ -126,10 +127,10 @@ function GroupTaskEditor({ task, members, onSave, onDelete, onClose }: { task: G
       <div className="g-edit-row">
         <input className="input sm" type="date" value={task.due || ''} onChange={(e) => save({ due: e.target.value || null })} aria-label="Date" />
         <input className="input sm" type="time" value={task.time || ''} disabled={!task.due} onChange={(e) => save({ time: e.target.value || null })} aria-label="Time" />
-        <select className="input sm" value={task.assignee || ''} onChange={(e) => save({ assignee: e.target.value || null })} aria-label="For">
+        <Select className="input sm" value={task.assignee || ''} onChange={(e) => save({ assignee: e.target.value || null })} aria-label="For">
           <option value="">Anyone</option>
           {members.map((m) => <option key={m.username} value={m.username}>{m.name}</option>)}
-        </select>
+        </Select>
         <span className="spacer" />
         <button type="button" className="btn quiet sm danger-text" onClick={() => { if (confirm('Delete this task for everyone in the group?')) onDelete() }}>Delete</button>
         <button type="button" className="btn ghost sm" onClick={onClose}>Done</button>

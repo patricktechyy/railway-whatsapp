@@ -41,6 +41,7 @@ import { Toaster, toast } from './components/Toast'
 import { celebrate, rain } from './components/confetti'
 import { CalendarView } from './views/CalendarView'
 import { StatsView } from './views/StatsView'
+import { Select } from './components/Select'
 
 // ------------------------------------------------------------------ routing
 function parseHash(): View {
@@ -700,12 +701,14 @@ function Shell({ me, setMe }: { me: Me; setMe: (m: Me | null) => void }) {
           {showNudge && (
             <div className="nudge" role="status">
               <span>You have reminders set, but notifications are off on this device.</span>
-              <button className="btn sm" onClick={async () => {
-                try { await enablePush(); setPushOn(true); toast('Notifications on') } catch (e: any) { toast(e.message) }
-              }}>Turn on</button>
-              <button className="icon-btn sm" aria-label="Not now" onClick={() => { setNudgeHidden(true); try { localStorage.setItem('todo-push-nudge', 'no') } catch {} }}>
-                <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6 6l8 8M14 6l-8 8" /></svg>
-              </button>
+              <span className="nudge-actions">
+                <button className="btn sm" onClick={async () => {
+                  try { await enablePush(); setPushOn(true); toast('Notifications on') } catch (e: any) { toast(e.message) }
+                }}>Turn on</button>
+                <button className="icon-btn sm" aria-label="Not now" onClick={() => { setNudgeHidden(true); try { localStorage.setItem('todo-push-nudge', 'no') } catch {} }}>
+                  <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6 6l8 8M14 6l-8 8" /></svg>
+                </button>
+              </span>
             </div>
           )}
           {hasStatusBar && <StatusBar tasks={scope} label={title} />}
@@ -807,12 +810,12 @@ function Shell({ me, setMe }: { me: Me; setMe: (m: Me | null) => void }) {
                   </div>
                   <label className="sort">
                     <span>Sort</span>
-                    <select className="input sm" value={sort} onChange={(e) => setSort(e.target.value as Sort)}>
+                    <Select className="input sm" value={sort} onChange={(e) => setSort(e.target.value as Sort)}>
                       <option value="manual">My order (drag)</option>
                       <option value="due">Due date</option>
                       <option value="priority">Priority</option>
                       <option value="newest">Newest</option>
-                    </select>
+                    </Select>
                   </label>
                 </div>
               )}

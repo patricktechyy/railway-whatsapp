@@ -57,7 +57,7 @@ export function NewTaskForm(props: Props) {
   if (!open) {
     return (
       <button type="button" className="new-task-trigger" onClick={() => { setRound((r) => r + 1); setOpen(true) }} data-quick-add>
-        <span className="plus" aria-hidden="true">+</span>
+        <svg className="plus" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg>
         <span>{props.placeholder || 'Add a task…'}</span>
       </button>
     )
@@ -224,11 +224,12 @@ function Form({ lists, defaults, weekStartsMonday, onAdd, onNewList, onAdded, on
 
       <div className="new-task-foot">
         <span className={`help${tried && error ? ' bad' : ''}`} role={tried && error ? 'alert' : undefined}>
-          {tried && error ? error : parsed.hints.length && text ? `Got it: ${parsed.hints.join(' · ')}` : 'Try “tomorrow 4pm !3 #exam”'}
+          {tried && error ? error : parsed.hints.length && text ? `Got it: ${parsed.hints.map((h) => (h.startsWith('Due ') && parsed.due ? `Due ${parsed.time ? `${formatDay(parsed.due)}, ${formatTime(parsed.time)}` : formatDay(parsed.due)}` : h)).join(' · ')}` : 'Try “tomorrow 4pm !3 #exam”'}
         </span>
-        <span className="spacer" />
-        <button type="button" className="btn ghost sm" onClick={onClose}>Cancel</button>
-        <button className="btn sm" disabled={!!error} title={error || 'Add task (Enter)'}>Add</button>
+        <span className="new-task-btns">
+          <button type="button" className="btn ghost sm" onClick={onClose}>Cancel</button>
+          <button className="btn sm" disabled={!!error} title={error || 'Add task (Enter)'}>Add</button>
+        </span>
       </div>
 
       {date.open && <Popover anchor={date.anchor} onClose={date.close} label="Date"><DatePicker value={due} onPick={(d) => { set(d ? { due: d } : { due: null, time: null, repeat: null }); date.close() }} /></Popover>}

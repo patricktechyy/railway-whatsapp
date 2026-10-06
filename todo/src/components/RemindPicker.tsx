@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { MAX_REMIND, REMIND_OPTIONS, describeRemind } from '../dates'
 import { MenuItem } from './Popover'
+import { Select } from './Select'
 
 const UNITS = [
   { key: 'min', label: 'minutes', mult: 1 },
@@ -51,9 +52,9 @@ export function RemindPicker({ value, onPick }: { value: number | null; onPick: 
             aria-invalid={bad || undefined}
             autoFocus
           />
-          <select className="input sm" value={unit} onChange={(e) => setUnit(e.target.value as Unit)} aria-label="Unit">
+          <Select className="input sm" value={unit} onChange={(e) => setUnit(e.target.value as Unit)} aria-label="Unit">
             {UNITS.map((u) => <option key={u.key} value={u.key}>{u.label}</option>)}
-          </select>
+          </Select>
           <span className="remind-before">before</span>
           <button className="btn sm" disabled={bad}>Set</button>
           <p className={`help${bad ? ' bad' : ''}`}>{bad ? 'Pick between 1 minute and 7 days.' : describeRemind(total)}</p>

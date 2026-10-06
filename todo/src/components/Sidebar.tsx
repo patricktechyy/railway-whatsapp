@@ -198,8 +198,8 @@ export const Sidebar = memo(function Sidebar({ me, view, lists, tags, counts, on
 
       <div className="nav-section lists-head">
         <button type="button" className="section-toggle" onClick={() => onListsUi({ listsCollapsed: !listsCollapsed })} aria-expanded={!listsCollapsed} aria-controls="side-lists" title={listsCollapsed ? 'Show your lists' : 'Hide your lists'}>
-          <svg className={`chev${listsCollapsed ? '' : ' open'}`} viewBox="0 0 20 20" aria-hidden="true"><path d="m7.5 5 5 5-5 5" /></svg>
           <span>Lists</span>
+          <svg className={`chev${listsCollapsed ? '' : ' open'}`} viewBox="0 0 20 20" aria-hidden="true"><path d="m7.5 5 5 5-5 5" /></svg>
           {listsCollapsed && lists.length > 0 && <span className="section-count">{lists.length}</span>}
         </button>
         <button className="icon-btn sm" onClick={onNewList} aria-label="New list">
@@ -272,7 +272,7 @@ export const Sidebar = memo(function Sidebar({ me, view, lists, tags, counts, on
 
       {tags.length > 0 && (
         <>
-          <div className="nav-section"><span>Tags</span></div>
+          <div className="nav-section"><span className="section-label">Tags</span></div>
           <div className="tag-cloud">
             {tags.map((t) => (
               <button key={t} className={`badge${view.kind === 'tag' && view.tag === t ? ' ok' : ''}`} onClick={go({ kind: 'tag', tag: t })}>#{t}</button>

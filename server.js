@@ -487,7 +487,8 @@ async function route(req, res) {
   if (api === '/messages') {
     if (!jid) throw new HttpError(400, 'jid required')
     const q = { beforeId: url.searchParams.get('beforeId'), sinceId: url.searchParams.get('sinceId'), limit: url.searchParams.get('limit') }
-    if (!q.beforeId) s.markRead(jid)
+    // only when the page says you're looking at it (not on background refreshes)
+    if (!q.beforeId && url.searchParams.get('read') === '1') s.markRead(jid)
     return json(res, s.store.messageList(jid, s.me?.jid, q))
   }
   if (api === '/media') {

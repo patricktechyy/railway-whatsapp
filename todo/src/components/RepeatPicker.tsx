@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { REPEAT_PRESETS, describeRepeat, isPreset, type Freq, type Repeat } from '../repeat'
 import { fromKey } from '../dates'
 import { MenuItem } from './Popover'
+import { Select } from './Select'
 
 export const RepeatIcon = () => (
   <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 8.5V7.5A2.5 2.5 0 0 1 6.5 5H15l-2.5-2.5M16 11.5v1a2.5 2.5 0 0 1-2.5 2.5H5l2.5 2.5" /></svg>
@@ -63,9 +64,9 @@ export function RepeatPicker({ value, due, weekStartsMonday, onPick }: {
       <div className="repeat-row">
         <span>Every</span>
         <input className="input sm num" type="number" min={1} max={365} value={interval} onChange={(e) => setEvery(Number(e.target.value))} aria-label="How often" />
-        <select className="input sm" value={freq} onChange={(e) => setFreq(e.target.value as Freq)} aria-label="Unit">
+        <Select className="input sm" value={freq} onChange={(e) => setFreq(e.target.value as Freq)} aria-label="Unit">
           {UNITS.map((u) => <option key={u.value} value={u.value}>{interval === 1 ? u.one : u.many}</option>)}
-        </select>
+        </Select>
       </div>
       {freq === 'week' && (
         <div className="weekday-row" role="group" aria-label="On these days">

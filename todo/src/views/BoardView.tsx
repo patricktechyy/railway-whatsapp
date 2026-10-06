@@ -5,6 +5,7 @@ import { CSS } from '@dnd-kit/utilities'
 import type { Board, Widget, WidgetType } from '../types'
 import { WIDGET_INFO, WidgetBody, type WidgetEnv } from '../components/widgets'
 import { MenuItem, Popover, usePopover } from '../components/Popover'
+import { Select } from '../components/Select'
 
 const TYPES = Object.keys(WIDGET_INFO) as WidgetType[]
 const newId = () => Math.random().toString(36).slice(2, 12)
@@ -165,10 +166,10 @@ function Block({ widget, env, editing, onChange, onRemove }: {
           : <h3><span aria-hidden="true">{info.icon}</span> {name}</h3>}
         {editing && (
           <>
-            <select className="input sm" value={String(span)} onChange={(e) => { const c = Number(e.target.value); onChange({ ...widget, w: c, size: sizeFor(c) }) }} aria-label="Width">
+            <Select className="input sm" value={String(span)} onChange={(e) => { const c = Number(e.target.value); onChange({ ...widget, w: c, size: sizeFor(c) }) }} aria-label="Width">
               <option value="4">Narrow</option><option value="8">Medium</option><option value="12">Wide</option>
               {![4, 8, 12].includes(span) && <option value={span}>Custom ({span}/12)</option>}
-            </select>
+            </Select>
             <button type="button" className="icon-btn sm" onClick={onRemove} aria-label={`Remove the ${name} block`} title="Remove">
               <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6 6l8 8M14 6l-8 8" /></svg>
             </button>
@@ -176,10 +177,10 @@ function Block({ widget, env, editing, onChange, onRemove }: {
         )}
       </header>
       {editing && widget.type === 'list' && (
-        <select className="input sm widget-list-pick" value={widget.config.listId || ''} onChange={(e) => onChange({ ...widget, config: { listId: e.target.value || null } })} aria-label="Which list">
+        <Select className="input sm widget-list-pick" value={widget.config.listId || ''} onChange={(e) => onChange({ ...widget, config: { listId: e.target.value || null } })} aria-label="Which list">
           <option value="">Choose a list…</option>
           {env.lists.map((l) => <option key={l.id} value={l.id}>{l.emoji} {l.name}</option>)}
-        </select>
+        </Select>
       )}
       <div className="widget-body">
         <WidgetBody widget={widget} env={env} onConfig={(config) => onChange({ ...widget, config })} />

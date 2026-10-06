@@ -162,7 +162,8 @@ export class Store {
     if (fm) {
       const tm = this.messages.get(to) || []
       const seen = new Set(tm.map((m) => m.id))
-      for (const m of fm) if (!seen.has(m.id)) tm.push({ ...m, jid: to })
+      // keep the address it really came from (rj): receipts must go back to that one
+      for (const m of fm) if (!seen.has(m.id)) tm.push({ ...m, jid: to, rj: m.rj || from })
       tm.sort((a, b) => a.ts - b.ts)
       this.messages.set(to, tm)
       this.messages.delete(from)
