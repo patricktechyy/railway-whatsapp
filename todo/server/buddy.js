@@ -34,7 +34,7 @@ export const plain = (text) => String(text)
   .replace(/(?<![a-z])td\?/gi, 'today')
   .replace(/(?<![a-z])td:\s?/gi, 'add ')
   .replace(/(?<![a-z])td (?=[a-z])/gi, '')
-export const BUDDY_DEFAULTS = { on: false, style: 'friendly', morning: '07:30', evening: '21:00' }
+export const BUDDY_DEFAULTS = { on: false, style: 'friendly', morning: '07:30', evening: '21:00', via: 'bot', exams: true, examsAt: '20:00', study: null, studyBlocks: true }
 const LATE = 12 * 3600e3 // a reminder missed by more than this (server was down) is skipped
 const BRIEF_WINDOW = 3 * 3600e3 // a morning/evening message more than 3h late isn't sent
 const MAX_LIST = 12
@@ -148,7 +148,7 @@ export class Buddy {
    * `onTaskChange(task)` is called after Buddy changes a task (so e.g. the admin's
    * progress view updates when you finish a task they gave you).
    */
-  constructor(dataDir, store, link, { brand = 'your todolist', onTaskChange = () => {}, getBot = () => String(process.env.BOT_USER || process.env.WA_BOT_USER || '').trim().toLowerCase() || null } = {}) {
+  constructor(dataDir, store, link, { brand = 'your todolist', onTaskChange = () => {}, getBot = () => String(process.env.BOT_USER || process.env.WA_BOT_USER || '').trim().toLowerCase() || null, planner = null, nameOf = null } = {}) {
     this.store = store
     this.link = link
     this.brand = brand
@@ -157,6 +157,8 @@ export class Buddy {
     try { this.state = JSON.parse(fs.readFileSync(this.file, 'utf8')) } catch { this.state = {} }
     this.phones = new Map() // username → { jid, at } (for the bot number)
     this.getBot = getBot // () => the bot account's username, or null
+    this.planner = planner // { study, exams }: the study planner and the exam timetables
+    this.nameOf = nameOf // (u) => their name (the profile's, or their Whats Up account's)
   }
 
   saveState() {
@@ -183,8 +185,8 @@ export class Buddy {
     return STYLES.includes(b.style) ? b : { ...b, style: 'friendly' }
   }
   get botUser() { return this.getBot() || null }
-  /** Does Buddy write to this person from the bot number (so they reply there, without "td")? */
-  viaBot(u) { return !!this.botUser && this.botUser !== u }
+  /** Does Buddy write to this person from the bot number (so they reply there, without "td")? They can pick "Message yourself" instead. */
+  viaBot(u) { return !!this.botUser && this.botUser !== u && this.settings(u).via !== 'self' }
   /** Is Buddy usable at all right now (link set up, admin hasn't switched it off)? */
   get available() { return !!this.link?.enabled('reminders') && this.link.settings().whatsapp.buddy !== false }
 
@@ -280,7 +282,7 @@ export class Buddy {
     const doc = this.store.snapshot(u)
     const tz = doc.profile.tz || 'UTC'
     const b = this.settings(u)
-    return { doc, tz, style: b.style, name: (doc.profile.name || u).split(' ')[0], now, today: todayIn(tz, now) }
+    return { doc, tz, style: b.style, name: (doc.profile.name || this.nameOf?.(u) || u).split(' ')[0], now, today: todayIn(tz, now) }
   }
 
   /** The message about one task. */
@@ -331,11 +333,13 @@ export class Buddy {
     const list = this.todayList(u, now)
     this.remember(u, list.slice(0, MAX_LIST).map((t) => t.id))
     const late = list.filter((t) => t.due < today).length
-    if (!list.length) return `${say(style, 'morning', { name })}\n${say(style, 'free')}`
+    const extra = this.plannerLines(u, today)
+    if (!list.length) return [`${say(style, 'morning', { name })}\n${say(style, 'free')}`, ...(extra.length ? ['', ...extra] : [])].join('\n')
     return [
       say(style, 'morning', { name }),
       `*${list.length}* thing${list.length === 1 ? '' : 's'} today${late ? ` (${late} overdue)` : ''}:`, '',
       ...this.numbered(list, today), list.length > MAX_LIST ? `…and ${list.length - MAX_LIST} more` : null, '',
+      ...(extra.length ? [...extra, ''] : []),
       this.replyHint(u, '*td done 1* to tick one off'),
     ].filter((x) => x !== null).join('\n')
   }
@@ -364,10 +368,112 @@ export class Buddy {
       '• *td delete 2* · *td clear completed*',
       '• *td remind me to* call mum at 8pm',
       '• *td clear reminders* cancel reminders and delete my reminder messages',
-      '• *td clear buddy* delete my recent messages', '',
+      '• *td clear buddy* delete my recent messages',
+      '• *td study* today’s study plan · *td tick 2* tick a topic off',
+      '• *td exams* your next exams', '',
       'Numbers refer to my last list. Dates: today, tomorrow, Mon, or a date. Times: 5pm or 17:00. Also *!3* priority, *#tag*, *@List*, and repeats like daily or every 2 weeks.', '',
       `_Buddy settings: ${this.brand} → Settings_`,
     ].join('\n')
+  }
+
+  // ----------------------------------------------- exams + study planner
+  examsOn(u, date) {
+    return (this.planner?.exams?.examsFor(u) || []).filter((e) => e.date === date).sort((a, b) => (a.start || '').localeCompare(b.start || ''))
+  }
+  examsFrom(u, from, days) {
+    const to = addDaysKey(from, days)
+    return (this.planner?.exams?.examsFor(u) || []).filter((e) => e.date >= from && e.date < to)
+      .sort((a, b) => a.date.localeCompare(b.date) || (a.start || '').localeCompare(b.start || ''))
+  }
+  examLine(e, today) {
+    const end = e.start && e.minutes ? (() => { const [h, m] = e.start.split(':').map(Number); const t = h * 60 + m + e.minutes; return `${String(Math.floor(t / 60) % 24).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}` })() : null
+    const when = e.start ? `${time12(e.start)}${end ? `–${time12(end)}` : ''}` : ''
+    return `📝 *${e.subject}${e.paper ? ` ${e.paper}` : ''}*${today && e.date !== today ? ` · ${dayLabel(e.date, today)}` : ''}${when ? ` · ${when}` : ''}${e.venue ? ` · ${e.venue}` : ''}`
+  }
+  examMessage(u, list, now = Date.now()) {
+    const { style, name, today } = this.ctx(u, now)
+    if (style === 'short') return [`📝 Exam${list.length > 1 ? 's' : ''} tomorrow`, ...list.map((e) => this.examLine(e))].join('\n')
+    return [`${say(style, 'hello', { name })}, exam${list.length > 1 ? 's' : ''} tomorrow:`, '', ...list.map((e) => this.examLine(e)), '', 'Pack what you need tonight and get some sleep. Good luck! 🍀'].join('\n')
+  }
+  upcomingExams(u, now = Date.now()) {
+    const { today } = this.ctx(u, now)
+    const list = this.examsFrom(u, today, 21)
+    if (!list.length) return '📝 No exams in the next 3 weeks.'
+    return [`📝 *Your next exams* (${list.length})`, ...list.slice(0, 15).map((e) => this.examLine(e, today)), list.length > 15 ? `…and ${list.length - 15} more` : null].filter(Boolean).join('\n')
+  }
+
+  plan(u) { try { return this.planner?.study?.get(u) || null } catch { return null } }
+  studyBlocks(u, date) {
+    const p = this.plan(u)
+    if (!p) return []
+    return p.blocks.filter((b) => b.date === date).sort((a, b) => (a.time || '99').localeCompare(b.time || '99') || a.order - b.order)
+  }
+  blockDone(b) { return b.topics.length ? b.topics.every((t) => t.done) : b.done }
+  /** One study block, with its topics numbered for "td tick 2" (n is the running number). */
+  blockLines(u, b, codes) {
+    const p = this.plan(u)
+    const s = p?.subjects.find((x) => x.id === b.subject)
+    const tags = (b.tags || []).map((id) => p?.tags?.find((t) => t.id === id)?.name).filter(Boolean)
+    const head = `${s?.priority ? '🔴 ' : ''}*${s?.name || 'Study'}*${b.mode ? ` · ${b.mode}` : ''}${b.time ? ` · ${time12(b.time)}` : ''}${b.minutes ? ` · ${b.minutes} min` : ''}${tags.length ? ` · ${tags.map((t) => `#${t}`).join(' ')}` : ''}`
+    const lines = [head]
+    const items = b.topics.length ? b.topics : [null]
+    for (const t of items) {
+      codes.push([b.date, b.id, t ? t.id : null])
+      const done = t ? t.done : b.done
+      const text = t ? t.text : 'the whole block'
+      lines.push(`   ${codes.length}. ${done ? `~${text}~ ✓` : text}`)
+    }
+    if (b.note) lines.push(`   _${b.note}_`)
+    return lines
+  }
+  studyMessage(u, date, now = Date.now()) {
+    const { style, name, today } = this.ctx(u, now)
+    const p = this.plan(u)
+    const blocks = this.studyBlocks(u, date)
+    const when = date === today ? 'today' : dayLabel(date, today).toLowerCase()
+    if (!blocks.length) return p?.days?.[date] === 'rest' ? `🌿 Rest day ${when}. Nothing planned.` : `📚 Nothing in your study planner for ${when}.`
+    const codes = []
+    const lines = blocks.flatMap((b) => this.blockLines(u, b, codes))
+    this.st(u).studyCodes = codes
+    this.saveState()
+    const head = style === 'short' ? `📚 Study ${when}` : `📚 ${say(style, 'hello', { name })}, here’s your study plan for ${when}:`
+    const exams = this.examsOn(u, date)
+    return [head, ...(exams.length ? ['', ...exams.map((e) => this.examLine(e))] : []), '', ...lines, '', this.replyHint(u, '*td tick 1* when you finish one')].join('\n')
+  }
+  blockMessage(u, b, now = Date.now()) {
+    const { style, name } = this.ctx(u, now)
+    const codes = []
+    const lines = this.blockLines(u, b, codes)
+    this.st(u).studyCodes = codes
+    this.saveState()
+    return [style === 'short' ? '⏰ Study time' : `⏰ ${say(style, 'hello', { name })}, time to study:`, '', ...lines, '', this.replyHint(u, '*td tick 1* when you finish one · *td study* for the whole day')].join('\n')
+  }
+  /** Short lines for the morning brief: today's exams and what's on the study plan. */
+  plannerLines(u, today) {
+    const out = this.examsOn(u, today).map((e) => `${this.examLine(e)} today`)
+    const blocks = this.studyBlocks(u, today).filter((b) => !this.blockDone(b))
+    if (blocks.length) {
+      const p = this.plan(u)
+      out.push(`📚 Study: ${blocks.map((b) => { const s = p.subjects.find((x) => x.id === b.subject); return `${s?.name || 'Study'}${b.mode ? ` (${b.mode})` : ''}` }).join(', ')} · *td study* for topics`)
+    }
+    return out
+  }
+  /** "td tick 2": tick (or untick) a topic from Buddy's last study list. */
+  tickTopic(u, n) {
+    const code = this.st(u).studyCodes?.[n - 1]
+    if (!code) return `There’s no #${n} on my last study list. Send *td study* for a new one.`
+    if (!this.planner?.study) return 'The study planner isn’t available.'
+    const [date, bid, tid] = code
+    let label = null, done = false
+    this.planner.study.update(u, (p) => {
+      const b = p.blocks.find((x) => x.id === bid && x.date === date)
+      if (!b) return p
+      if (tid) { const t = b.topics.find((x) => x.id === tid); if (t) { t.done = !t.done; done = t.done; label = t.text } }
+      else { b.done = !b.done; done = b.done; label = p.subjects.find((x) => x.id === b.subject)?.name || 'Study' }
+      return p
+    })
+    if (!label) return 'That one isn’t in your planner any more. Send *td study* for a new list.'
+    return done ? `✅ ${label}` : `↩️ Unticked: ${label}`
   }
 
   // ----------------------------------------------------------- commands
@@ -393,6 +499,10 @@ export class Buddy {
     let m
 
     if (/^(help|h|commands|\?\?)$/.test(low)) return { reply: this.helpMessage(u) }
+    if (/^(study|belajar|plan)$/.test(low)) return { reply: this.studyMessage(u, today, now) }
+    if (/^(study|belajar|plan) (tomorrow|tmr|besok)$/.test(low)) return { reply: this.studyMessage(u, addDaysKey(today, 1), now) }
+    if ((m = low.match(/^(?:tick|studied|did|centang)\s+(\d{1,2})$/))) return { reply: this.tickTopic(u, Number(m[1])) }
+    if (/^(exams?|ujian)$/.test(low)) return { reply: this.upcomingExams(u, now) }
 
     const show = (label, list, hint = '_td done 1 · td start 2 · td snooze 3 2h_') => {
       this.remember(u, list.slice(0, MAX_LIST).map((t) => t.id))
@@ -527,6 +637,38 @@ export class Buddy {
     return null
   }
 
+  /** Exam and study reminders: the evening before an exam, the day's study plan, and each timed study block. */
+  async plannerTick(u, b, s, tz, today, now) {
+    const due = (hm, window = BRIEF_WINDOW) => { const at = zonedTime(today, hm, tz); return now >= at && now - at <= window }
+    const go = async (text, kind) => {
+      try { await this.send(u, text, { kind }); console.log(`[buddy] ${u}: ${kind} → WhatsApp`) } catch (e) { console.warn(`[buddy] ${u}: ${kind} failed: ${e.message}`) }
+    }
+    // (marked as sent only once something goes out: an exam or a block added a bit later still gets its message)
+    if (b.exams && b.examsAt && s.examEve !== today && due(b.examsAt)) {
+      const list = this.examsOn(u, addDaysKey(today, 1))
+      if (list.length) {
+        s.examEve = today
+        this.saveState()
+        await go(this.examMessage(u, list, now), 'exam')
+      }
+    }
+    if (b.study && s.studyDay !== today && due(b.study) && this.studyBlocks(u, today).some((x) => !this.blockDone(x))) {
+      s.studyDay = today
+      this.saveState()
+      await go(this.studyMessage(u, today, now), 'study')
+    }
+    if (b.studyBlocks) {
+      for (const blk of this.studyBlocks(u, today)) {
+        if (!blk.time || this.blockDone(blk)) continue
+        const key = `${today}|${blk.id}|${blk.time}`
+        if ((s.blocksSent || []).includes(key) || !due(blk.time, 2 * 3600e3)) continue
+        s.blocksSent = [...(s.blocksSent || []), key].slice(-200)
+        this.saveState()
+        await go(this.blockMessage(u, blk, now), 'study')
+      }
+    }
+  }
+
   // ----------------------------------------------------------- the clock
   start(every = 30000) {
     this.timer = setInterval(() => this.tick().catch((e) => console.error('[buddy]', e)), every)
@@ -553,11 +695,12 @@ export class Buddy {
           console.log(`[buddy] ${u}: "${t.title}" → WhatsApp`)
         } catch (e) { console.warn(`[buddy] ${u}: ${e.message}`) }
       }
-      // the morning brief and the evening check-in
       const b = this.settings(u)
-      if (!b.on) continue
       const today = todayIn(tz, now)
       const s = this.st(u)
+      if (this.planner) await this.plannerTick(u, b, s, tz, today, now)
+      // the morning brief and the evening check-in
+      if (!b.on) continue
       for (const kind of ['morning', 'evening']) {
         if (!b[kind] || s[kind] === today) continue
         const at = zonedTime(today, b[kind], tz)

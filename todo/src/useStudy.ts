@@ -3,7 +3,7 @@ import { api } from './api'
 import { toast } from './components/Toast'
 import type { StudyPlan } from './types'
 
-const EMPTY: StudyPlan = { rev: 0, subjects: [], days: {}, tests: [], blocks: [] }
+const EMPTY: StudyPlan = { rev: 0, subjects: [], tags: [], days: {}, tests: [], blocks: [] }
 
 /**
  * Your study plan. Changes show straight away and are saved half a second after
@@ -21,6 +21,8 @@ export function useStudy() {
   const load = useCallback(async () => {
     try {
       const d = await api<StudyPlan>('/study')
+      d.tags ||= []
+      d.blocks = d.blocks.map((x) => ({ ...x, tags: x.tags || [], time: x.time ?? null, minutes: x.minutes ?? null, spent: x.spent || 0 }))
       rev.current = d.rev
       ref.current = d
       setPlan(d)

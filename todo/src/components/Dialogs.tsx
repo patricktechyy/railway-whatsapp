@@ -341,6 +341,9 @@ const COMMANDS: [string, string][] = [
   ['td remind me to call mum at 8pm', 'add a task with a WhatsApp reminder'],
   ['td clear reminders', 'cancel WhatsApp reminders and clear Buddy’s recent reminder messages'],
   ['td clear buddy', 'clear Buddy’s recent messages'],
+  ['td study', 'today’s study plan (study tomorrow for tomorrow’s)'],
+  ['td tick 2', 'tick topic #2 off (again to untick)'],
+  ['td exams', 'your next exams'],
   ['td help', 'full command list'],
 ]
 
@@ -360,11 +363,22 @@ function BuddySetting({ me, onChange }: { me: Me; onChange: (b: BuddySettings) =
     setBusy(false)
   }
   const style = STYLES.find((x) => x.key === b.style) || STYLES[0]
+  const bot = me.whatsapp.bot
+  const fromBot = !!bot && b.via !== 'self'
   return (
     <div className="buddy">
-      {me.whatsapp.botNumber && me.whatsapp.bot ? (
+      {bot && (
+        <div className="field buddy-from">
+          <span className="label">Messages come from</span>
+          <div className="seg" role="radiogroup" aria-label="Who sends Buddy's messages">
+            <button role="radio" aria-checked={fromBot} className={fromBot ? 'on' : ''} onClick={() => set({ via: 'bot' })}>Buddy’s number</button>
+            <button role="radio" aria-checked={!fromBot} className={!fromBot ? 'on' : ''} onClick={() => set({ via: 'self' })}>Message yourself</button>
+          </div>
+        </div>
+      )}
+      {fromBot && bot ? (
         <p className="help buddy-intro">
-          Pick <b>💬 WhatsApp me</b> on a task and Buddy messages you from <b>its own number{me.whatsapp.bot.phone ? ` (${me.whatsapp.bot.phone})` : ''}</b>.
+          Pick <b>💬 WhatsApp me</b> on a task and Buddy messages you from <b>its own number{bot.phone ? ` (${bot.phone})` : ''}</b>.
           Reply in that chat with <b>done</b>, <b>snooze 1h</b> or <b>today</b>.
           <small className="buddy-privacy"> Its messages also show on the bot’s phone, which your admin looks after.</small>
         </p>
@@ -403,12 +417,34 @@ function BuddySetting({ me, onChange }: { me: Me; onChange: (b: BuddySettings) =
         )}
       </div>
       <div className="field">
+        <span className="label">Exams and study</span>
+        <div className="buddy-times flat">
+          <label className="buddy-time">
+            <input type="checkbox" checked={b.exams} onChange={(e) => set({ exams: e.target.checked, examsAt: b.examsAt || '20:00' })} />
+            <span>📝 The evening before an exam</span>
+            <input className="input sm" type="time" value={b.examsAt || ''} disabled={!b.exams} onChange={(e) => e.target.value && set({ examsAt: e.target.value })} aria-label="Exam reminder time" />
+          </label>
+          <label className="buddy-time">
+            <input type="checkbox" checked={!!b.study} onChange={(e) => set({ study: e.target.checked ? '18:00' : null })} />
+            <span>📚 Today’s study plan</span>
+            <input className="input sm" type="time" value={b.study || ''} disabled={!b.study} onChange={(e) => e.target.value && set({ study: e.target.value })} aria-label="Study plan time" />
+          </label>
+          <label className="buddy-time">
+            <input type="checkbox" checked={b.studyBlocks} onChange={(e) => set({ studyBlocks: e.target.checked })} />
+            <span>⏰ When a study block starts</span>
+          </label>
+        </div>
+        <span className="help">Exams come from your school’s timetable. Study blocks get a nudge when you give them a time.</span>
+      </div>
+      <div className="field">
         <span className="label">Try it</span>
         <span className="row wrap">
           <Select className="input sm" value={kind} onChange={(e) => setKind(e.target.value)} aria-label="Which example">
             <option value="task">A task reminder</option>
             <option value="morning">The morning brief</option>
             <option value="evening">The evening check-in</option>
+            <option value="study">Today’s study plan</option>
+            <option value="exams">Your next exams</option>
             <option value="help">The command list</option>
           </Select>
           <button className="btn ghost sm" disabled={busy} onClick={test}>{busy ? 'Sending…' : 'Send me an example'}</button>
@@ -417,7 +453,7 @@ function BuddySetting({ me, onChange }: { me: Me; onChange: (b: BuddySettings) =
       <button type="button" className="linkish" onClick={() => setHelp(!help)} aria-expanded={help}>{help ? 'Hide' : 'Show'} commands</button>
       {help && (
         <dl className="buddy-commands">
-          {COMMANDS.map(([c, d]) => <div key={c}><dt><code>{me.whatsapp.botNumber ? plainCmd(c) : c}</code></dt><dd>{me.whatsapp.botNumber ? d.replace(/td (done|start)/g, '$1') : d}</dd></div>)}
+          {COMMANDS.map(([c, d]) => <div key={c}><dt><code>{fromBot ? plainCmd(c) : c}</code></dt><dd>{fromBot ? d.replace(/td (done|start)/g, '$1') : d}</dd></div>)}
         </dl>
       )}
     </div>

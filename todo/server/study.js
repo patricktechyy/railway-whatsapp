@@ -12,7 +12,7 @@ import { HttpError } from './auth.js'
  * subjects can be marked as priority. Exams come from the Exams page, so they're
  * not stored here.
  *
- *   /data/todo/study/<username>.json → { rev, subjects, days, tests, blocks }
+ *   /data/todo/study/<username>.json → { rev, subjects, tags, days, tests, blocks }
  *
  * The page saves the whole plan at once, with the rev it started from; if another
  * device saved in between, it gets a 409 and the newer plan.
@@ -24,7 +24,8 @@ const ID_RE = /^[A-Za-z0-9_-]{1,24}$/
 const MODES = ['', 'RE', 'P', 'RE+P']
 const COLORS = ['blue', 'orange', 'aqua', 'yellow', 'magenta', 'green', 'violet', 'none']
 const KINDS = ['rest', 'late']
-const empty = () => ({ rev: 0, subjects: [], days: {}, tests: [], blocks: [] })
+const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/
+const empty = () => ({ rev: 0, subjects: [], tags: [], days: {}, tests: [], blocks: [] })
 const newId = () => crypto.randomBytes(5).toString('base64url')
 const okId = (x) => (ID_RE.test(String(x)) ? String(x) : newId())
 
@@ -60,6 +61,12 @@ export class StudyPlans {
     return next
   }
 
+  /** Change the plan from the server side (Buddy ticking a topic off); open pages reload it. */
+  update(u, fn) {
+    const cur = this.get(u)
+    return this.put(u, { ...fn(JSON.parse(JSON.stringify(cur))), rev: cur.rev })
+  }
+
   forget(u) {
     this.cache.delete(u)
     fs.rmSync(this.file(u), { force: true })
@@ -74,6 +81,13 @@ function clean(body) {
     priority: !!s.priority,
   }))
   const subjectIds = new Set(subjects.map((s) => s.id))
+  // your own labels for study blocks (past papers, flashcards, teacher's list…)
+  const tags = (Array.isArray(body.tags) ? body.tags : []).slice(0, 30).map((t) => ({
+    id: okId(t.id),
+    name: str(t.name, 24) || 'Tag',
+    color: COLORS.includes(t.color) ? t.color : 'none',
+  }))
+  const tagIds = new Set(tags.map((t) => t.id))
 
   const days = {}
   for (const [k, v] of Object.entries(body.days && typeof body.days === 'object' ? body.days : {}).slice(0, 3000)) {
@@ -102,9 +116,13 @@ function clean(body) {
         return text ? [{ id: okId(t.id), text, done: !!t.done }] : []
       }),
       note: str(b.note, 300),
+      tags: [...new Set((Array.isArray(b.tags) ? b.tags : []).filter((t) => tagIds.has(t)))].slice(0, 8),
+      time: TIME_RE.test(b.time) ? b.time : null, // when you'll start (for the reminder)
+      minutes: Number.isFinite(Number(b.minutes)) && b.minutes >= 5 && b.minutes <= 600 ? Math.round(b.minutes) : null, // how long you planned
+      spent: Math.max(0, Math.min(6000, Math.round(Number(b.spent) || 0))), // minutes on the focus timer
       done: !!b.done,
       order: Number.isFinite(Number(b.order)) ? Number(b.order) : i,
     }]
   })
-  return { subjects, days, tests, blocks }
+  return { subjects, tags, days, tests, blocks }
 }

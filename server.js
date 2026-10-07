@@ -89,6 +89,8 @@ function storageOf(u) {
 }
 
 const MAX_UPLOAD = Number(process.env.MAX_UPLOAD_MB || 25) * 1024 * 1024
+const CHAT_JID = /^[0-9A-Za-z._:-]{1,80}@(s\.whatsapp\.net|g\.us|lid)$/
+const MSG_ID = /^[\x21-\x7e]{1,128}$/
 
 fs.mkdirSync(DATA_DIR, { recursive: true })
 const auth = new Auth(DATA_DIR)
@@ -580,6 +582,25 @@ async function route(req, res) {
   if (api === '/delete') {
     if (!body.jid || !body.id) throw new HttpError(400, 'jid and id required')
     return json(res, await s.deleteMessage(body.jid, body.id, !!body.everyone))
+  }
+  if (api === '/forward') {
+    // like WhatsApp: up to 5 chats at a time
+    const from = String(body.jid || '')
+    const ids = Array.isArray(body.ids) ? [...new Set(body.ids.map(String))] : []
+    const to = Array.isArray(body.to) ? [...new Set(body.to.map(String))] : []
+    if (!CHAT_JID.test(from)) throw new HttpError(400, 'jid required')
+    if (!ids.length || ids.some((id) => !MSG_ID.test(id))) throw new HttpError(400, 'Pick the messages to forward')
+    if (ids.length > 30) throw new HttpError(400, 'You can forward up to 30 messages at a time')
+    if (!to.length) throw new HttpError(400, 'Pick a chat to forward to')
+    if (to.length > 5) throw new HttpError(400, 'You can only forward to 5 chats at a time')
+    if (to.some((j) => !CHAT_JID.test(j))) throw new HttpError(400, 'Unknown chat')
+    return json(res, await s.forward(from, ids, to))
+  }
+  if (api === '/presence-self') {
+    // a tab saying whether you're using it right now (see reportActive in session.js)
+    const tab = String(body.tab || '')
+    if (!/^[\w-]{6,40}$/.test(tab)) throw new HttpError(400, 'tab required')
+    return json(res, s.reportActive?.(tab, body.state === 'available') ?? { online: false })
   }
   if (api === '/edit') {
     if (!body.jid || !body.id) throw new HttpError(400, 'jid and id required')

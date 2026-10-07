@@ -626,6 +626,79 @@ html:root[data-theme="dark"][data-accent]{--out:color-mix(in srgb,var(--accent) 
 
 /* photos: a fixed cap (a % cap is circular with the bubble's own width and made bubbles too wide) */
 .m img:not(.stk){max-width:min(320px,62vw);width:auto;height:auto}
+
+/* ---- forwarded messages */
+.m .fwd{display:flex;align-items:center;gap:4px;margin:0 0 2px;color:var(--muted);font-size:12.5px;font-style:italic;line-height:1.35;white-space:nowrap}
+.m .fwd svg{flex:none}
+.m.sticker .fwd{display:inline-flex;background:var(--in);padding:2px 9px 2px 7px;border-radius:8px;margin-bottom:3px}
+.m.sticker.me .fwd{background:var(--out)}
+/* ---- the header's second line (subtitle, online, typing…) stays one line */
+#title small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* ---- someone typing, in the chat list */
+.pv .typing{color:var(--leaf);font-weight:500}
+:root[data-blur="on"] #chats .row .pvt .typing{color:transparent}
+:root[data-blur="on"] #chats .row:hover .pvt .typing{color:var(--leaf)}
+/* ---- check circles (selecting messages, forward list) */
+.ck{flex:none;width:20px;height:20px;border-radius:50%;border:2px solid color-mix(in srgb,var(--muted) 85%,transparent);display:inline-flex;align-items:center;justify-content:center;color:var(--leaf-ink);transition:background-color .12s,border-color .12s}
+.ck svg{width:12px;height:12px;opacity:0}
+.ck.on{background:var(--leaf);border-color:var(--leaf)}
+.ck.on svg{opacity:1}
+/* ---- selecting messages: a check circle in the left gutter, the row lights up when picked */
+#msgs.selecting .srow{position:relative;flex:none;display:flex;flex-direction:column;padding-left:42px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+#msgs.selecting .srow.tail{margin-top:8px}
+#msgs.selecting .srow .m.tail{margin-top:0}
+#msgs.selecting .srow::before{content:"";position:absolute;inset:-1px -22px;pointer-events:none;transition:background-color .12s}
+#msgs.selecting .srow.tail::before{top:-9px}   /* reaches the row above: picked runs read as one block */
+@media (hover:hover){#msgs.selecting .srow[data-sel]:hover::before{background:color-mix(in srgb,var(--ink) 4%,transparent)}}
+#msgs.selecting .srow.on::before,#msgs.selecting .srow.on:hover::before{background:color-mix(in srgb,var(--leaf) 14%,transparent)}
+#msgs.selecting .srow > .ck{position:absolute;left:4px;top:50%;margin-top:-10px;z-index:1}
+#msgs.selecting .srow .m{pointer-events:none;-webkit-user-select:none;user-select:none}
+#msgs.selecting .m .hov{display:none}
+#msgs.selecting .srow.off{cursor:default}
+#main.selecting #composer,#main.selecting #reply,#main.selecting #editbar,#main.selecting #att,#main.selecting #schedBar,#main.selecting #emojiPanel,#main.selecting #suggest{display:none!important}
+#selbar{display:flex;align-items:center;gap:4px;min-height:65px;padding:10px 12px 10px 10px;background:var(--surface);border-top:1px solid var(--line)}
+#selbar[hidden]{display:none}
+#selbar .n{flex:1;min-width:0;margin-left:6px;font-size:15px;font-weight:500;white-space:nowrap}
+#selbar .ib{width:44px;height:44px;flex:0 0 44px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;color:var(--muted)}
+#selbar .ib:hover{color:var(--ink)}
+#selbar .ib svg{width:22px;height:22px}
+@media (max-width:760px){
+  #msgs.selecting .srow{padding-left:36px}
+  #msgs.selecting .srow::before{inset:-1px -14px}
+  #msgs.selecting .srow > .ck{left:2px}
+}
+/* ---- forward dialog */
+#fwdDlg .dlg{max-width:440px;padding:0;display:flex;flex-direction:column;height:min(620px,calc(100vh - 48px));overflow:hidden}
+#fwdDlg .fh{display:flex;align-items:center;gap:6px;padding:12px 16px 4px 10px}
+#fwdDlg .fh h3{margin:0;font-size:17px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#fwdDlg .search{flex:none;margin:6px 16px 6px;width:calc(100% - 32px);min-height:42px;padding:9px 14px 9px 40px;border-radius:12px;border-color:transparent;
+  background:var(--field) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a9993' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='6.5'/%3E%3Cpath d='m20 20-4.2-4.2'/%3E%3C/svg%3E") no-repeat 14px center/17px}
+#fwdDlg .search:focus{background-color:var(--surface);border-color:var(--leaf)}
+#fwdList{flex:1;overflow-y:auto;padding:0 8px 8px;overscroll-behavior:contain}
+#fwdList .lbl{padding:12px 12px 6px;font-size:13px;font-weight:600;color:var(--leaf)}
+#fwdList .empty{padding:32px 16px}
+.frow{display:flex;align-items:center;gap:12px;padding:8px 12px;border-radius:12px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+@media (hover:hover){.frow:hover{background:var(--hover)}}
+.frow .av{flex:0 0 42px;height:42px;font-size:14px}
+.frow .fi{flex:1;min-width:0;line-height:1.3}
+.frow .fi b{display:block;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.frow .fi small{display:block;color:var(--muted);font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#fwdFoot{display:flex;align-items:center;gap:12px;padding:12px 14px 12px 16px;border-top:1px solid var(--line);background:var(--surface)}
+#fwdFoot[hidden]{display:none}
+#fwdPicked{flex:1;min-width:0;display:flex;flex-wrap:wrap;gap:6px}
+.fchip{display:inline-flex;align-items:center;gap:2px;max-width:100%;height:30px;padding:0 3px 0 11px;border-radius:999px;background:var(--leaf-soft);color:var(--ink);font-size:13px;font-weight:500}
+.fchip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fchip button{flex:none;width:24px;height:24px;border:0;border-radius:50%;background:none;color:var(--muted);display:inline-flex;align-items:center;justify-content:center;padding:0}
+.fchip button:hover{background:color-mix(in srgb,var(--ink) 10%,transparent);color:var(--ink)}
+#fwdSend{flex:none;width:48px;height:48px;border:0;border-radius:50%;background:var(--leaf);color:var(--leaf-ink);display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.15);transition:background-color .15s,transform .05s}
+#fwdSend:hover:not(:disabled){background:var(--leaf-strong)}
+#fwdSend:active{transform:scale(.96)}
+#fwdSend:disabled{opacity:.55;cursor:default}
+#fwdSend svg{width:22px;height:22px;margin-left:-2px}
+@media (max-width:760px){
+  #fwdDlg.overlay{padding:0;align-items:stretch}
+  #fwdDlg .dlg{max-width:none;height:100%;border-radius:0;border:0;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+}
 </style>
 
 <div id="app">
@@ -734,6 +807,13 @@ html:root[data-theme="dark"][data-accent]{--out:color-mix(in srgb,var(--accent) 
       <button class="ib" id="schedBtn" title="Send later" hidden><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.6"/><path d="M12 7.5V12l3 2"/></svg></button>
       <button id="send" title="Send" disabled><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12 20 4.5l-5.2 15.5-3-6.2z"/><path d="M11.8 13.8 20 4.5"/></svg></button>
     </div>
+    <div id="selbar" hidden>
+      <button class="ib" id="selX" title="Cancel (Esc)" aria-label="Cancel selection"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+      <span class="n" id="selN" aria-live="polite"></span>
+      <button class="ib" id="selFwd" title="Forward" aria-label="Forward"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.5 5.5 20 12l-6.5 6.5"/><path d="M20 12h-8.5A7.5 7.5 0 0 0 4 19.5"/></svg></button>
+      <button class="ib" id="selCopy" title="Copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8.5" y="8.5" width="11" height="11" rx="2.2"/><path d="M15.5 8.5V6.2a1.7 1.7 0 0 0-1.7-1.7H6.2a1.7 1.7 0 0 0-1.7 1.7v7.6a1.7 1.7 0 0 0 1.7 1.7h2.3"/></svg></button>
+      <button class="ib" id="selDel" title="Delete" aria-label="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 7h15"/><path d="M9.5 7V5.2c0-.7.5-1.2 1.2-1.2h2.6c.7 0 1.2.5 1.2 1.2V7"/><path d="m6.5 7 .8 11.6a2 2 0 0 0 2 1.9h5.4a2 2 0 0 0 2-1.9L17.5 7"/><path d="M10.2 11v5.5M13.8 11v5.5"/></svg></button>
+    </div>
     <div id="drop">Drop to attach</div>
   </main>
 </div>
@@ -831,7 +911,7 @@ html:root[data-theme="dark"][data-accent]{--out:color-mix(in srgb,var(--accent) 
 </div>
 <div class="overlay" id="delDlg" style="background:rgba(0,0,0,.45)">
   <div class="dlg">
-    <h3>Delete message?</h3>
+    <h3 id="delTitle">Delete message?</h3>
     <div class="col">
       <button type="button" class="btn danger" id="delAll">Delete for everyone</button>
       <button type="button" class="btn ghost" id="delMe">Delete for me</button>
@@ -901,6 +981,20 @@ html:root[data-theme="dark"][data-accent]{--out:color-mix(in srgb,var(--accent) 
     <div class="acts"><button type="button" class="btn ghost" id="pwx">Cancel</button><button class="btn">Save</button></div>
   </form>
 </div>
+<div class="overlay" id="fwdDlg" style="background:rgba(0,0,0,.45)">
+  <div class="dlg" role="dialog" aria-modal="true" aria-labelledby="fwdTitle">
+    <div class="fh">
+      <button type="button" class="ib" id="fwdX" title="Close" aria-label="Close"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+      <h3 id="fwdTitle">Forward message to</h3>
+    </div>
+    <input class="search" id="fwdQ" type="search" placeholder="Search name or number" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="Search chats" data-lpignore="true" data-1p-ignore="true">
+    <div id="fwdList"></div>
+    <div id="fwdFoot" hidden>
+      <div id="fwdPicked"></div>
+      <button type="button" id="fwdSend" title="Send" aria-label="Send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12 20 4.5l-5.2 15.5-3-6.2z"/><path d="M11.8 13.8 20 4.5"/></svg></button>
+    </div>
+  </div>
+</div>
 <div id="toast"></div>
 
 <script>
@@ -945,7 +1039,9 @@ const waFmt = (h) => h
   .replace(/(^|[\s>(\[{;])~(?=\S)([^~\n]*?\S)~(?=$|[\s<.,!?;:)\]}&])/g, '$1<s>$2</s>');
 const rich = (t) => linkify(waFmt(esc(t)));
 let status = 'starting', me = null, chats = [], current = null, currentName = '', msgs = [], attach = null, tmpN = 0;
-let currentPresence = null, typingTimer = null, typingState = 'paused';
+let typingTimer = null, typingState = 'paused';
+let selMode = false;            // picking messages to forward / copy / delete
+const selIds = new Set();
 const REACTIONS = ['❤️','😂','👍','😮','😢','🙏','🗿'];
 
 // ------------------------------------------------------------------ utils
@@ -996,24 +1092,115 @@ const avImg = (jid) => `<img src="${esc(api('/avatar?jid=' + encodeURIComponent(
 const initials = (n) => (n || '?').replace(/[^\p{L}\p{N} ]/gu, '').trim().split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase() || '#';
 const fmtSize = (b) => b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB';
 const mediaUrl = (m) => api(`/media?jid=${encodeURIComponent(m.jid)}&id=${encodeURIComponent(m.id)}`);
-function presenceLabel(p) {
-  return '';   // typing / online indicators are turned off
-  if (!p) return '';
-  if (p.typing) return p.recording ? 'recording…' : 'typing…';
-  if (p.online || p.state === 'available') return 'online';
-  if (p.lastSeen) {
-    const n = Number(p.lastSeen);
-    const sec = n > 1e12 ? Math.floor(n / 1000) : n;
-    if (Number.isFinite(sec) && sec > 0) return 'last seen ' + fmtWhen(sec);
+// ---------------------------------------------------------------- presence
+// What WhatsApp tells us about a contact: online, typing, last seen. Lots of people
+// hide these, so knowing nothing (or only old news) just means the usual subtitle.
+const TYPING_MS = 10000, ONLINE_MS = 3 * 60e3, LAST_SEEN_MS = 30 * 60e3;
+const pres = new Map();       // 1:1 chat -> {state, lastSeen, at}  (at: this browser's clock)
+const typers = new Map();     // chat -> Map(who -> {state, name, until})
+const typingRows = new Set(); // chat rows showing "typing…" right now
+function noteTyping(chat, who, state, name, age = 0) {
+  let t = typers.get(chat);
+  if (state === 'composing' || state === 'recording') {
+    if (!t) typers.set(chat, t = new Map());
+    t.set(who, {state, name: name || '', until: Date.now() - age + TYPING_MS});
+  } else if (t) { t.delete(who); if (!t.size) typers.delete(chat); }
+}
+function typingNow(chat) {
+  const t = typers.get(chat); if (!t) return [];
+  const now = Date.now(), out = [];
+  for (const [who, x] of t) if (x.until > now) out.push(x); else t.delete(who);
+  if (!t.size) typers.delete(chat);
+  return out;
+}
+function typingText(list, group) {
+  if (!list.length) return '';
+  const verb = list.every(x => x.state === 'recording') ? 'recording audio…' : 'typing…';
+  if (!group) return verb;
+  const short = (n) => !n ? 'Someone' : /^[+\d]/.test(n) ? n : n.split(/\s+/)[0];
+  const who = list.length === 1 ? short(list[0].name)
+    : list.length === 2 ? `${short(list[0].name)} and ${short(list[1].name)}`
+    : `${short(list[0].name)} and ${list.length - 1} others`;
+  return `${who} ${list.length === 1 ? 'is' : 'are'} ${verb}`;
+}
+function lastSeenText(sec) {
+  const d = new Date(sec * 1000), now = new Date(), y = new Date(now); y.setDate(now.getDate() - 1);
+  const day = d.toDateString() === now.toDateString() ? 'today' : d.toDateString() === y.toDateString() ? 'yesterday'
+    : d.toLocaleDateString([], {day: 'numeric', month: 'short', year: d.getFullYear() === now.getFullYear() ? undefined : 'numeric'});
+  return `last seen ${day} at ${d.toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'})}`;
+}
+// the header's second line when there's presence to show, else ''
+function presenceLabel(jid = current) {
+  if (!jid) return '';
+  const group = String(jid).endsWith('@g.us');
+  const t = typingText(typingNow(jid), group);
+  if (t || group) return t;
+  const p = pres.get(jid); if (!p) return '';
+  const age = Date.now() - p.at;
+  if (p.state === 'available' || p.state === 'composing' || p.state === 'recording') return age < ONLINE_MS ? 'online' : '';
+  if (p.state === 'unavailable' && p.lastSeen && age < LAST_SEEN_MS) {
+    const n = Number(p.lastSeen), sec = n > 1e12 ? Math.floor(n / 1000) : n;
+    if (sec > 0 && sec * 1000 < Date.now() + 60e3) return lastSeenText(sec);
   }
   return '';
 }
-function setPresence(p) {
-  currentPresence = p || null;
-  if (!currentPresence) { if (current) updateTitle(); return; }
-  const el = $('#presenceLabel');
-  if (el) el.textContent = presenceLabel(currentPresence) || titleSub();
+function paintPresence() {
+  const el = document.getElementById('presenceLabel'); if (!el || !current) return;
+  const text = presenceLabel() || titleSub();
+  if (el.textContent !== text) el.textContent = text;
 }
+// "typing…" on that chat's row in the list: only its preview line changes
+function paintRowTyping(jid) {
+  const pv = rowEls.get(jid)?.el.querySelector('.pvt');
+  const t = pv ? typingText(typingNow(jid), String(jid).endsWith('@g.us')) : '';
+  if (t) {
+    if (pv.dataset.typing !== t) {
+      if (pv.dataset.typing == null) pv._was = pv.innerHTML;
+      pv.innerHTML = `<span class="typing">${esc(t)}</span>`; pv.dataset.typing = t;
+    }
+    typingRows.add(jid);
+  } else {
+    if (pv && pv.dataset.typing != null) { pv.innerHTML = pv._was ?? ''; delete pv.dataset.typing; }
+    typingRows.delete(jid);
+  }
+}
+// what /presence says when a chat opens; null = we know nothing any more (disconnected)
+function setPresence(p, jid = p?.jid) {
+  if (!p) {
+    pres.clear(); typers.clear();
+    for (const j of [...typingRows]) paintRowTyping(j);
+  } else if (jid) {
+    const age = Number(p.age) || 0;
+    if (p.group) for (const x of p.typers || []) noteTyping(jid, x.jid, x.state, x.name, x.age || 0);
+    else if (p.state && p.state !== 'unknown') {
+      pres.set(jid, {state: p.state, lastSeen: p.lastSeen || null, at: Date.now() - age});
+      noteTyping(jid, jid, p.state, '', age);
+    }
+    paintRowTyping(jid);
+  }
+  paintPresence();
+}
+function onPresenceEvent(d) {
+  const state = d.lastKnownPresence || d.state || 'unknown';
+  if (String(d.jid).endsWith('@g.us')) noteTyping(d.jid, d.participant || d.jid, state, d.name);
+  else {
+    pres.set(d.jid, {state, lastSeen: d.lastSeen || null, at: Date.now()});
+    noteTyping(d.jid, d.jid, state, '');
+  }
+  if (d.jid === current) paintPresence();
+  paintRowTyping(d.jid);
+}
+// a message from them ends their "typing…"
+function stopTypingFor(m) {
+  if (m.fromMe || !typers.has(m.jid)) return;
+  noteTyping(m.jid, m.sender || m.jid, 'paused');
+  paintRowTyping(m.jid);
+  if (m.jid === current) paintPresence();
+}
+setInterval(() => {
+  if (current) paintPresence();
+  for (const j of new Set([...typingRows, ...typers.keys()])) paintRowTyping(j);
+}, 1000);
 function scheduleTypingReset() {
   clearTimeout(typingTimer);
   if (!current) return;
@@ -1031,8 +1218,10 @@ function stopTyping() {
   typingState = 'paused';
 }
 async function subscribePresence(jid) {
-  try { const p = await call('GET', `/presence?jid=${encodeURIComponent(jid)}`); if (current === jid) setPresence(p); } catch { if (current === jid) setPresence(null); }
+  try { setPresence(await call('GET', `/presence?jid=${encodeURIComponent(jid)}`), jid); } catch {}
 }
+// WhatsApp's presence subscription doesn't last forever: renew it while the chat is open
+setInterval(() => { if (current && status === 'connected' && selfActive()) subscribePresence(current); }, 150e3);
 
 // ------------------------------------------------------------ chat list
 function row(c, extra = '', img = true) {
@@ -1069,6 +1258,7 @@ function renderChats() {
     for (const ch of [...box.children]) if (!keep.has(ch)) ch.remove();
     els.forEach((el, i) => { if (box.children[i] !== el) box.insertBefore(el, box.children[i] || null); });
     if (rowEls.size > list.length * 2 + 50) { const on = new Set(list.map(c => c.jid)); for (const j of rowEls.keys()) if (!on.has(j)) rowEls.delete(j); }
+    for (const j of typers.keys()) paintRowTyping(j);   // a rebuilt row keeps showing "typing…"
   } else box.innerHTML =
     `<div class="empty">${q ? 'No chats match.' : filter === 'unread' ? 'No unread chats 🎉' : filter === 'groups' ? 'No groups yet.' : filter === 'archived' ? 'No archived chats.' : status === 'connected' ? 'No chats yet. They show up as history syncs, or start one with <svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align:-3px" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4.5H6.5a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V13"/><path d="M17.8 3.7a1.9 1.9 0 0 1 2.7 2.7L12 14.9l-3.5.8.8-3.5z"/></svg>.' : 'Waiting for WhatsApp…'}</div>`;
   const n = chats.filter(c => c.unread > 0 && !c.archived).length;
@@ -1105,7 +1295,7 @@ function updateTitle() {
   $('#tav').hidden = false;
   $('#tav').className = 'av sm' + (c?.group ? ' g' : '');
   $('#tav').innerHTML = esc(c?.group ? '👥' : initials(name)) + avImg(current);
-  const extra = presenceLabel(currentPresence)
+  const extra = presenceLabel()
   $('#title').innerHTML = `<b>${esc(name)}</b><small id="presenceLabel">${esc(extra || titleSub())}</small>`;
   $('#nickBtn').hidden = false;
   $('#archBtn').hidden = false;
@@ -1130,6 +1320,7 @@ async function setNickname() {
 }
 
 // --------------------------------------------------------------- thread
+const FWD_ICON = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.5 5.5 20 12l-6.5 6.5"/><path d="M20 12h-8.5A7.5 7.5 0 0 0 4 19.5"/></svg>';
 function bubble(m) {
   const who = m.senderName ? `<div class="who n${nameHue(m.sender || m.senderName)}">${esc(m.senderName)}</div>` : '';
   let body = '';
@@ -1177,7 +1368,8 @@ function bubble(m) {
   if (m.deleted) body = `<span class="del">🚫 ${m.fromMe ? 'You deleted this message' : 'This message was deleted'}</span>`;
   const mm = m.pending || m.failed || String(m.id).startsWith('tmp') ? '' : `<button class="mm" data-mm="${esc(m.id)}" title="Edit or delete">⋯</button>`;
   const ed = m.edited && !m.deleted ? '<span class="edl">edited</span>' : '';
-  return `<div class="m ${m.fromMe ? 'me' : ''} ${m.type === 'sticker' && !m.deleted ? 'sticker' : ''} ${m.pending ? 'pending' : ''} ${m.failed ? 'failed' : ''}" data-id="${esc(m.id)}"><div class="hov">${m.deleted ? '' : rp}${ra}${mm}</div>${who}${m.deleted ? '' : q}${body}<span class="t">${ed}${fmtTime(m.ts)}${tick}</span>${m.deleted ? '' : rxbar}</div>`;
+  const fw = m.fwd && !m.deleted ? `<div class="fwd">${FWD_ICON}${m.fwd >= 5 ? 'Forwarded many times' : 'Forwarded'}</div>` : '';
+  return `<div class="m ${m.fromMe ? 'me' : ''} ${m.type === 'sticker' && !m.deleted ? 'sticker' : ''} ${m.pending ? 'pending' : ''} ${m.failed ? 'failed' : ''}" data-id="${esc(m.id)}"><div class="hov">${m.deleted ? '' : rp}${ra}${mm}</div>${who}${fw}${m.deleted ? '' : q}${body}<span class="t">${ed}${fmtTime(m.ts)}${tick}</span>${m.deleted ? '' : rxbar}</div>`;
 }
 function renderMsgs(stick) {
   const box = $('#msgs');
@@ -1185,6 +1377,8 @@ function renderMsgs(stick) {
   const prevH = box.scrollHeight, prevTop = box.scrollTop;
   const group = String(current || '').endsWith('@g.us');
   box.classList.toggle('grp', group);
+  if (selMode) pruneSel();   // picks that are gone drop out (none left: select mode ends)
+  box.classList.toggle('selecting', selMode);
   // at the history limit, say so instead of offering to load more
   const atLimit = msgs.length && !storeMore && msgs[0].ts <= Date.now() / 1000 - (historyDays - 1) * 86400;
   let html = !msgs.length ? '' : atLimit
@@ -1207,12 +1401,13 @@ function renderMsgs(stick) {
     } else {
       out = out.replace(/<div class="who[^"]*">[\s\S]*?<\/div>/, '');   // WhatsApp shows the name once per run
     }
-    html += out;
+    html += selMode ? selRow(m, out, key !== prevKey) : out;
     prevKey = key;
   }
   box.innerHTML = html || '<div class="empty">No messages here yet. Say hi 👋</div>';
   if (stick === 'keep') box.scrollTop = prevTop + (box.scrollHeight - prevH);
   else if (stick || nearBottom) box.scrollTop = box.scrollHeight;
+  if (selMode) syncSelbar();
 }
 function upsert(m) {
   const i = msgs.findIndex(x => x.id === m.id);
@@ -1237,23 +1432,24 @@ function startReply(id) {
 function cancelReply() { replyTo = null; $('#reply').classList.remove('on'); syncSchedBtn(); }
 
 async function openChat(jid, name) {
+  exitSelect(false); closeForward();
   cancelEdit(); composerMentions = [];
   cancelReply();
   if (current) { const t = $('#text').value; if (t.trim()) drafts.set(current, t); else drafts.delete(current); }
   stopTyping();
-  current = jid; currentName = name || ''; currentPresence = null;
+  current = jid; currentName = name || '';
   scheduled = []; renderScheduled(); loadScheduled();
   $('#text').value = drafts.get(jid) || ''; $('#text').style.height = 'auto';
   unseen = 0; showJump(false);
   document.body.classList.add('open');
   updateTitle(); setComposer();
+  if (status === 'connected') subscribePresence(jid);   // online / typing / last seen in the header
   $('#msgs').innerHTML = '<div class="empty">Loading…</div>';
   try {
     msgs = await call('GET', `/messages?jid=${encodeURIComponent(jid)}&limit=200` + (chatVisible() ? '&read=1' : ''));
     if (current !== jid) return;
     storeMore = msgs.length >= 200;
     renderMsgs(true);
-    // presence (typing/online) is not shown, so no need to subscribe
     const c = chats.find(x => x.jid === jid); if (c) c.unread = 0;
     renderChats();
   } catch (x) { toast(x.message); }
@@ -1455,7 +1651,7 @@ function setStatus(d) {
     $('#restart').hidden = !(s === 'reconnecting' && d.failures >= 3);
   }
   setComposer();
-  if (s === 'connected' && was !== 'connected') { loadChats(); if (current) reloadThread(); maybeStartTour(); }
+  if (s === 'connected' && was !== 'connected') { loadChats(); if (current) { reloadThread(); subscribePresence(current); } maybeStartTour(); }
 }
 function hidePairCode() { pairSid = null; $('#pairCode').hidden = true; }
 let syncTimer;
@@ -1471,20 +1667,13 @@ function stream() {
   const es = new EventSource(api('/events'));
   es.onmessage = (ev) => {
     const d = JSON.parse(ev.data);
+    if (d.type === 'message' && d.message) stopTypingFor(d.message);
     if (d.type === 'status') setStatus(d);
     else if (d.type === 'chats') loadChats();
     else if (d.type === 'scheduled') { if (!d.jid || d.jid === current) loadScheduled(); }
     else if (d.type === 'history') { syncing(d); loadChats(); if (current) reloadThread(); }
     else if (d.type === 'merged') { if (current === d.from) { current = d.to; reloadThread(); } loadChats(); }
-    else if (d.type === 'presence' && false) {
-      if (d.participant && chats.find(x => x.jid === current)?.group) {
-        if (d.state === 'composing' || d.state === 'recording') setPresence({typing:true, recording:d.state === 'recording'});
-        else setPresence({state:d.state, online:d.state === 'available', lastSeen:d.lastSeen});
-        clearTimeout(window._presenceTimer); window._presenceTimer = setTimeout(() => { if (current) setPresence(null); }, 8000);
-      } else {
-        setPresence({state:d.state, online:d.state === 'available', typing:d.state === 'composing' || d.state === 'recording', recording:d.state === 'recording', lastSeen:d.lastSeen});
-      }
-    }
+    else if (d.type === 'presence' && d.jid) onPresenceEvent(d);
     else if (d.type === 'reaction' && d.jid === current) {
       const i = msgs.findIndex(x => x.id === d.id);
       if (i >= 0) { msgs[i] = {...msgs[i], reactions: d.reactions || []}; renderMsgs(false); }
@@ -1572,6 +1761,9 @@ document.addEventListener('keydown', e => {
     else if ($('#news').classList.contains('on')) closeNews();
     else if ($('#about').classList.contains('on')) $('#about').classList.remove('on');
     else if ($('#prefs').classList.contains('on')) $('#prefs').classList.remove('on');
+    else if ($('#fwdDlg').classList.contains('on')) closeForward();
+    else if ($('#delDlg').classList.contains('on')) { $('#delDlg').classList.remove('on'); delFor = null; }
+    else if (selMode) exitSelect();
     else if ($('#newchat').classList.contains('on')) closeNew();
     else if (!replyTo && document.body.classList.contains('open') && innerWidth <= 760) document.body.classList.remove('open');
   }
@@ -1905,8 +2097,10 @@ function openMsgMenu(id, btn) {
   const age = Date.now() / 1000 - m.ts;
   const items = [];
   if (!m.deleted && m.fromMe && m.type === 'text' && age < EDIT_WINDOW) items.push(['edit', '✏️ Edit']);
+  if (canForward(m)) items.push(['forward', '↪️ Forward']);
   if (!m.deleted && m.text) items.push(['task', '✅ Add to todolist']);
   if (!m.deleted && m.text) items.push(['copy', '📋 Copy text']);
+  items.push(['select', '☑️ Select']);
   items.push(['delete', '🗑️ Delete', 'danger']);
   const el = document.createElement('div');
   el.id = 'msgMenu';
@@ -1923,25 +2117,44 @@ document.addEventListener('click', e => {
   const m = menuFor; closeMsgMenu(); if (!m) return;
   if (b.dataset.ma === 'edit') startEdit(m);
   else if (b.dataset.ma === 'task') openTaskDlg(m);
-  else if (b.dataset.ma === 'copy') navigator.clipboard?.writeText(m.text).then(() => toast('Copied'), () => toast('Could not copy'));
+  else if (b.dataset.ma === 'copy') copyText(plainText(m)).then(ok => toast(ok ? 'Copied' : 'Could not copy'));
+  else if (b.dataset.ma === 'forward') openForward([m]);
+  else if (b.dataset.ma === 'select') enterSelect(m.id);
   else if (b.dataset.ma === 'delete') openDelete(m);
 });
+// one message, or several picked in select mode
 function openDelete(m) {
-  delFor = m;
-  const canAll = m.fromMe && !m.deleted && Date.now() / 1000 - m.ts < DELETE_ALL_WINDOW;
+  const list = (Array.isArray(m) ? m : [m]).filter(Boolean);
+  if (!list.length) return;
+  delFor = list;
+  const now = Date.now() / 1000;
+  // for everyone: only your own, and only while WhatsApp still allows it
+  const canAll = list.every(x => x.fromMe && !x.deleted && now - x.ts < DELETE_ALL_WINDOW);
+  $('#delTitle').textContent = list.length > 1 ? `Delete ${list.length} messages?` : 'Delete message?';
   $('#delAll').hidden = !canAll;
   $('#delDlg').classList.add('on');
 }
 async function doDelete(everyone) {
-  const m = delFor; $('#delDlg').classList.remove('on'); delFor = null;
-  if (!m) return;
-  try {
-    const r = await call('POST', '/delete', {jid: current, id: m.id, everyone});
-    if (everyone) upsert(r); else msgs = msgs.filter(x => x.id !== m.id);
-    if (editing?.id === m.id) cancelEdit();
-    renderMsgs(false); loadChats();
-    toast(everyone ? 'Deleted for everyone' : r.synced ? 'Deleted for you' : 'Deleted for you (on this site only)');
-  } catch (x) { toast(x.message); }
+  const list = delFor || []; $('#delDlg').classList.remove('on'); delFor = null;
+  if (!list.length) return;
+  const jid = current, n = list.length;
+  let done = 0, local = false, err = null;
+  for (const m of list) {
+    try {
+      const r = await call('POST', '/delete', {jid, id: m.id, everyone});
+      done++;
+      if (!everyone && !r.synced) local = true;
+      if (current === jid) { if (everyone) upsert(r); else msgs = msgs.filter(x => x.id !== m.id); }
+      if (editing?.id === m.id) cancelEdit();
+    } catch (x) { err = err || x.message; }
+  }
+  exitSelect(false);
+  if (current === jid) renderMsgs(false);
+  loadChats();
+  if (!done) return toast(err || 'Not deleted');
+  if (done < n) return toast(`Deleted ${done} of ${n}. ${err}`, 4500);
+  const what = n > 1 ? `${n} messages deleted` : 'Deleted';
+  toast(everyone ? `${what} for everyone` : `${what} for you${local ? ' (on this site only)' : ''}`);
 }
 $('#delAll').addEventListener('click', () => doDelete(true));
 $('#delMe').addEventListener('click', () => doDelete(false));
@@ -2484,7 +2697,7 @@ window.addEventListener('message', (e) => {
   if (d.type === 'close') closeTodo();
   else if (d.type === 'open-chat' && typeof d.jid === 'string') { closeTodo(); const c = chats.find(x => x.jid === d.jid); openChat(d.jid, c?.name || ''); }
   else if (d.type === 'badge') setTodoBadge(Number(d.due) || 0);
-  else if (d.type === 'active') lastActive = Date.now(); // working in the todolist counts as being here (auto-lock)
+  else if (d.type === 'active') { lastActive = Date.now(); touchSelf(); } // working in the todolist counts as being here (auto-lock, online)
   else if (d.type === 'key' && !locked && !panicOn) {
     // the shortcuts that matter for privacy keep working while the todolist has the keyboard
     if (d.key === 'c') location.replace('https://classroom.google.com');
@@ -2517,10 +2730,11 @@ let lastArrowAt = 0;
 function somethingOpen() {
   return !!(document.querySelector('.overlay.on') || $('#menu').classList.contains('on') || $('#chatActs').classList.contains('on') ||
     document.getElementById('msgMenu') || !$('#emojiPanel').hidden || !$('#suggest').hidden || $('#newchat').classList.contains('on') ||
-    replyTo || editing || tourStep >= 0 || document.getElementById('egg') || document.querySelector('.rxpick.on'));
+    replyTo || editing || selMode || tourStep >= 0 || document.getElementById('egg') || document.querySelector('.rxpick.on'));
 }
 function closeChat() {
   if (!current) return false;
+  exitSelect(false);
   const t = $('#text').value; if (t.trim()) drafts.set(current, t); else drafts.delete(current);
   current = null; currentName = ''; msgs = []; unseen = 0;
   scheduled = []; renderScheduled();
@@ -2737,7 +2951,7 @@ async function reactMessage(messageId, emoji) {
 }
 
 const main = $('#main');
-main.addEventListener('dragover', e => { if (current && status === 'connected') { e.preventDefault(); $('#drop').classList.add('on'); } });
+main.addEventListener('dragover', e => { if (current && status === 'connected' && !selMode) { e.preventDefault(); $('#drop').classList.add('on'); } });
 main.addEventListener('dragleave', e => { if (!main.contains(e.relatedTarget)) $('#drop').classList.remove('on'); });
 main.addEventListener('drop', e => { e.preventDefault(); $('#drop').classList.remove('on'); setAttach(e.dataTransfer.files[0]); });
 
@@ -2849,6 +3063,263 @@ $('#pwf').addEventListener('submit', async e => {
     $('#pw').classList.remove('on'); toast('Password changed');
   } catch (x) { $('#pwerr').textContent = x.message; }
 });
+
+// ------------------------------------------------------- selecting messages
+// Like WhatsApp: ⋯ → Select (or a long press on phones), tap more messages, then
+// forward, copy or delete them together from the bar where the composer was.
+function selectable(m) { return !!m && !m.pending && !m.failed && !String(m.id).startsWith('tmp'); }
+function canForward(m) {
+  if (!selectable(m) || m.deleted) return false;
+  if (m.type === 'text' || m.type === 'location') return !!m.text;
+  return ['image', 'video', 'audio', 'document', 'sticker'].includes(m.type) && !!m.media;
+}
+function canCopy(m) { return !m.deleted && m.type === 'text' && !!m.text; }
+function msgEl(id) { return [...document.querySelectorAll('#msgs .m[data-id]')].find(x => x.dataset.id === id); }
+function ckHtml(on) {
+  return `<span class="ck${on ? ' on' : ''}" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span>`;
+}
+function selRow(m, html, tail) {
+  if (!selectable(m)) return `<div class="srow off${tail ? ' tail' : ''}">${html}</div>`;
+  const on = selIds.has(m.id);
+  return `<div class="srow${on ? ' on' : ''}${tail ? ' tail' : ''}" data-sel="${esc(m.id)}" role="checkbox" aria-checked="${on}">${ckHtml(on)}${html}</div>`;
+}
+// keep one message where it is on screen while the thread re-renders around it
+function keepInView(id, fn) {
+  const el = id && msgEl(id), top = el ? el.getBoundingClientRect().top : null;
+  fn();
+  const now = id && msgEl(id);
+  if (top != null && now) $('#msgs').scrollTop += now.getBoundingClientRect().top - top;
+}
+function enterSelect(id) {
+  if (!current || !selectable(msgs.find(x => x.id === id))) return;
+  closeMsgMenu(); closeEmoji(); hideSuggest(); cancelEdit(); stopTyping();
+  document.querySelectorAll('#msgs .m.tap, .rxpick.on').forEach(x => x.classList.remove('tap', 'on'));
+  document.activeElement?.blur?.();
+  selMode = true; selIds.clear(); selIds.add(id);
+  $('#main').classList.add('selecting'); $('#selbar').hidden = false;
+  keepInView(id, () => renderMsgs(false));
+}
+function leaveSelect() {
+  selMode = false; selIds.clear();
+  $('#main').classList.remove('selecting'); $('#msgs').classList.remove('selecting'); $('#selbar').hidden = true;
+}
+function exitSelect(render = true) {
+  if (!selMode) return;
+  const anchor = [...selIds].at(-1);
+  leaveSelect();
+  if (render) keepInView(anchor, () => renderMsgs(false));
+}
+function pruneSel() {
+  for (const id of [...selIds]) if (!selectable(msgs.find(m => m.id === id))) selIds.delete(id);
+  if (!selIds.size) leaveSelect();
+}
+function selected() { return msgs.filter(m => selIds.has(m.id)); }   // in the chat's order
+function syncSelbar() {
+  const list = selected();
+  $('#selN').textContent = `${list.length} selected`;
+  $('#selFwd').hidden = !list.every(canForward);
+  $('#selCopy').hidden = !list.every(canCopy);
+}
+function toggleSel(id) {
+  if (selIds.has(id)) selIds.delete(id); else selIds.add(id);
+  if (!selIds.size) return exitSelect();
+  const on = selIds.has(id), row = [...document.querySelectorAll('#msgs .srow[data-sel]')].find(x => x.dataset.sel === id);
+  if (row) { row.classList.toggle('on', on); row.setAttribute('aria-checked', on); row.querySelector('.ck')?.classList.toggle('on', on); }
+  syncSelbar();
+}
+
+// copying: one message is just its text; several use WhatsApp's own format,
+// "[4:22 PM, 07/10/2026] Name: text", one per line
+const pad2 = (n) => String(n).padStart(2, '0');
+function copyStamp(ts) {
+  const d = new Date(ts * 1000), h = d.getHours();
+  return `[${h % 12 || 12}:${pad2(d.getMinutes())} ${h < 12 ? 'AM' : 'PM'}, ${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}/${d.getFullYear()}]`;
+}
+function copyName(m) {
+  if (m.fromMe) return me?.name || $('#meName').textContent || 'You';
+  return m.senderName || chats.find(x => x.jid === m.jid)?.name || currentName || '';
+}
+function plainText(m) {
+  let t = String(m.text || '');
+  for (const x of m.mentions || []) if (/^\d+$/.test(x.t)) t = t.split('@' + x.t).join('@' + x.name);
+  return t;
+}
+async function copyText(t) {
+  try { await navigator.clipboard.writeText(t); return true; } catch {}
+  const a = document.createElement('textarea');   // http, or clipboard blocked
+  a.value = t; a.setAttribute('readonly', ''); a.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
+  document.body.appendChild(a); a.select();
+  let ok = false; try { ok = document.execCommand('copy'); } catch {}
+  a.remove();
+  return ok;
+}
+async function copySelected() {
+  const list = selected();
+  if (!list.length || !list.every(canCopy)) return;
+  const text = list.length === 1 ? plainText(list[0]) : list.map(m => `${copyStamp(m.ts)} ${copyName(m)}: ${plainText(m)}`).join('\n');
+  const ok = await copyText(text);
+  toast(ok ? 'Copied' : 'Could not copy');
+  if (ok) exitSelect();
+}
+$('#selX').addEventListener('click', () => exitSelect());
+$('#selCopy').addEventListener('click', copySelected);
+$('#selFwd').addEventListener('click', () => openForward(selected()));
+$('#selDel').addEventListener('click', () => openDelete(selected()));
+
+// phones: a long press on a message starts selecting, like WhatsApp
+let lp = null, lpFired = false, lpSkipClick = 0;
+$('#msgs').addEventListener('pointerdown', e => {
+  if (lp) { clearTimeout(lp.t); lp = null; }
+  if (e.pointerType !== 'touch' || selMode) return;
+  const el = e.target.closest('.m[data-id]');
+  if (!el || e.target.closest('button, a, .rxpick')) return;
+  const id = el.dataset.id;
+  lp = {x: e.clientX, y: e.clientY, t: setTimeout(() => {
+    lp = null;
+    if (!selectable(msgs.find(m => m.id === id))) return;
+    lpFired = true;
+    try { getSelection()?.removeAllRanges(); } catch {}
+    navigator.vibrate?.(12);
+    enterSelect(id);
+  }, 480)};
+}, {passive: true});
+$('#msgs').addEventListener('pointermove', e => { if (lp && Math.hypot(e.clientX - lp.x, e.clientY - lp.y) > 10) { clearTimeout(lp.t); lp = null; } }, {passive: true});
+for (const ev of ['pointerup', 'pointercancel']) $('#msgs').addEventListener(ev, () => {
+  if (lp) { clearTimeout(lp.t); lp = null; }
+  if (lpFired) { lpFired = false; lpSkipClick = Date.now() + 500; }   // the release isn't a tap
+}, {passive: true});
+$('#msgs').addEventListener('contextmenu', e => { if (selMode || lpFired) e.preventDefault(); });
+// while selecting, a click anywhere on a message's row picks it; nothing inside reacts
+$('#msgs').addEventListener('click', e => {
+  if (Date.now() < lpSkipClick) { lpSkipClick = 0; e.preventDefault(); e.stopImmediatePropagation(); return; }
+  if (!selMode || e.target.closest('#more')) return;
+  e.preventDefault(); e.stopImmediatePropagation();
+  const r = e.target.closest('.srow[data-sel]');
+  if (r) toggleSel(r.dataset.sel);
+}, true);
+
+// ---------------------------------------------------------------- forward
+// Pick up to 5 chats (WhatsApp's limit); the messages go to each, oldest first.
+const FWD_MAX = 5;
+let fwdMsgs = [], fwdPicked = [], fwdContacts = [], fwdT = null, fwdReq = 0;
+function openForward(list) {
+  list = (list || []).filter(canForward);
+  if (!list.length) return toast("That can't be forwarded");
+  closeMsgMenu();
+  fwdMsgs = list; fwdPicked = []; fwdContacts = [];
+  $('#fwdTitle').textContent = list.length > 1 ? `Forward ${list.length} messages to` : 'Forward message to';
+  $('#fwdQ').value = '';
+  renderFwd();
+  $('#fwdDlg').classList.add('on');
+  $('#fwdList').scrollTop = 0;
+  if (innerWidth > 760) setTimeout(() => $('#fwdQ').focus(), 30);
+}
+function closeForward() { $('#fwdDlg').classList.remove('on'); fwdMsgs = []; fwdPicked = []; clearTimeout(fwdT); }
+function fwdRow(c) {
+  const on = fwdPicked.some(p => p.jid === c.jid);
+  const sub = c.group ? '' : c.phone && c.phone !== c.name ? c.phone : '';
+  return `<div class="frow" data-fj="${esc(c.jid)}" data-fn="${esc(c.name)}" role="checkbox" aria-checked="${on}">
+    <div class="av${c.group ? ' g' : ''}">${esc(c.group ? '👥' : initials(c.name))}${avImg(c.jid)}</div>
+    <div class="fi"><b>${esc(c.name)}</b>${sub ? `<small>${esc(sub)}</small>` : ''}</div>${ckHtml(on)}</div>`;
+}
+function renderFwd() {
+  const q = $('#fwdQ').value.trim().toLowerCase(), digits = q.replace(/\D/g, '');
+  const hit = (c) => !q || String(c.name || '').toLowerCase().includes(q) || (digits.length >= 3 && String(c.phone || '').replace(/\D/g, '').includes(digits));
+  const recent = chats.filter(hit).sort((a, b) => (b.t || 0) - (a.t || 0));
+  const seen = new Set(recent.map(c => c.jid));
+  const more = fwdContacts.filter(c => !seen.has(c.jid) && hit(c));
+  $('#fwdList').innerHTML =
+    ((recent.length ? '<div class="lbl">Recent chats</div>' + recent.map(fwdRow).join('') : '') +
+     (more.length ? '<div class="lbl">Contacts</div>' + more.map(fwdRow).join('') : '')) ||
+    `<div class="empty">${q ? 'No chats found' : 'No chats yet'}</div>`;
+  renderFwdPicked();
+}
+function renderFwdPicked() {
+  $('#fwdPicked').innerHTML = fwdPicked.map(p => `<span class="fchip"><span>${esc(p.name)}</span><button type="button" data-unpick="${esc(p.jid)}" title="Remove" aria-label="Remove ${esc(p.name)}"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M7 7l10 10M17 7 7 17"/></svg></button></span>`).join('');
+  $('#fwdFoot').hidden = !fwdPicked.length;
+  $('#fwdSend').disabled = !fwdPicked.length;
+}
+function pickFwd(jid, name) {
+  const i = fwdPicked.findIndex(p => p.jid === jid);
+  if (i >= 0) fwdPicked.splice(i, 1);
+  else if (fwdPicked.length >= FWD_MAX) return toast(`You can only forward to ${FWD_MAX} chats at a time`);
+  else fwdPicked.push({jid, name});
+  const on = i < 0;
+  $('#fwdList').querySelectorAll('.frow').forEach(r => {
+    if (r.dataset.fj === jid) { r.setAttribute('aria-checked', on); r.querySelector('.ck')?.classList.toggle('on', on); }
+  });
+  renderFwdPicked();
+}
+$('#fwdList').addEventListener('click', e => { const r = e.target.closest('.frow'); if (r) pickFwd(r.dataset.fj, r.dataset.fn); });
+$('#fwdPicked').addEventListener('click', e => { const b = e.target.closest('[data-unpick]'); if (b) pickFwd(b.dataset.unpick); });
+$('#fwdQ').addEventListener('input', () => {
+  renderFwd();
+  clearTimeout(fwdT);
+  const q = $('#fwdQ').value.trim(), req = ++fwdReq;
+  if (q.length < 2) { fwdContacts = []; return; }
+  // people you haven't chatted with yet
+  fwdT = setTimeout(async () => {
+    try { const list = await call('GET', '/contacts?q=' + encodeURIComponent(q)); if (req === fwdReq) { fwdContacts = list; renderFwd(); } } catch {}
+  }, 250);
+});
+$('#fwdQ').addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  const rows = $('#fwdList').querySelectorAll('.frow');
+  if (rows.length === 1) pickFwd(rows[0].dataset.fj, rows[0].dataset.fn);
+});
+$('#fwdX').addEventListener('click', closeForward);
+$('#fwdDlg').addEventListener('click', e => { if (e.target.id === 'fwdDlg') closeForward(); });
+$('#fwdSend').addEventListener('click', async () => {
+  if (!fwdPicked.length || !fwdMsgs.length || !current) return;
+  const jid = current, to = fwdPicked.map(p => p.jid), first = fwdPicked[0].name;
+  const ids = msgs.filter(m => fwdMsgs.some(f => f.id === m.id)).map(m => m.id);
+  const btn = $('#fwdSend'); btn.disabled = true;
+  const slow = setTimeout(() => toast('Forwarding…', 60000), 700);
+  try {
+    const r = await call('POST', '/forward', {jid, ids, to});
+    clearTimeout(slow);
+    closeForward(); exitSelect();
+    if (r.failed && !r.sent) toast('Not forwarded: ' + (r.error || 'WhatsApp said no'), 4500);
+    else if (r.failed) toast("Some messages weren't forwarded" + (r.error ? ': ' + r.error : ''), 4500);
+    else toast(to.length > 1 ? `Forwarded to ${to.length} chats` : `Forwarded to ${first}`);
+    loadChats();
+  } catch (x) { clearTimeout(slow); toast('Not forwarded: ' + x.message, 4500); }
+  btn.disabled = !fwdPicked.length;
+});
+
+// ------------------------------------------------- you, online on WhatsApp
+// Like WhatsApp Web: while you're using this tab (visible, touched in the last two
+// minutes) WhatsApp shows you online. Otherwise you're offline there, so your phone
+// keeps its notifications and your "last seen" stays right. Each tab reports in.
+const SELF_TAB = 'tab-' + Math.random().toString(36).slice(2, 12) + Date.now().toString(36);
+const SELF_IDLE = 2 * 60e3;
+let lastTouch = Date.now(), selfState = null, selfBeatAt = 0, selfEvery = 30000, selfRetryAt = 0;
+function selfActive() {
+  return document.visibilityState === 'visible' && !locked && !panicOn && Date.now() - lastTouch < SELF_IDLE;
+}
+function reportSelf() {
+  const want = selfActive() ? 'available' : 'unavailable', now = Date.now();
+  if (want === selfState && (want !== 'available' || now - selfBeatAt < selfEvery)) return;
+  if (now < selfRetryAt) return;
+  selfState = want; selfBeatAt = now;
+  call('POST', '/presence-self', {tab: SELF_TAB, state: want})
+    .then(r => { if (r?.ttl > 0) selfEvery = Math.max(1000, Math.min(30000, Math.floor(r.ttl * 0.4))); })
+    .catch(() => { if (selfState === want) selfState = null; selfRetryAt = Date.now() + 10000; });
+}
+function touchSelf() { lastTouch = Date.now(); if (selfState !== 'available') reportSelf(); }
+for (const ev of ['pointerdown', 'pointermove', 'keydown', 'wheel', 'touchstart']) document.addEventListener(ev, touchSelf, {passive: true, capture: true});
+window.addEventListener('focus', touchSelf);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') touchSelf(); else reportSelf(); });
+// locking the app or hiding it (P) counts as leaving
+if (window.MutationObserver) new MutationObserver(() => reportSelf()).observe(document.documentElement, {attributes: true, attributeFilter: ['data-locked', 'data-panic']});
+setInterval(reportSelf, 1000);
+// closing the tab: offline right away (the server would notice within a minute anyway)
+window.addEventListener('pagehide', () => {
+  selfState = 'unavailable';
+  try { navigator.sendBeacon(api('/presence-self'), new Blob([JSON.stringify({tab: SELF_TAB, state: 'unavailable'})], {type: 'application/json'})); } catch {}
+});
+window.addEventListener('pageshow', e => { if (e.persisted) { selfState = null; reportSelf(); } });
 
 call('GET', '/state').then(setStatus).catch(() => {});
 stream();

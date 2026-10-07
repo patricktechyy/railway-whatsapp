@@ -40,7 +40,13 @@ export interface Task {
 /** An exact moment (ms) or minutes before the due time; `sent` is set by the server once it went out. */
 export interface WaRemind { at?: number; before?: number; sent?: string }
 export type BuddyStyle = 'friendly' | 'short' // shown as Long / Short
-export interface BuddySettings { on: boolean; style: BuddyStyle; morning: string | null; evening: string | null }
+export interface BuddySettings {
+  on: boolean; style: BuddyStyle; morning: string | null; evening: string | null
+  via: 'bot' | 'self' // from the bot's number, or your own "Message yourself" chat
+  exams: boolean; examsAt: string | null // the evening before an exam
+  study: string | null // today's study plan at this time
+  studyBlocks: boolean // a nudge when a timed study block starts
+}
 
 export interface TaskFrom { by: string; name: string; assignment: string }
 
@@ -180,13 +186,19 @@ export interface ExamsData {
 export type StudyMode = '' | 'RE' | 'P' | 'RE+P'
 export interface StudySubject { id: string; name: string; color: ColorName; priority: boolean }
 export interface StudyTopic { id: string; text: string; done: boolean }
-/** One subject to study on one day: how (revise / practice) and which topics. */
-export interface StudyBlock { id: string; date: string; subject: string; mode: StudyMode; topics: StudyTopic[]; note: string; done: boolean; order: number }
+/** Your own label for study blocks (past paper, flashcards…). */
+export interface StudyTag { id: string; name: string; color: ColorName }
+/** One subject to study on one day: how (revise / practice), which topics, when and for how long. */
+export interface StudyBlock {
+  id: string; date: string; subject: string; mode: StudyMode; topics: StudyTopic[]; note: string; done: boolean; order: number
+  tags: string[]; time: string | null; minutes: number | null; spent: number // minutes on the focus timer
+}
 /** A test happening that day that isn't on the Exams page (class tests, AFRs…). */
 export interface StudyTest { id: string; date: string; title: string; note: string }
 export interface StudyPlan {
   rev: number
   subjects: StudySubject[]
+  tags: StudyTag[]
   days: Record<string, 'rest' | 'late'>
   tests: StudyTest[]
   blocks: StudyBlock[]

@@ -65,7 +65,7 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
     const u = envBot || link.settings().bot
     return u && sessions.has(u) ? u : null
   }
-  const buddy = new Buddy(dataDir, store, link, { brand, onTaskChange: (t) => toldAdmin(t), getBot: botUser })
+  const buddy = new Buddy(dataDir, store, link, { brand, onTaskChange: (t) => toldAdmin(t), getBot: botUser, planner: { study, exams }, nameOf: (u) => nameOf(u) })
   buddy.start(tickMs)
   new Reminders(dataDir, store, push, link, buddy).start(tickMs)
 
@@ -156,8 +156,8 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
         configured: mine.exists === true,
         reminders: !!wa.reminders, share: !!wa.share, inbox: !!wa.inbox, jump: false,
         buddy: !!wa.reminders && wa.buddy !== false,
-        // Buddy writes from the bot's number (and you reply in that chat)
-        botNumber: !!bot && bot.username !== c.u,
+        // Buddy writes from the bot's number (and you reply in that chat), unless you picked "Message yourself"
+        botNumber: !!bot && bot.username !== c.u && (doc.profile.buddy?.via || 'bot') !== 'self',
         bot: bot && bot.username !== c.u ? { name: bot.name, phone: bot.phone, connected: bot.connected } : null,
         linked: !!mine.connected || !!mine.phone,
         phone: mine.phone || '',
@@ -584,9 +584,11 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
     if (p === '/api/buddy/test' && M === 'POST') {
       link.require('reminders')
       if (!buddy.available) throw new HttpError(403, 'Your admin has turned WhatsApp Buddy off.')
-      const kind = ['task', 'morning', 'evening', 'help'].includes(body.kind) ? body.kind : 'task'
+      const kind = ['task', 'morning', 'evening', 'help', 'study', 'exams'].includes(body.kind) ? body.kind : 'task'
       let text
       if (kind === 'morning') text = buddy.morningMessage(u)
+      else if (kind === 'study') text = buddy.studyMessage(u, todayIn(tzOf(u)))
+      else if (kind === 'exams') text = buddy.upcomingExams(u)
       else if (kind === 'evening') text = buddy.eveningMessage(u)
       else if (kind === 'help') text = buddy.helpMessage(u)
       else {

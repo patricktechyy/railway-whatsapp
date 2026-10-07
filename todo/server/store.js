@@ -170,7 +170,13 @@ const BUDDY_STYLES = ['friendly', 'short'] // Long / Short
 /** WhatsApp Buddy settings: on/off, personality, and the morning / evening messages ('HH:MM' or null). */
 function cleanBuddy(v) {
   const t = (x) => (typeof x === 'string' && TIME_RE.test(x) ? x : null)
-  return { on: !!v?.on, style: BUDDY_STYLES.includes(v?.style) ? v.style : 'friendly', morning: t(v?.morning), evening: t(v?.evening) }
+  return {
+    on: !!v?.on, style: BUDDY_STYLES.includes(v?.style) ? v.style : 'friendly', morning: t(v?.morning), evening: t(v?.evening),
+    via: v?.via === 'self' ? 'self' : 'bot', // from the bot's number, or your own "Message yourself" chat
+    exams: v?.exams !== false, examsAt: t(v?.examsAt) || '20:00', // the evening before an exam
+    study: t(v?.study), // today's study plan at this time (null: off)
+    studyBlocks: v?.studyBlocks !== false, // a nudge when a study block with a time starts
+  }
 }
 
 function cleanTags(v) {

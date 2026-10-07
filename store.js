@@ -430,6 +430,7 @@ export class Store {
       quote: this.quoteView(m.quote),
       deleted: !!m.deleted,
       edited: !!m.edited,
+      fwd: m.fwd && !m.deleted ? m.fwd : undefined, // forwarding score (hops)
       senderName: group && !m.fromMe && m.sender ? this.displayName(m.sender) : '',
       sender: group && !m.fromMe ? m.sender : undefined,
       reactions: this.reactionView(m, mineJid),

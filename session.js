@@ -94,6 +94,19 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 const mediaAttemptsEnv = Number(process.env.MEDIA_DOWNLOAD_ATTEMPTS || 3)
 const MEDIA_DOWNLOAD_ATTEMPTS = Number.isFinite(mediaAttemptsEnv) && mediaAttemptsEnv > 0 ? Math.floor(mediaAttemptsEnv) : 3
 
+// While someone is using the site their WhatsApp shows them online, like WhatsApp
+// Web. Every open tab checks in about every 30 s; a tab that goes quiet this long
+// counts as gone. (SELF_PRESENCE_TTL_MS is only there for tests.)
+const selfTtlEnv = Number(process.env.SELF_PRESENCE_TTL_MS)
+const SELF_TTL = Number.isFinite(selfTtlEnv) && selfTtlEnv >= 1000 ? selfTtlEnv : 70000
+
+// What can be forwarded. Contacts aren't (we only keep their name, not the card),
+// and neither is view-once media, same as on WhatsApp.
+const FORWARD_TYPES = new Set(['text', 'image', 'video', 'audio', 'document', 'sticker', 'location'])
+const forwardable = (m) =>
+  !!m && !m.deleted && FORWARD_TYPES.has(m.type) &&
+  (m.type === 'text' || m.type === 'location' ? !!m.text : !!m.rm && !Object.values(m.rm.message || {})[0]?.viewOnce)
+
 // Baileys WebMessageInfo.Status values: ERROR=0, PENDING=1, SERVER_ACK=2,
 // DELIVERY_ACK=3, READ=4, PLAYED=5. Keep only the monotonic delivery/read
 // state we need for the WhatsApp-style ticks in the UI.
@@ -283,13 +296,22 @@ export class Session extends EventEmitter {
     }
   }
 
+  /** What we know about a chat's presence. `age` (ms) lets the page judge staleness by its own clock. */
   publicPresence(jid) {
     jid = this.store.canon(jid)
+    const now = Date.now()
+    if (isGroup(jid)) {
+      // who's typing in the group right now (WhatsApp only tells us while it lasts)
+      const typers = [...(this.groupTyping?.get(jid) || [])]
+        .filter(([, p]) => now - p.at < 15000)
+        .map(([who, p]) => ({ jid: who, name: this.store.displayName(who), state: p.lastKnownPresence, age: now - p.at }))
+      return { jid, group: true, state: 'unknown', online: false, typing: false, typers, lastSeen: null, at: null }
+    }
     const p = this.presence.get(jid)
     if (!p) return { jid, state: 'unknown', online: false, typing: false, lastSeen: null, at: null }
     const typing = p.lastKnownPresence === 'composing' || p.lastKnownPresence === 'recording'
     const online = typing || p.lastKnownPresence === 'available'
-    return { jid, state: p.lastKnownPresence || 'unknown', online, typing, recording: p.lastKnownPresence === 'recording', lastSeen: p.lastSeen || null, at: p.at || null }
+    return { jid, state: p.lastKnownPresence || 'unknown', online, typing, recording: p.lastKnownPresence === 'recording', lastSeen: p.lastSeen || null, at: p.at || null, age: now - p.at }
   }
 
   viewers() {
@@ -411,6 +433,10 @@ export class Session extends EventEmitter {
         this.loadGroups(sock)
         this.scheduleLidResolve()
         setTimeout(() => this.flushReadPending(), 1500)
+        // Baileys has just told WhatsApp we're offline (markOnlineOnConnect: false).
+        // If someone is using the site right now, say we're back.
+        this.selfSent = 'unavailable'
+        setTimeout(() => { if (live()) this.syncSelfPresence().catch(() => {}) }, 1500)
       }
       if (u.connection === 'close') {
         try {
@@ -507,27 +533,9 @@ export class Session extends EventEmitter {
 
     // Contact/group online state and typing. Baileys sends these through
     // presence.update after we subscribe to a chat's presence feed.
-    sock.ev.on('presence.update', ({ id, presences = {} } = {}) => {
-      if (!live() || !id) return
-      const group = isGroup(this.store.canon(id))
-      for (const [participant, raw] of Object.entries(presences)) {
-        const chatJid = this.store.canon(id)
-        const participantJid = this.store.canon(participant || id)
-        const state = {
-          lastKnownPresence: raw?.lastKnownPresence || 'unknown',
-          lastSeen: raw?.lastSeen ? Number(raw.lastSeen) : null,
-          at: Date.now(),
-        }
-        this.presence.set(group ? participantJid : chatJid, state)
-        this.metrics.lastPresenceAt = state.at
-        this.metrics.lastEventAt = state.at
-        this.emit('event', {
-          type: 'presence',
-          jid: chatJid,
-          participant: participantJid,
-          ...state,
-        })
-      }
+    sock.ev.on('presence.update', (u) => {
+      if (!live()) return
+      try { this.onPresence(u) } catch (e) { this.log('presence update failed:', e?.message || e) }
     })
 
     // Dedicated reaction events are emitted by Baileys for reactionMessage
@@ -670,6 +678,7 @@ export class Session extends EventEmitter {
 
   async onClose(B, u, sock) {
     this.connectedAt = null
+    this.selfSent = null // a new connection starts offline again
     this.reconnects = (this.reconnects || 0) + 1
     const DR = B.DisconnectReason || {}
     const err = u.lastDisconnect?.error
@@ -902,9 +911,14 @@ export class Session extends EventEmitter {
     const mctx = Object.values(c).find((v) => v && typeof v === 'object' && v.contextInfo?.mentionedJid?.length)?.contextInfo
     const mentions = (mctx?.mentionedJid || []).slice(0, 50).map((j) => ({ t: String(j).split('@')[0].split(':')[0], j: this.store.canon(j) }))
 
+    // forwarded? WhatsApp counts the hops (5+ shows as "Forwarded many times")
+    const fctx = Object.values(c).find((v) => v && typeof v === 'object' && v.contextInfo?.isForwarded)?.contextInfo
+    const fwd = fctx ? Math.max(1, num(fctx.forwardingScore)) : undefined
+
     const msg = {
       mentions: mentions.length ? mentions : undefined,
       quote,
+      fwd,
       id: k.id,
       jid,
       fromMe: !!k.fromMe,
@@ -1050,6 +1064,7 @@ export class Session extends EventEmitter {
       quote: this.store.quoteView(m.quote),
       deleted: !!m.deleted,
       edited: !!m.edited,
+      fwd: m.fwd && !m.deleted ? m.fwd : undefined,
       senderName: isGroup(m.jid) && !m.fromMe && m.sender ? this.store.displayName(m.sender) : '',
       sender: isGroup(m.jid) && !m.fromMe ? m.sender : undefined,
       reactions: this.store.reactionView(m, this.me?.jid),
@@ -1082,11 +1097,113 @@ export class Session extends EventEmitter {
   async presenceSubscribe(jid) {
     this.ensureConnected()
     jid = this.store.canon(jid)
+    // remembered so we can ask again when we come back online or reconnect
+    const watching = (this.watching ??= new Map())
+    watching.delete(jid)
+    watching.set(jid, Date.now())
+    if (watching.size > 20) watching.delete(watching.keys().next().value)
     const target = await this.sendJid(jid)
     try {
       if (typeof this.sock.presenceSubscribe === 'function') await this.sock.presenceSubscribe(target)
     } catch (e) { this.log('presence subscribe failed:', e?.message || e) }
     return this.publicPresence(jid)
+  }
+
+  /** Chats someone had open in the last few minutes: subscribe again (after going online). */
+  async resubscribe() {
+    if (!this.watching || !this.sock || this.status !== 'connected' || typeof this.sock.presenceSubscribe !== 'function') return
+    const now = Date.now()
+    for (const [jid, at] of this.watching) if (now - at > 10 * 60e3) this.watching.delete(jid)
+    for (const jid of [...this.watching.keys()].slice(-5)) {
+      try { await this.sock.presenceSubscribe(await this.sendJid(jid)) } catch (e) { this.log('presence subscribe failed:', e?.message || e) }
+    }
+  }
+
+  /** presence.update from Baileys: online / last seen, or typing in a chat. */
+  onPresence({ id, presences = {} } = {}) {
+    if (!id) return
+    const chatJid = this.store.canon(id)
+    const group = isGroup(chatJid)
+    for (const [participant, raw] of Object.entries(presences || {})) {
+      const who = this.store.canon(participant || id)
+      const state = {
+        lastKnownPresence: raw?.lastKnownPresence || 'unknown',
+        lastSeen: raw?.lastSeen ? Number(raw.lastSeen) : null,
+        at: Date.now(),
+      }
+      if (group) {
+        // typing in a group says nothing about their own chat with you, so it's kept apart
+        const all = (this.groupTyping ??= new Map())
+        const g = all.get(chatJid) || new Map()
+        if (state.lastKnownPresence === 'composing' || state.lastKnownPresence === 'recording') g.set(who, state)
+        else g.delete(who)
+        if (g.size) all.set(chatJid, g)
+        else all.delete(chatJid)
+      } else {
+        this.presence.set(chatJid, state)
+      }
+      this.metrics.lastPresenceAt = state.at
+      this.metrics.lastEventAt = state.at
+      this.emit('event', {
+        type: 'presence',
+        jid: chatJid,
+        participant: who,
+        name: group ? this.store.displayName(who) : undefined,
+        ...state,
+      })
+    }
+  }
+
+  // ------------------------------------------------ you, online on WhatsApp
+  // Each open tab says whether its person is using it (tab visible, touched in the
+  // last couple of minutes). Any tab in use: online. All quiet or closed: offline,
+  // so the phone gets its notifications again and "last seen" is right.
+  reportActive(tab, active) {
+    const tabs = (this.selfTabs ??= new Map())
+    tabs.delete(tab)
+    if (active) tabs.set(tab, Date.now() + SELF_TTL)
+    while (tabs.size > 20) tabs.delete(tabs.keys().next().value)
+    this.settleSelf()
+    return { online: !!this.selfWanted, ttl: SELF_TTL }
+  }
+
+  settleSelf() {
+    const tabs = (this.selfTabs ??= new Map())
+    const now = Date.now()
+    let next = Infinity
+    for (const [t, until] of tabs) {
+      if (until <= now) tabs.delete(t)
+      else next = Math.min(next, until)
+    }
+    clearTimeout(this.selfTimer)
+    if (tabs.size) {
+      this.selfTimer = setTimeout(() => this.settleSelf(), next - now + 50)
+      this.selfTimer.unref?.()
+    }
+    const want = tabs.size > 0
+    if (want !== !!this.selfWanted) {
+      this.selfWanted = want
+      this.syncSelfPresence().catch(() => {})
+    }
+  }
+
+  /** Tell WhatsApp, but only when it changes (and only while connected). */
+  async syncSelfPresence() {
+    const want = this.selfWanted ? 'available' : 'unavailable'
+    if (!this.sock || this.status !== 'connected' || this.selfSent === want) return false
+    if (typeof this.sock.sendPresenceUpdate !== 'function') return false
+    this.selfSent = want
+    try {
+      await this.sock.sendPresenceUpdate(want)
+    } catch (e) {
+      if (this.selfSent === want) this.selfSent = null
+      this.log('could not update online status:', e?.message || e)
+      return false
+    }
+    this.emit('event', { type: 'self-presence', state: want })
+    // WhatsApp only sends presence to clients that are online: catch up on the open chats
+    if (want === 'available') this.resubscribe().catch(() => {})
+    return true
   }
 
   async typing(jid, state) {
@@ -1096,6 +1213,85 @@ export class Session extends EventEmitter {
     const next = ['composing', 'recording', 'paused'].includes(state) ? state : 'paused'
     if (typeof this.sock.sendPresenceUpdate === 'function') await this.sock.sendPresenceUpdate(next, target)
     return { ok: true, state: next }
+  }
+
+  // ------------------------------------------------------------ forwarding
+  /**
+   * Forward messages to up to 5 chats, oldest first, like WhatsApp: marked
+   * "Forwarded" (unless you wrote them) with the hop count carried on. Media
+   * is fetched once and uploaded fresh for the first chat; the rest get a
+   * forward of that copy, so nothing is uploaded twice.
+   */
+  async forward(jid, ids, targets) {
+    this.ensureConnected()
+    jid = this.store.canon(jid)
+    const all = this.store.messages.get(jid) || []
+    const list = []
+    for (const id of new Set(ids)) {
+      const m = this.store.findMessage(jid, id)
+      if (!m) throw Object.assign(new Error('Message not found'), { status: 404 })
+      if (!forwardable(m)) {
+        throw Object.assign(new Error(m.deleted ? "Deleted messages can't be forwarded" : "That message can't be forwarded"), { status: 400 })
+      }
+      list.push(m)
+    }
+    list.sort((a, b) => all.indexOf(a) - all.indexOf(b))
+    const firstCopy = new Map() // message id -> what we sent to the first chat
+    const media = new Map() // message id -> download (once)
+    let sent = 0
+    let failed = 0
+    let error = null
+    for (const to of [...new Set(targets.map((t) => this.store.canon(t)))]) {
+      const target = await this.sendJid(to)
+      for (const m of list) {
+        try {
+          const prev = firstCopy.get(m.id)
+          const content = prev ? { forward: prev } : await this.forwardContent(m, media)
+          const out = await this.sock.sendMessage(target, content)
+          if (!prev && out?.message) {
+            // keep only the message itself (no extra context keys) for the next chats
+            const k = Object.keys(out.message).find((x) => !['messageContextInfo', 'senderKeyDistributionMessage'].includes(x))
+            if (k) firstCopy.set(m.id, { key: out.key, message: { [k]: out.message[k] } })
+          }
+          sent++
+          this.metrics.messagesOut++
+          this.metrics.lastOutboundAt = Date.now()
+          this.metrics.lastEventAt = Date.now()
+          const msg = out ? this.ingest(out, { bumpUnread: false }) : null
+          if (msg) this.emit('event', { type: 'message', message: this.publicMsg(msg) })
+        } catch (e) {
+          failed++
+          error ??= e?.message || String(e)
+          this.log('forward failed:', m.id, '->', to, e?.message || e)
+        }
+        if (list.length * targets.length > 1) await sleep(120) // easy on WhatsApp
+      }
+    }
+    this.emit('event', { type: 'chats' })
+    return { sent, failed, error }
+  }
+
+  /** What to send for a forwarded copy of a stored message. */
+  async forwardContent(m, cache = new Map()) {
+    const score = (m.fwd || 0) + (m.fromMe ? 0 : 1)
+    const contextInfo = score > 0 ? { isForwarded: true, forwardingScore: score } : undefined
+    if (m.type === 'text') return { text: m.text, contextInfo }
+    if (m.type === 'location') {
+      const [lat, lng] = String(m.text).split(',').map((x) => Number(x.trim()))
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) throw new Error('That location can\'t be forwarded')
+      return { location: { degreesLatitude: lat, degreesLongitude: lng }, contextInfo }
+    }
+    if (!cache.has(m.id)) cache.set(m.id, this.media(m.jid, m.id))
+    const file = await cache.get(m.id)
+    if (!file?.buffer) throw new Error('Media not available')
+    const sub = Object.values(fromJsonSafe(m.rm).message || {})[0] || {}
+    const mimetype = file.mime || sub.mimetype || undefined
+    const caption = m.text || undefined
+    if (m.type === 'image') return { image: file.buffer, mimetype, caption, contextInfo }
+    if (m.type === 'video') return { video: file.buffer, mimetype, caption, gifPlayback: !!sub.gifPlayback || undefined, contextInfo }
+    if (m.type === 'audio') return { audio: file.buffer, mimetype, ptt: !!sub.ptt, contextInfo }
+    if (m.type === 'sticker') return { sticker: file.buffer, mimetype: mimetype || 'image/webp', contextInfo }
+    return { document: file.buffer, mimetype: mimetype || 'application/octet-stream', fileName: m.fileName || file.fileName || 'file', caption, contextInfo }
   }
 
   async react(jid, messageId, emoji) {
@@ -1604,6 +1800,7 @@ export class Session extends EventEmitter {
   async relink() {
     const sock = this.sock
     this.gen++ // ignore whatever the old socket does from here on
+    this.selfSent = null
     clearTimeout(this.retryTimer)
     try { await timeout(sock?.logout?.() ?? Promise.resolve(), 5000) } catch {}
     try { sock?.end?.(undefined) } catch {}
@@ -1625,6 +1822,7 @@ export class Session extends EventEmitter {
     this.gen++
     clearTimeout(this.lidTimer)
     clearTimeout(this.retryTimer)
+    clearTimeout(this.selfTimer)
     try { await timeout(this.sock?.logout?.() ?? Promise.resolve(), 5000) } catch {}
     try { this.sock?.end?.(undefined) } catch {}
     this.store.close()
@@ -1634,6 +1832,7 @@ export class Session extends EventEmitter {
 
   shutdown() {
     clearTimeout(this.retryTimer)
+    clearTimeout(this.selfTimer)
     this.store.close()
   }
 }
