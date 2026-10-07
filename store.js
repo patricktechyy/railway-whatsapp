@@ -252,7 +252,10 @@ export class Store {
     if (isNew) list.push(msg)
     else {
       const old = list[i]
-      list[i] = { ...old, ...msg }
+      // a re-sent copy often lacks fields we already know (a group message's sender, above all):
+      // never let a missing field wipe a known one
+      list[i] = { ...old }
+      for (const [k, v] of Object.entries(msg)) if (v !== undefined) list[i][k] = v
       // a re-sync of the original must not undo a delete or an edit
       if (old.deleted) Object.assign(list[i], { deleted: true, text: '', rm: undefined, quote: undefined })
       else if (old.edited) Object.assign(list[i], { edited: true, text: old.text })

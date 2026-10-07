@@ -207,6 +207,12 @@ const safeJson = (v) => {
 }
 
 const num = (t) => (t == null ? 0 : typeof t === 'object' && t.toNumber ? t.toNumber() : Number(t) || 0)
+/**
+ * Who wrote a group message. Live messages carry it on the key; copies WhatsApp re-sends
+ * (history, catching up after a reconnect) often only have it on the message itself,
+ * or only the other form of the address.
+ */
+const senderOf = (m) => m?.key?.participant || m?.participant || m?.key?.participantAlt || undefined
 
 export class Session extends EventEmitter {
   constructor({ key, label, dir }) {
@@ -218,7 +224,7 @@ export class Session extends EventEmitter {
     this.authDir = path.join(dir, 'auth')
     this.store = new Store(path.join(dir, 'store.json'))
     this.groupCache = new Map()
-    this.lidTried = new Set()
+    this.lidTried = new Map() // lid -> when we last asked for its number
     this.readPending = new Set() // chats whose blue ticks still need sending
     this.status = 'starting'
     this.qr = null
@@ -516,7 +522,10 @@ export class Session extends EventEmitter {
       for (const g of gs) {
         if (!g?.id) continue
         if (g.subject) this.store.setGroup(g.id, g.subject)
-        if (g.participants) this.groupCache.set(g.id, { ...(this.groupCache.get(g.id) || {}), ...g })
+        if (g.participants) {
+          this.groupCache.set(g.id, { ...(this.groupCache.get(g.id) || {}), ...g })
+          this.learnParticipants(g.participants)
+        }
       }
       this.emit('event', { type: 'chats' })
     }
@@ -776,6 +785,12 @@ export class Session extends EventEmitter {
       notify: c.notify,
       verified: c.verifiedName,
     })
+    // a contact saved under WhatsApp's hidden id only: ask for the number behind it now,
+    // so the name lands on the chat with that number instead of on a chat nobody sees
+    if (lid && !pn && !this.store.alias.has(bare(lid))) {
+      this.lidTried.delete(bare(lid))
+      this.scheduleLidResolve()
+    }
   }
 
   /** `from`: 'history' (a full snapshot), 'upsert' (a chat appeared) or 'update' (a live change). */
@@ -822,7 +837,8 @@ export class Session extends EventEmitter {
 
     // every alternate address WhatsApp hands us is a free LID->phone mapping
     this.linkAndNotify(rj, k.remoteJidAlt || k.senderPn || k.senderLid)
-    if (k.participant) this.linkAndNotify(k.participant, k.participantAlt || k.participantPn || k.participantLid)
+    const part = senderOf(m)
+    if (part) this.linkAndNotify(part, k.participantAlt || k.participantPn || k.participantLid)
 
     // Grab the sender's WhatsApp name before anything below can skip this
     // message (reactions, unsupported types, old history all carry it too).
@@ -876,7 +892,9 @@ export class Session extends EventEmitter {
 
     const jid = this.store.canon(rj)
     const group = isGroup(jid)
-    const sender = k.participant ? this.store.canon(k.participant) : undefined
+    const sender = part ? this.store.canon(part) : undefined
+    // a group member we only know by their hidden id (LID): the group's member list has their number
+    if (group && sender && isLid(sender) && !this.store.alias.has(sender)) this.learnGroup(jid)
 
     let rm
     if (mediaKey) {
@@ -884,7 +902,7 @@ export class Session extends EventEmitter {
       delete sub.jpegThumbnail // big, and we fetch the real thing on demand
       delete sub.contextInfo
       rm = toJsonSafe({
-        key: { remoteJid: rj, id: k.id, fromMe: !!k.fromMe, participant: k.participant },
+        key: { remoteJid: rj, id: k.id, fromMe: !!k.fromMe, participant: part },
         message: { [mediaKey]: sub },
       })
     }
@@ -930,7 +948,7 @@ export class Session extends EventEmitter {
       fileName,
       sender,
       rj: rj !== jid ? rj : undefined, // original address, needed for receipts
-      rp: k.participant || undefined,
+      rp: part || undefined,
       rm,
     }
     return this.store.addMessage(msg, opts)
@@ -940,7 +958,7 @@ export class Session extends EventEmitter {
   rememberName(m) {
     const k = m?.key
     if (!k?.remoteJid || k.fromMe) return
-    const who = isGroup(this.store.canon(k.remoteJid)) ? k.participant : k.remoteJid
+    const who = isGroup(this.store.canon(k.remoteJid)) ? senderOf(m) : k.remoteJid
     if (!who) return
     const info = {}
     if (m.pushName && m.pushName.trim()) info.notify = m.pushName.trim()
@@ -1314,14 +1332,48 @@ export class Session extends EventEmitter {
   async loadGroups(sock) {
     try {
       const all = await sock.groupFetchAllParticipating()
+      let linked = false
       for (const g of Object.values(all || {})) {
         this.groupCache.set(g.id, g)
         if (g.subject) this.store.setGroup(g.id, g.subject)
+        linked = this.learnParticipants(g.participants) || linked
       }
+      if (linked) this.scheduleLidResolve()
       this.emit('event', { type: 'chats' })
     } catch (e) {
       this.log('could not list groups:', e.message)
     }
+  }
+
+  /** Group members come with their hidden id (LID) and, usually, their number: remember which is which. */
+  learnParticipants(list) {
+    let changed = false
+    for (const p of list || []) {
+      const ids = [p.id, p.lid, p.phoneNumber, p.jid].filter(Boolean)
+      const lid = ids.find(isLid), pn = ids.map(toPn).find(Boolean)
+      if (lid && pn) {
+        const before = this.store.canon(lid)
+        if (this.store.link(lid, pn)) {
+          changed = true
+          if (before !== this.store.canon(lid)) this.emit('event', { type: 'merged', from: before, to: this.store.canon(lid) })
+        }
+      }
+    }
+    return changed
+  }
+
+  /** Someone in a group we can't name yet: fetch the member list (at most every 10 minutes per group). */
+  learnGroup(jid) {
+    const now = Date.now()
+    this.groupLearnAt ??= new Map()
+    if (!this.sock?.groupMetadata || now - (this.groupLearnAt.get(jid) || 0) < 10 * 60e3) return
+    this.groupLearnAt.set(jid, now)
+    this.sock.groupMetadata(jid).then((md) => {
+      if (!md?.participants) return
+      this.groupCache.set(jid, { ...(this.groupCache.get(jid) || {}), ...md })
+      if (this.learnParticipants(md.participants)) this.emit('event', { type: 'chats' })
+      this.scheduleLidResolve()
+    }).catch(() => {})
   }
 
   /** Ask Baileys' own LID store about chats we still only know by LID. */
@@ -1335,8 +1387,9 @@ export class Session extends EventEmitter {
     if (!repo?.getPNForLID) return
     let changed = false
     for (const lid of this.store.pendingLids()) {
-      if (this.lidTried.has(lid) || this.store.alias.has(lid)) continue
-      this.lidTried.add(lid)
+      // try each one again after 15 minutes (the number often turns up later)
+      if (this.store.alias.has(lid) || Date.now() - (this.lidTried.get(lid) || 0) < 15 * 60e3) continue
+      this.lidTried.set(lid, Date.now())
       try {
         const pn = await repo.getPNForLID(lid)
         if (pn) {

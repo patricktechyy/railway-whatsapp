@@ -295,6 +295,7 @@ html[data-locked] #lock{display:flex}
   font-size:13px;cursor:pointer;white-space:normal;overflow:hidden;text-overflow:ellipsis;max-height:3.2em}
 .m .q b{display:block;color:var(--accent);font-size:12px}
 .m.flash{animation:flash 1.2s}
+#msgs .m{touch-action:manipulation} /* double-tap replies; no double-tap zoom */
 @keyframes flash{0%,40%{box-shadow:0 0 0 3px var(--accent)}}
 #reply{display:none;align-items:center;gap:10px;padding:8px 12px;background:var(--panel);border-top:1px solid var(--line)}
 #reply.on{display:flex}
@@ -3197,6 +3198,47 @@ $('#msgs').addEventListener('click', e => {
   const r = e.target.closest('.srow[data-sel]');
   if (r) toggleSel(r.dataset.sel);
 }, true);
+
+// double-click (or double-tap on a phone) a message to reply to it
+let dblAt = 0, lastTap = null;
+const DBL_SKIP = 'button, a, input, textarea, img, video, audio, .rxpick, .rxs, .q, .hov';
+function replyByDouble(target) {
+  if (selMode || Date.now() - dblAt < 400) return false;
+  const el = target.closest('#msgs .m[data-id]');
+  if (!el || target.closest(DBL_SKIP)) return false;
+  const m = msgs.find(x => x.id === el.dataset.id);
+  if (!m || m.deleted || m.pending || m.failed) return false;
+  dblAt = Date.now();
+  try { getSelection()?.removeAllRanges(); } catch {}   // a double-click also selects a word
+  startReply(m.id);
+  el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+  // phones finish the tap after us (and may select a word): tidy up once they have
+  setTimeout(() => { try { getSelection()?.removeAllRanges(); } catch {} if (replyTo?.id === m.id) $('#text').focus(); }, 120);
+  return true;
+}
+$('#msgs').addEventListener('dblclick', e => {
+  if (Date.now() - dblAt < 400) { // a double-tap already did it: undo what the browser does with the second tap
+    e.preventDefault();
+    setTimeout(() => { try { getSelection()?.removeAllRanges(); } catch {} if (replyTo) $('#text').focus(); }, 0);
+    return;
+  }
+  if (replyByDouble(e.target)) e.preventDefault();
+});
+// the second click of a double-click would select a word: not on message bubbles (it means reply here)
+$('#msgs').addEventListener('mousedown', e => {
+  if (e.detail > 1 && !selMode && e.target.closest('.m[data-id]') && !e.target.closest(DBL_SKIP)) e.preventDefault();
+});
+$('#msgs').addEventListener('pointerup', e => {
+  if (e.pointerType !== 'touch' || selMode || lpFired) return;
+  const el = e.target.closest('.m[data-id]');
+  const now = Date.now();
+  if (el && lastTap && lastTap.id === el.dataset.id && now - lastTap.at < 320 && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < 24) {
+    lastTap = null;
+    replyByDouble(e.target);
+    return;
+  }
+  lastTap = el ? {id: el.dataset.id, at: now, x: e.clientX, y: e.clientY} : null;
+}, {passive: true});
 
 // ---------------------------------------------------------------- forward
 // Pick up to 5 chats (WhatsApp's limit); the messages go to each, oldest first.
