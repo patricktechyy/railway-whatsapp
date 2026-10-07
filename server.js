@@ -291,7 +291,10 @@ async function route(req, res) {
     const actor = c?.k === 'admin' ? 'admin' : c?.u
     if (p === '/admin' || p === '/admin/') {
       if (!isAdmin) return redirect(res, '/')
-      return page(res, render('admin.html', { ADMIN_ENV: auth.adminFromEnv ? '1' : '0', ME: actor }))
+      let html = render('admin.html', { ADMIN_ENV: auth.adminFromEnv ? '1' : '0', ME: actor })
+      // backups hold everyone's WhatsApp logins and chats: only the ADMIN_PASSWORD login sees the option
+      if (c?.k !== 'admin') html = html.replace(/<!--backup[\s\S]*?<!--\/backup-->\s*/, '')
+      return page(res, html)
     }
     if (!isAdmin) throw new HttpError(401, 'Admin login required')
 

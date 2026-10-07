@@ -154,11 +154,13 @@ details.older summary { cursor: pointer; color: var(--muted); font-size: var(--t
     </section>
 
     <aside class="side">
+      <!--backup: only the main admin login gets this card (the server takes it out for everyone else)-->
       <section class="card">
         <h2>Backup</h2>
-        <p class="help">Full backup of website data, fully protected to ensure privacy. Needs the main admin login (username <b>admin</b>, the <code>ADMIN_PASSWORD</code>).</p>
+        <p class="help">Full backup of website data, fully protected to ensure privacy. Only the main admin login (username <b>admin</b>, the <code>ADMIN_PASSWORD</code>) sees this.</p>
         <div class="actions"><a class="btn" id="bkdl" href="/admin/api/backup" download>Download backup</a><span class="help" id="bkstate"></span></div>
       </section>
+      <!--/backup-->
       <section class="card">
         <h2>Changelog <span class="help" id="clver" style="font-weight:500;display:inline"></span></h2>
         <p class="help">Everyone sees this once after the update. One change per line, **bold** and *italic* work.</p>
@@ -381,7 +383,7 @@ loadStats(); setInterval(loadStats, 15000);
 load(); setInterval(load, 5000);
 
 // ---- backup: the browser downloads it; just say it's on its way (big volumes take a moment)
-$('#bkdl').addEventListener('click', async (e) => {
+$('#bkdl')?.addEventListener('click', async (e) => {
   e.preventDefault();
   const st = $('#bkstate');
   st.textContent = 'Preparing…';
