@@ -74,6 +74,7 @@ export class Store {
       for (const [lid, pn] of raw.alias || []) this.alias.set(lid, pn)
       for (const id of raw.gone || []) this.gone.add(id)
       for (const [jid, list] of Object.entries(raw.messages || {})) this.messages.set(jid, list)
+      for (const [jid, list] of this.messages) if (isGroup(jid)) this.fillSenders(list)
     } catch {
       /* first run or unreadable snapshot: start empty */
     }
@@ -260,6 +261,8 @@ export class Store {
       if (old.deleted) Object.assign(list[i], { deleted: true, text: '', rm: undefined, quote: undefined })
       else if (old.edited) Object.assign(list[i], { edited: true, text: old.text })
     }
+    // a reply says who wrote the message it quotes: fill in a group message that came without its sender
+    if (isGroup(msg.jid) && msg.quote?.sender) this.fillSenders(list, [msg])
     if (isNew && list.length > 1 && list[list.length - 2].ts > msg.ts) {
       list.sort((a, b) => a.ts - b.ts)
     }
@@ -327,6 +330,18 @@ export class Store {
   quoteView(q) {
     if (!q) return undefined
     return { id: q.id, text: q.text, name: q.fromMe ? 'You' : q.sender ? this.displayName(q.sender) : '' }
+  }
+
+  /** Group messages saved without a sender get it from replies that quote them. */
+  fillSenders(list, from = list) {
+    const by = new Map()
+    for (const m of from) if (m.quote?.id && m.quote.sender && !m.quote.fromMe) by.set(m.quote.id, m.quote.sender)
+    if (!by.size) return
+    for (const m of list) {
+      if (m.sender || m.fromMe || !by.has(m.id)) continue
+      m.sender = this.canon(by.get(m.id))
+      this.dirty = true
+    }
   }
 
   findMessage(jid, id) {

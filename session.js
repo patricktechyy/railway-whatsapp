@@ -212,7 +212,8 @@ const num = (t) => (t == null ? 0 : typeof t === 'object' && t.toNumber ? t.toNu
  * (history, catching up after a reconnect) often only have it on the message itself,
  * or only the other form of the address.
  */
-const senderOf = (m) => m?.key?.participant || m?.participant || m?.key?.participantAlt || undefined
+const senderOf = (m) =>
+  m?.key?.participant || m?.participant || m?.key?.participantAlt || m?.key?.participantPn || m?.key?.participantLid || undefined
 
 export class Session extends EventEmitter {
   constructor({ key, label, dir }) {
@@ -568,6 +569,7 @@ export class Session extends EventEmitter {
           // dropping it from our local message list.
           if (!m?.message && !m?.messageStubType && m?.key?.id && typeof sock.requestPlaceholderResend === 'function') {
             this.rememberName(m)
+            this.rememberSender(m)
             placeholders++
             Promise.resolve(sock.requestPlaceholderResend(m.key)).catch((e) => {
               if (live()) this.log('placeholder resend failed:', m.key.id, e?.message || e)
@@ -837,7 +839,8 @@ export class Session extends EventEmitter {
 
     // every alternate address WhatsApp hands us is a free LID->phone mapping
     this.linkAndNotify(rj, k.remoteJidAlt || k.senderPn || k.senderLid)
-    const part = senderOf(m)
+    // the copy the phone re-sends for a message we couldn't read yet often has no sender: the placeholder had it
+    const part = senderOf(m) || this.knownSender(rj, k.id)
     if (part) this.linkAndNotify(part, k.participantAlt || k.participantPn || k.participantLid)
 
     // Grab the sender's WhatsApp name before anything below can skip this
@@ -893,6 +896,14 @@ export class Session extends EventEmitter {
     const jid = this.store.canon(rj)
     const group = isGroup(jid)
     const sender = part ? this.store.canon(part) : undefined
+    if (group && !k.fromMe && !part) {
+      // shouldn't happen any more; if it does, the log says what WhatsApp sent (field names only, no content)
+      this.noSender ??= new Set()
+      if (!this.noSender.has(jid) && this.noSender.size < 50) {
+        this.noSender.add(jid)
+        this.log(`group message without a sender in ${jid}: key fields [${Object.keys(k).join(', ')}], message fields [${Object.keys(m).filter((x) => x !== 'message').join(', ')}]`)
+      }
+    }
     // a group member we only know by their hidden id (LID): the group's member list has their number
     if (group && sender && isLid(sender) && !this.store.alias.has(sender)) this.learnGroup(jid)
 
@@ -954,11 +965,25 @@ export class Session extends EventEmitter {
     return this.store.addMessage(msg, opts)
   }
 
+  /** Who sent a message we couldn't decrypt yet (the phone's re-sent copy may not say). */
+  rememberSender(m) {
+    const k = m?.key
+    const who = senderOf(m)
+    if (!k?.id || !who || !isGroup(this.store.canon(k.remoteJid || ''))) return
+    const map = (this.senders ??= new Map())
+    map.set(k.id, who)
+    if (map.size > 5000) map.delete(map.keys().next().value)
+  }
+  knownSender(rj, id) {
+    if (!id || !isGroup(this.store.canon(rj || ''))) return undefined
+    return this.senders?.get(id) || this.store.findMessage(rj, id)?.rp || undefined
+  }
+
   /** Save the sender's WhatsApp profile name (and business name) if present. */
   rememberName(m) {
     const k = m?.key
     if (!k?.remoteJid || k.fromMe) return
-    const who = isGroup(this.store.canon(k.remoteJid)) ? senderOf(m) : k.remoteJid
+    const who = isGroup(this.store.canon(k.remoteJid)) ? senderOf(m) || this.knownSender(k.remoteJid, k.id) : k.remoteJid
     if (!who) return
     const info = {}
     if (m.pushName && m.pushName.trim()) info.notify = m.pushName.trim()
