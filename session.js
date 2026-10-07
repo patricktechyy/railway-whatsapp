@@ -224,6 +224,7 @@ export class Session extends EventEmitter {
     this.dir = dir
     this.authDir = path.join(dir, 'auth')
     this.store = new Store(path.join(dir, 'store.json'))
+    this.store.onNames = () => this.namesChanged()
     this.groupCache = new Map()
     this.lidTried = new Map() // lid -> when we last asked for its number
     this.readPending = new Set() // chats whose blue ticks still need sending
@@ -905,7 +906,10 @@ export class Session extends EventEmitter {
       }
     }
     // a group member we only know by their hidden id (LID): the group's member list has their number
-    if (group && sender && isLid(sender) && !this.store.alias.has(sender)) this.learnGroup(jid)
+    if (group && sender && isLid(sender) && !this.store.alias.has(sender)) {
+      this.learnGroup(jid, sender)
+      this.scheduleLidResolve()
+    }
 
     let rm
     if (mediaKey) {
@@ -1388,17 +1392,49 @@ export class Session extends EventEmitter {
   }
 
   /** Someone in a group we can't name yet: fetch the member list (at most every 10 minutes per group). */
-  learnGroup(jid) {
+  learnGroup(jid, lid) {
+    // the member list we already have may know them
+    const cached = this.groupCache.get(jid)
+    if (cached?.participants) this.learnParticipants(cached.participants)
+    if (lid && this.store.alias.has(bare(lid))) return
     const now = Date.now()
     this.groupLearnAt ??= new Map()
     if (!this.sock?.groupMetadata || now - (this.groupLearnAt.get(jid) || 0) < 10 * 60e3) return
     this.groupLearnAt.set(jid, now)
-    this.sock.groupMetadata(jid).then((md) => {
-      if (!md?.participants) return
-      this.groupCache.set(jid, { ...(this.groupCache.get(jid) || {}), ...md })
-      if (this.learnParticipants(md.participants)) this.emit('event', { type: 'chats' })
-      this.scheduleLidResolve()
-    }).catch(() => {})
+    ;(this.groupQueue ??= []).push(jid)
+    this.pumpGroups()
+  }
+
+  /** One member-list request at a time: a new account syncing dozens of groups would otherwise hit WhatsApp's rate limit. */
+  async pumpGroups() {
+    if (this.groupPumping) return
+    this.groupPumping = true
+    try {
+      while (this.groupQueue?.length && this.sock?.groupMetadata) {
+        const jid = this.groupQueue.shift()
+        try {
+          const md = await this.sock.groupMetadata(jid)
+          if (md?.participants) {
+            this.groupCache.set(jid, { ...(this.groupCache.get(jid) || {}), ...md })
+            this.learnParticipants(md.participants)
+          }
+        } catch (e) {
+          this.groupLearnAt?.set(jid, Date.now() - 9 * 60e3) // try again in about a minute
+          this.log('group member list failed:', jid, e?.message || e)
+        }
+        if (this.groupQueue.length) await sleep(350)
+      }
+    } finally {
+      this.groupPumping = false
+    }
+    this.scheduleLidResolve()
+  }
+
+  /** Names changed (a hidden id got its number): open pages re-draw, once things settle. */
+  namesChanged() {
+    clearTimeout(this.namesTimer)
+    this.namesTimer = setTimeout(() => this.emit('event', { type: 'names' }), 1500)
+    this.namesTimer.unref?.()
   }
 
   /** Ask Baileys' own LID store about chats we still only know by LID. */
@@ -1412,8 +1448,8 @@ export class Session extends EventEmitter {
     if (!repo?.getPNForLID) return
     let changed = false
     for (const lid of this.store.pendingLids()) {
-      // try each one again after 15 minutes (the number often turns up later)
-      if (this.store.alias.has(lid) || Date.now() - (this.lidTried.get(lid) || 0) < 15 * 60e3) continue
+      // try each one again after 2 minutes (the number often turns up later, e.g. after history sync)
+      if (this.store.alias.has(lid) || Date.now() - (this.lidTried.get(lid) || 0) < 2 * 60e3) continue
       this.lidTried.set(lid, Date.now())
       try {
         const pn = await repo.getPNForLID(lid)
@@ -1429,6 +1465,17 @@ export class Session extends EventEmitter {
       }
     }
     if (changed) this.emit('event', { type: 'chats' })
+    const left = this.store.pendingLids().length
+    if (left !== this.lidsLeft) {
+      this.lidsLeft = left
+      if (left) this.log(`${left} people known only by WhatsApp's hidden id so far (no number yet); will keep asking`)
+    }
+    // Baileys learns numbers in the background (history, contacts, groups): look again in a bit
+    clearTimeout(this.lidRetry)
+    if (left && this.sock) {
+      this.lidRetry = setTimeout(() => this.resolveLids().catch(() => {}), 150e3)
+      this.lidRetry.unref?.()
+    }
   }
 
   // ------------------------------------------------------------- actions

@@ -127,6 +127,7 @@ export class Store {
     this.alias.set(lid, pn)
     this.merge(lid, pn)
     this.dirty = true
+    try { this.onNames?.() } catch {}
     return true
   }
 
@@ -332,16 +333,28 @@ export class Store {
     return { id: q.id, text: q.text, name: q.fromMe ? 'You' : q.sender ? this.displayName(q.sender) : '' }
   }
 
-  /** Group messages saved without a sender get it from replies that quote them. */
+  /**
+   * Replies say who wrote the message they quote. That fills in group messages saved without
+   * a sender, and when the reply names them by number but the message by hidden id (LID) (or
+   * the other way round), it tells us which number that LID is.
+   */
   fillSenders(list, from = list) {
     const by = new Map()
     for (const m of from) if (m.quote?.id && m.quote.sender && !m.quote.fromMe) by.set(m.quote.id, m.quote.sender)
-    if (!by.size) return
+    if (!by.size) return 0
+    let linked = 0
     for (const m of list) {
-      if (m.sender || m.fromMe || !by.has(m.id)) continue
-      m.sender = this.canon(by.get(m.id))
-      this.dirty = true
+      if (m.fromMe || !by.has(m.id)) continue
+      const q = this.canon(by.get(m.id))
+      if (!m.sender) {
+        m.sender = q
+        this.dirty = true
+        continue
+      }
+      const s = this.canon(m.sender)
+      if (s !== q && ((isLid(s) && isPn(q)) || (isPn(s) && isLid(q)))) linked += this.linkPair(s, q) ? 1 : 0
     }
+    return linked
   }
 
   findMessage(jid, id) {
@@ -482,10 +495,16 @@ export class Store {
     return out.slice(0, limit)
   }
 
+  /** Every hidden id (LID) we still don't have a number for: chats, contacts, and people who wrote in groups. */
   pendingLids() {
     const s = new Set()
-    for (const jid of this.chats.keys()) if (isLid(jid)) s.add(jid)
-    for (const jid of this.contacts.keys()) if (isLid(jid)) s.add(jid)
+    const add = (j) => { if (isLid(j) && !this.alias.has(bare(j))) s.add(bare(j)) }
+    for (const jid of this.chats.keys()) add(jid)
+    for (const jid of this.contacts.keys()) add(jid)
+    for (const [jid, list] of this.messages) {
+      if (!isGroup(jid)) continue
+      for (const m of list) { add(m.sender); add(m.quote?.sender) }
+    }
     return [...s]
   }
 }

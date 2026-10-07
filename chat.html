@@ -1674,6 +1674,7 @@ function stream() {
     else if (d.type === 'scheduled') { if (!d.jid || d.jid === current) loadScheduled(); }
     else if (d.type === 'history') { syncing(d); loadChats(); if (current) reloadThread(); }
     else if (d.type === 'merged') { if (current === d.from) { current = d.to; reloadThread(); } loadChats(); }
+    else if (d.type === 'names') { loadChats(); if (current) reloadThread(); } // someone's number (so their name) turned up
     else if (d.type === 'presence' && d.jid) onPresenceEvent(d);
     else if (d.type === 'reaction' && d.jid === current) {
       const i = msgs.findIndex(x => x.id === d.id);
