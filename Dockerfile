@@ -12,6 +12,8 @@ FROM node:22-alpine
 WORKDIR /app
 # libsignal installs from GitHub and builds native bits
 RUN apk add --no-cache git python3 make g++
+# ffmpeg: video messages recorded in the browser become the square MP4 phones expect
+RUN apk add --no-cache ffmpeg
 ENV NODE_ENV=production
 
 # Install dependencies in a cache-friendly layer.

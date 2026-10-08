@@ -221,6 +221,13 @@ Reminders, tasks people give you, nudges and announcements arrive as normal phon
 
 How it works: one service worker (`/todo/sw.js`) looks after the whole site, so the Whats Up page itself holds the subscription and hears reminders (devices set up before 3.1 are moved over automatically, no new prompt). Inside Whats Up the permission is asked by the Whats Up page, because Safari ignores it from the Todolist frame. Reminders stay on screen until you deal with them where the system allows it.
 
+**WhatsApp messages (Whats Up).** In Whats Up: **Appearance & settings → 🔔 Notifications → New messages on this device → Turn on**. It's per device, so a phone that already has WhatsApp doesn't ring twice. Turning it off keeps the device signed up for Todolist reminders. Choices:
+- **Show the message**: the text, or just “New message” (the text never leaves the server then).
+- **Groups**: all, only @mentions and replies to you, or none.
+- **🔕 Mute** at the top of a chat (8 hours, 1 week, always). Chats you muted on your phone stay quiet too.
+
+No notification is sent while you're using Whats Up (a tab open and in use). A short sound plays for other chats instead (**Sound while Whats Up is open**). Messages that arrive while the server catches up after a reconnect, and Buddy's own messages, don't notify. Tapping a notification opens that chat.
+
 Keys for push (VAPID) are created on first start and saved in `/data/todo`; set `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` if you'd rather manage them yourself, and `VAPID_SUBJECT` to `mailto:you@example.com`.
 
 ## Deploy

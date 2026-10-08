@@ -7,6 +7,7 @@
 const BASE = new URL('./', self.location.href).pathname // "/todo/"
 const ICON = BASE + 'icon-192.png'
 const BADGE = BASE + 'badge-96.png'
+const WA_ICON = BASE + 'wa-icon-192.png'
 
 self.addEventListener('install', () => self.skipWaiting())
 self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()))
@@ -14,6 +15,26 @@ self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()))
 self.addEventListener('push', (event) => {
   let d = {}
   try { d = event.data ? event.data.json() : {} } catch { d = { title: event.data && event.data.text() } }
+  // a WhatsApp message (Whats Up): one notification per chat, tapping it opens that chat
+  if (d.kind === 'wa') {
+    event.waitUntil(Promise.allSettled([
+      self.registration.showNotification(d.title || 'New message', {
+        body: d.body || '',
+        tag: d.tag || undefined,
+        renotify: true,
+        silent: false,
+        icon: WA_ICON,
+        badge: BADGE,
+        vibrate: [120, 60, 120],
+        timestamp: Date.now(),
+        data: { kind: 'wa', url: d.url || '/', jid: d.jid || null, user: d.user || null },
+      }),
+      self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((pages) => {
+        for (const c of pages) c.postMessage({ type: 'wa-notify', jid: d.jid || null })
+      }),
+    ]))
+    return
+  }
   const title = d.title || "Gavin's Todolist"
   // reminders and tasks from people stay on screen until you deal with them (where the system allows it)
   const sticky = d.kind === 'reminder' || d.kind === 'assigned' || d.kind === 'nudge'
@@ -40,6 +61,21 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
+  const wa = event.notification.data && event.notification.data.kind === 'wa' ? event.notification.data : null
+  if (wa) {
+    event.waitUntil((async () => {
+      const tabs = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+      const home = wa.user ? `/u/${encodeURIComponent(wa.user)}/` : null
+      const tab = tabs.find((c) => c.frameType !== 'nested' && home && new URL(c.url).pathname.startsWith(home))
+      if (tab) {
+        try { await tab.focus() } catch {}
+        tab.postMessage({ type: 'open-chat', jid: wa.jid })
+        return
+      }
+      await self.clients.openWindow(wa.url || '/')
+    })())
+    return
+  }
   const taskId = event.notification.data && event.notification.data.taskId
   event.waitUntil((async () => {
     const tabs = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })

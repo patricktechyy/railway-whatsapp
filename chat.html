@@ -231,6 +231,17 @@ html[data-locked] #lock{display:flex}
 .seg.sw button.on{outline:2px solid var(--fg);outline-offset:2px}
 #prefs{background:rgba(0,0,0,.45)}
 #prefs .dlg{max-height:90vh;overflow-y:auto}
+#prefs .psec{margin:22px 0 2px;padding-top:16px;border-top:1px solid var(--line);font-size:14px}
+.nt-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.nt-state{margin:6px 0 0;color:var(--muted);font-size:12px;line-height:1.45}
+.nt-state.ok{color:var(--accent)}
+.nt-state.bad{color:var(--danger)}
+.mut{font-size:11px;margin-left:4px;opacity:.7}
+.row.muted .badge{background:var(--muted)!important;color:var(--panel)!important}
+#muteMenu{position:fixed;z-index:40;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.2);min-width:200px;overflow:hidden}
+#muteMenu button{display:block;width:100%;text-align:left;background:none;border:0;padding:10px 14px;font-size:14px;color:var(--fg)}
+#muteMenu button:hover{background:var(--hover)}
+#muteMenu .hd{padding:10px 14px 4px;font-size:12px;color:var(--muted)}
 .pv .draft{color:var(--danger)}
 .pin{font-size:11px;margin-left:4px;opacity:.75}
 #back{display:none}
@@ -258,6 +269,18 @@ html[data-locked] #lock{display:flex}
 .m.sticker .t .tick{color:#e9edef}.m.sticker .t .tick.read{color:#53bdeb}
 .m.sticker .note{display:inline-block;background:var(--in);padding:6px 9px;border-radius:8px}
 @media (max-width:760px){.m.sticker img.stk{width:130px;max-width:130px;max-height:130px}}
+/* video notes: round, no bubble, tap to play with sound */
+.ptv{position:relative;width:240px;height:240px;border-radius:50%;overflow:hidden;background:#111;cursor:pointer;margin:1px 0 3px;flex:none}
+.ptv video{width:100%;height:100%;object-fit:cover;display:block;border-radius:50%;background:#111}
+.ptv .ring{position:absolute;inset:0;width:100%;height:100%;transform:rotate(-90deg);pointer-events:none}
+.ptv .ring circle{fill:none;stroke:var(--accent);stroke-width:3;stroke-linecap:round;stroke-dasharray:301.6;stroke-dashoffset:301.6;opacity:0;transition:opacity .2s}
+.ptv.playing .ring circle{opacity:1}
+.ptv .pbtn{position:absolute;left:50%;top:50%;width:52px;height:52px;margin:-26px 0 0 -26px;border-radius:50%;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;transition:opacity .2s;pointer-events:none}
+.ptv .pbtn svg{width:24px;height:24px;fill:#fff;margin-left:3px}
+.ptv.playing .pbtn{opacity:0}
+.ptv .pdur{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);background:rgba(0,0,0,.5);color:#fff;font-size:11.5px;padding:1px 8px;border-radius:9px;font-variant-numeric:tabular-nums;pointer-events:none}
+.ptv .pnote{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#ddd;font-size:13px;text-align:center;padding:30px}
+@media (max-width:760px){.ptv{width:200px;height:200px}}
 .m .file{display:flex;align-items:center;gap:8px;padding:8px;border-radius:6px;background:rgba(0,0,0,.05);color:inherit;text-decoration:none;margin-bottom:2px}
 .m .note{color:var(--muted);font-size:13px}
 
@@ -330,7 +353,28 @@ html[data-locked] #lock{display:flex}
 #text{flex:1;resize:none;max-height:140px;padding:9px 14px;border-radius:20px;border:1px solid transparent;background:var(--field);color:inherit;font:inherit;outline:none}
 #text:focus{border-color:var(--accent)}
 #send{border:0;background:var(--accent);color:#fff;border-radius:50%;width:42px;height:42px;flex:0 0 42px;font-size:17px}
-#send:disabled,#attach:disabled{opacity:.4;cursor:default}
+#send:disabled,#attach:disabled,#vnBtn:disabled{opacity:.4;cursor:default}
+/* recording a video message */
+#vnDlg{background:rgba(0,0,0,.6)}
+#vnDlg .dlg{max-width:380px;text-align:center}
+#vnDlg h3{margin-bottom:4px}
+#vnDlg .sub{color:var(--muted);font-size:13px;margin:0 0 14px}
+.vn-circle{position:relative;width:min(280px,70vw);aspect-ratio:1;margin:0 auto;border-radius:50%;overflow:hidden;background:#111}
+.vn-circle video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+#vnLive{transform:scaleX(-1)} /* a mirror, like every selfie camera */
+.vn-circle svg{position:absolute;inset:0;width:100%;height:100%;transform:rotate(-90deg);pointer-events:none}
+.vn-circle circle{fill:none;stroke:#f15c6d;stroke-width:3;stroke-linecap:round;stroke-dasharray:301.6;stroke-dashoffset:301.6}
+.vn-circle .msg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:28px;color:#ddd;font-size:13px}
+.vn-time{margin:12px 0 0;font-variant-numeric:tabular-nums;color:var(--muted);font-size:13px}
+.vn-time.rec{color:#f15c6d;font-weight:600}
+.vn-time.rec::before{content:'';display:inline-block;width:8px;height:8px;border-radius:50%;background:#f15c6d;margin-right:6px;vertical-align:1px;animation:vnblink 1s infinite}
+@keyframes vnblink{50%{opacity:.2}}
+.vn-acts{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:16px;min-height:60px}
+#vnRec{width:60px;height:60px;border-radius:50%;border:4px solid var(--line);background:#f15c6d;padding:0;cursor:pointer;flex:none;transition:transform .15s}
+#vnRec:hover{transform:scale(1.05)}
+#vnRec.on{background:transparent;border-color:#f15c6d;display:flex;align-items:center;justify-content:center}
+#vnRec.on::after{content:'';width:20px;height:20px;border-radius:4px;background:#f15c6d}
+#vnRec:disabled{opacity:.4;cursor:default;transform:none}
 #drop{position:absolute;inset:0;background:rgba(0,168,132,.12);border:3px dashed var(--accent);display:none;align-items:center;justify-content:center;font-weight:600;z-index:5;pointer-events:none}
 #drop.on{display:flex}
 
@@ -770,6 +814,7 @@ html:root[data-theme="dark"][data-accent]{--out:color-mix(in srgb,var(--accent) 
       <button class="pill" id="nickBtn" title="Nickname only you can see" hidden>✏️ Nickname</button>
       <button class="pill" id="pinBtn" title="Pin to top (this site only)" hidden>📌 Pin</button>
       <button class="pill" id="archBtn" title="Archive (this site only)" hidden>📦 Archive</button>
+      <button class="pill" id="muteBtn" title="Notifications for this chat" hidden>🔕 Mute</button>
       </div>
       <button class="ib" id="chatMore" title="Chat options" aria-haspopup="true" hidden><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="8" cy="12" r=".9" fill="currentColor"/><circle cx="12" cy="12" r=".9" fill="currentColor"/><circle cx="16" cy="12" r=".9" fill="currentColor"/></svg></button>
     </div>
@@ -805,6 +850,7 @@ html:root[data-theme="dark"][data-accent]{--out:color-mix(in srgb,var(--accent) 
         <textarea id="text" autocorrect="off" autocomplete="off" autocapitalize="sentences" data-gramm="false" data-gramm_editor="false" data-enable-grammarly="false" rows="1" placeholder="Type a message" disabled></textarea>
         <button class="ib" id="emojiBtn" title="Emoji (or type :name)" disabled><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.8"/><path d="M8.6 14.2a4.6 4.6 0 0 0 6.8 0"/><path d="M9.2 9.6h.01M14.8 9.6h.01" stroke-width="2.4"/></svg></button>
       </div>
+      <button class="ib" id="vnBtn" title="Record a video message" disabled><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.8"/><path d="M9.6 9.3h3.6a1.1 1.1 0 0 1 1.1 1.1v3.2a1.1 1.1 0 0 1-1.1 1.1H9.6a1.1 1.1 0 0 1-1.1-1.1v-3.2a1.1 1.1 0 0 1 1.1-1.1z"/><path d="m14.3 11.3 2.2-1.3v4l-2.2-1.3"/></svg></button>
       <button class="ib" id="schedBtn" title="Send later" hidden><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.6"/><path d="M12 7.5V12l3 2"/></svg></button>
       <button id="send" title="Send" disabled><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12 20 4.5l-5.2 15.5-3-6.2z"/><path d="M11.8 13.8 20 4.5"/></svg></button>
     </div>
@@ -967,6 +1013,22 @@ html:root[data-theme="dark"][data-accent]{--out:color-mix(in srgb,var(--accent) 
       <label>Lock automatically after</label>
       <div class="seg" data-p="idle"><button data-v="0">Never</button><button data-v="1">1 min</button><button data-v="5">5 min</button><button data-v="15">15 min</button></div>
     </div>
+    <h4 class="psec">🔔 Notifications</h4>
+    <label>New messages on this device</label>
+    <div class="nt-row">
+      <button type="button" class="btn ghost" id="ntOn">Turn on</button>
+      <button type="button" class="btn ghost" id="ntTest" hidden>Send a test</button>
+    </div>
+    <p class="nt-state" id="ntState">Checking…</p>
+    <div id="ntMore" hidden>
+      <label>Show the message</label>
+      <div class="seg" data-n="preview"><button data-v="on">Show text</button><button data-v="off">Just “New message”</button></div>
+      <label>Groups</label>
+      <div class="seg" data-n="groups"><button data-v="all">All</button><button data-v="mentions">@mentions &amp; replies</button><button data-v="off">None</button></div>
+    </div>
+    <label>Sound while Whats Up is open</label>
+    <div class="seg" data-p="msgSound"><button data-v="on">On</button><button data-v="off">Off</button></div>
+    <p style="color:var(--muted);font-size:12px;margin:8px 0 0">Mute a chat with <b>🔕 Mute</b> at the top of it. Chats you muted on your phone stay quiet here too.</p>
     <p style="color:var(--muted);font-size:12px;margin:14px 0 0">Auto: Enter sends on computers, adds a new line on phones. Saved on this device only.</p>
     <div class="acts"><button type="button" class="btn" id="prefsX">Done</button></div>
   </div>
@@ -981,6 +1043,25 @@ html:root[data-theme="dark"][data-accent]{--out:color-mix(in srgb,var(--accent) 
     <div class="err" id="pwerr"></div>
     <div class="acts"><button type="button" class="btn ghost" id="pwx">Cancel</button><button class="btn">Save</button></div>
   </form>
+</div>
+<div class="overlay" id="vnDlg" role="dialog" aria-modal="true" aria-labelledby="vnTitle">
+  <div class="dlg">
+    <h3 id="vnTitle">Video message</h3>
+    <p class="sub" id="vnSub">Up to a minute. It arrives round, like on a phone.</p>
+    <div class="vn-circle">
+      <video id="vnLive" playsinline muted autoplay></video>
+      <video id="vnPlay" playsinline loop hidden></video>
+      <svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="48" id="vnRing"/></svg>
+      <div class="msg" id="vnMsg" hidden></div>
+    </div>
+    <div class="vn-time" id="vnTime">0:00 / 1:00</div>
+    <div class="vn-acts">
+      <button type="button" class="btn ghost" id="vnCancel">Cancel</button>
+      <button type="button" id="vnRec" aria-label="Start recording" title="Record" disabled></button>
+      <button type="button" class="btn ghost" id="vnRetake" hidden>Retake</button>
+      <button type="button" class="btn" id="vnSend" hidden>Send</button>
+    </div>
+  </div>
 </div>
 <div class="overlay" id="fwdDlg" style="background:rgba(0,0,0,.45)">
   <div class="dlg" role="dialog" aria-modal="true" aria-labelledby="fwdTitle">
@@ -1010,7 +1091,7 @@ let editing = null, editBackup = '', locked = false;
 let keyTrail = '', keyTrailAt = 0, lockFav = null, historyDays = 12;
 let storeMore = false, pageLoading = false;   // more saved messages on the server for this chat?
 let mentionMode = false, composerMentions = [];
-const PREF_DEFAULTS = {theme: 'auto', accent: 'green', wall: 'doodle', size: 'normal', enter: 'auto', blur: 'off', idle: '0', rail: 'show'};
+const PREF_DEFAULTS = {theme: 'auto', accent: 'green', wall: 'doodle', size: 'normal', enter: 'auto', blur: 'off', idle: '0', rail: 'show', msgSound: 'on'};
 let prefs = {...PREF_DEFAULTS};
 try { Object.assign(prefs, JSON.parse(localStorage.getItem('wah-prefs') || '{}')); } catch {}
 function applyPrefs() {
@@ -1019,7 +1100,7 @@ function applyPrefs() {
   if (prefs.accent === 'green') delete r.dataset.accent; else r.dataset.accent = prefs.accent;
   r.dataset.wall = prefs.wall; r.dataset.size = prefs.size; r.dataset.blur = prefs.blur; r.dataset.rail = prefs.rail;
   const bb = document.getElementById('blurBtn'); if (bb) { bb.textContent = prefs.blur === 'on' ? '🙈' : '👁'; bb.title = prefs.blur === 'on' ? 'Unblur chat list' : 'Blur chat list (hover to peek)'; }
-  document.querySelectorAll('#prefs .seg').forEach(g =>
+  document.querySelectorAll('#prefs .seg[data-p]').forEach(g =>
     g.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === prefs[g.dataset.p])));
 }
 function setPref(k, v) {
@@ -1093,6 +1174,24 @@ const avImg = (jid) => `<img src="${esc(api('/avatar?jid=' + encodeURIComponent(
 const initials = (n) => (n || '?').replace(/[^\p{L}\p{N} ]/gu, '').trim().split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase() || '#';
 const fmtSize = (b) => b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB';
 const mediaUrl = (m) => api(`/media?jid=${encodeURIComponent(m.jid)}&id=${encodeURIComponent(m.id)}`);
+const fmtDur = (s) => { s = Math.max(0, Math.round(Number(s) || 0)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+// ---------------------------------------------------------------- video notes (playing)
+function togglePtv(box) {
+  const v = box.querySelector('video'); if (!v) return;
+  if (v.paused) {
+    document.querySelectorAll('#msgs .ptv.playing video').forEach(x => { if (x !== v) x.pause(); });   // one at a time
+    v.muted = false;
+    if (v.ended || v.currentTime >= (v.duration || 0) - 0.05) v.currentTime = 0;
+    v.play().catch(() => toast("Couldn't play that video message"));
+  } else v.pause();
+}
+function ptvTick(v) {
+  const box = v.closest('.ptv'); if (!box) return;
+  const c = box.querySelector('.ring circle'), d = v.duration || 0;
+  if (c && d) c.style.strokeDashoffset = String(301.6 * (1 - Math.min(1, v.currentTime / d)));
+  const lab = box.querySelector('.pdur');
+  if (lab && d && isFinite(d)) lab.textContent = fmtDur(v.paused && !box.classList.contains('playing') ? d : Math.max(0, d - v.currentTime));
+}
 // ---------------------------------------------------------------- presence
 // What WhatsApp tells us about a contact: online, typing, last seen. Lots of people
 // hide these, so knowing nothing (or only old news) just means the usual subtitle.
@@ -1226,10 +1325,10 @@ setInterval(() => { if (current && status === 'connected' && selfActive()) subsc
 
 // ------------------------------------------------------------ chat list
 function row(c, extra = '', img = true) {
-  return `<div class="row ${c.jid === current ? 'sel' : ''}" data-jid="${esc(c.jid)}" data-name="${esc(c.name)}">
+  return `<div class="row ${c.jid === current ? 'sel' : ''}${c.muted ? ' muted' : ''}" data-jid="${esc(c.jid)}" data-name="${esc(c.name)}">
     <div class="av ${c.group ? 'g' : ''}">${esc(c.group ? '👥' : initials(c.name))}${img ? avImg(c.jid) : ''}</div>
     <div class="ct">
-      <div class="top"><span class="nm">${esc(c.profile && c.name === c.profile ? '~' + c.name : c.name)}</span><span class="tm">${c.t ? fmtWhen(c.t) : ''}${c.pinned ? '<span class="pin" title="Pinned">📌</span>' : ''}</span></div>
+      <div class="top"><span class="nm">${esc(c.profile && c.name === c.profile ? '~' + c.name : c.name)}</span><span class="tm">${c.t ? fmtWhen(c.t) : ''}${c.muted ? '<span class="mut" title="Muted">🔕</span>' : ''}${c.pinned ? '<span class="pin" title="Pinned">📌</span>' : ''}</span></div>
       <div class="pv"><span class="pvt">${extra || esc(c.preview || c.phone || '')}</span>${c.unread ? `<span class="badge">${c.unread}</span>` : ''}</div>
     </div></div>`;
 }
@@ -1305,6 +1404,8 @@ function updateTitle() {
   $('#pinBtn').hidden = false;
   $('#pinBtn').textContent = c?.pinned ? '📌 Unpin' : '📌 Pin';
   $('#archBtn').textContent = c?.archived ? '📤 Unarchive' : '📦 Archive';
+  $('#muteBtn').hidden = false;
+  $('#muteBtn').textContent = c?.muted ? '🔔 Unmute' : '🔕 Mute';
 }
 async function setNickname() {
   if (!current) return;
@@ -1331,6 +1432,14 @@ function bubble(m) {
     body = src
       ? `<img class="stk" loading="lazy" src="${esc(src)}" alt="Sticker" width="160" height="160" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'note',textContent:'🏷️ Sticker'}))">`
       : '<span class="note">🏷️ Sticker</span>';
+  } else if (m.type === 'ptv' && !m.deleted) {
+    // a video note: round, plays with sound when tapped (WhatsApp style)
+    const src = m.local || (m.media ? mediaUrl(m) : '');
+    body = `<div class="ptv" role="button" tabindex="0" aria-label="Video message${m.dur ? ', ' + fmtDur(m.dur) : ''}">` +
+      (src ? `<video src="${esc(src)}#t=0.1" preload="metadata" playsinline></video>` : '<span class="pnote">📹 Video message</span>') +
+      `<svg class="ring" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="48"/></svg>` +
+      (src ? `<span class="pbtn" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 4.5v15l12.5-7.5z"/></svg></span>` : '') +
+      `<span class="pdur">${m.dur ? fmtDur(m.dur) : '📹'}</span></div>`;
   } else if (m.type === 'image') {
     const src = m.local || (m.media ? mediaUrl(m) : '');
     body = src ? `<img loading="lazy" src="${esc(src)}" alt="" data-full="${esc(src)}">` : '<span class="note">📷 Photo</span>';
@@ -1370,7 +1479,7 @@ function bubble(m) {
   const mm = m.pending || m.failed || String(m.id).startsWith('tmp') ? '' : `<button class="mm" data-mm="${esc(m.id)}" title="Edit or delete">⋯</button>`;
   const ed = m.edited && !m.deleted ? '<span class="edl">edited</span>' : '';
   const fw = m.fwd && !m.deleted ? `<div class="fwd">${FWD_ICON}${m.fwd >= 5 ? 'Forwarded many times' : 'Forwarded'}</div>` : '';
-  return `<div class="m ${m.fromMe ? 'me' : ''} ${m.type === 'sticker' && !m.deleted ? 'sticker' : ''} ${m.pending ? 'pending' : ''} ${m.failed ? 'failed' : ''}" data-id="${esc(m.id)}"><div class="hov">${m.deleted ? '' : rp}${ra}${mm}</div>${who}${fw}${m.deleted ? '' : q}${body}<span class="t">${ed}${fmtTime(m.ts)}${tick}</span>${m.deleted ? '' : rxbar}</div>`;
+  return `<div class="m ${m.fromMe ? 'me' : ''} ${(m.type === 'sticker' || m.type === 'ptv') && !m.deleted ? 'sticker' : ''} ${m.pending ? 'pending' : ''} ${m.failed ? 'failed' : ''}" data-id="${esc(m.id)}"><div class="hov">${m.deleted ? '' : rp}${ra}${mm}</div>${who}${fw}${m.deleted ? '' : q}${body}<span class="t">${ed}${fmtTime(m.ts)}${tick}</span>${m.deleted ? '' : rxbar}</div>`;
 }
 function renderMsgs(stick) {
   const box = $('#msgs');
@@ -1418,7 +1527,7 @@ function upsert(m) {
 
 function quotePreview(m) {
   if (m.text) return m.text;
-  return {image: '📷 Photo', video: '🎥 Video', audio: '🎤 Voice message', sticker: 'Sticker'}[m.type] || ('📄 ' + (m.fileName || 'Document'));
+  return {image: '📷 Photo', video: '🎥 Video', ptv: '📹 Video message', audio: '🎤 Voice message', sticker: 'Sticker'}[m.type] || ('📄 ' + (m.fileName || 'Document'));
 }
 function startReply(id) {
   cancelEdit();
@@ -1505,7 +1614,7 @@ async function loadOlder(btn) {
 // ---------------------------------------------------------------- send
 function setComposer() {
   const ok = status === 'connected' && !!current;
-  $('#text').disabled = $('#send').disabled = $('#attach').disabled = $('#emojiBtn').disabled = !ok;
+  $('#text').disabled = $('#send').disabled = $('#attach').disabled = $('#emojiBtn').disabled = $('#vnBtn').disabled = !ok;
   syncSchedBtn();
 }
 async function send() {
@@ -1557,6 +1666,101 @@ async function sendFile(jid, a, caption) {
     toast('Not sent: ' + x.message, 4000);
   }
 }
+
+// ---------------------------------------------------------- video messages (recording)
+// The round ones. Recorded here with the camera, made into a square MP4 on the server.
+const VN_MAX = 60;
+const vn = {stream: null, rec: null, chunks: [], blob: null, url: null, t0: 0, secs: 0, timer: 0, jid: null, mime: ''};
+function vnMime() {
+  for (const t of ['video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'])
+    if (window.MediaRecorder?.isTypeSupported?.(t)) return t;
+  return '';
+}
+function vnSet(state) { // starting | ready | rec | review | error
+  $('#vnRec').hidden = state === 'review';
+  $('#vnRec').disabled = state === 'starting' || state === 'error';
+  $('#vnRec').classList.toggle('on', state === 'rec');
+  $('#vnRec').setAttribute('aria-label', state === 'rec' ? 'Stop recording' : 'Start recording');
+  $('#vnRec').title = state === 'rec' ? 'Stop' : 'Record';
+  $('#vnRetake').hidden = $('#vnSend').hidden = state !== 'review';
+  $('#vnLive').hidden = state === 'review'; $('#vnPlay').hidden = state !== 'review';
+  $('#vnTime').classList.toggle('rec', state === 'rec');
+}
+function vnTime(s) {
+  $('#vnTime').textContent = `${fmtDur(Math.floor(s))} / ${fmtDur(VN_MAX)}`;
+  $('#vnRing').style.strokeDashoffset = String(301.6 * (1 - Math.min(1, s / VN_MAX)));
+}
+function vnStopStream() { vn.stream?.getTracks().forEach(t => t.stop()); vn.stream = null; $('#vnLive').srcObject = null; }
+function vnClear() { clearInterval(vn.timer); if (vn.url) URL.revokeObjectURL(vn.url); vn.url = null; vn.blob = null; $('#vnPlay').removeAttribute('src'); }
+async function openVideoNote() {
+  if (!current || status !== 'connected') return;
+  if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) return toast('This browser can’t record video');
+  vn.jid = current; vnClear(); vnTime(0); vnSet('starting');
+  $('#vnMsg').hidden = false; $('#vnMsg').textContent = 'Starting the camera…';
+  $('#vnDlg').classList.add('on');
+  try {
+    vn.stream = await navigator.mediaDevices.getUserMedia({video: {facingMode: 'user', width: {ideal: 640}, height: {ideal: 640}}, audio: {echoCancellation: true, noiseSuppression: true}});
+    if (!$('#vnDlg').classList.contains('on')) return vnStopStream();
+    $('#vnLive').srcObject = vn.stream; $('#vnMsg').hidden = true; vnSet('ready');
+    $('#vnRec').focus();
+  } catch (e) {
+    $('#vnMsg').textContent = e?.name === 'NotAllowedError' ? 'Allow the camera and microphone for this site, then try again.' : 'Couldn’t find a camera.';
+    vnSet('error');
+  }
+}
+function vnStart() {
+  if (!vn.stream) return;
+  vn.mime = vnMime(); vn.chunks = [];
+  try { vn.rec = new MediaRecorder(vn.stream, vn.mime ? {mimeType: vn.mime, videoBitsPerSecond: 1200000} : undefined); }
+  catch { vn.rec = new MediaRecorder(vn.stream); }
+  vn.rec.ondataavailable = e => { if (e.data?.size) vn.chunks.push(e.data); };
+  vn.rec.onstop = () => {
+    clearInterval(vn.timer);
+    vn.secs = Math.max(1, Math.min(VN_MAX, Math.round((Date.now() - vn.t0) / 1000)));
+    vn.blob = new Blob(vn.chunks, {type: (vn.rec.mimeType || vn.mime || 'video/webm').split(';')[0]});
+    if (!$('#vnDlg').classList.contains('on')) return;
+    vn.url = URL.createObjectURL(vn.blob);
+    $('#vnPlay').src = vn.url; $('#vnPlay').play().catch(() => {});
+    vnSet('review'); vnTime(vn.secs); $('#vnTime').textContent = fmtDur(vn.secs);
+    $('#vnSend').focus();
+  };
+  vn.rec.start(1000); vn.t0 = Date.now(); vnSet('rec');
+  vn.timer = setInterval(() => { const s = (Date.now() - vn.t0) / 1000; vnTime(s); if (s >= VN_MAX) vnStop(); }, 200);
+}
+function vnStop() { if (vn.rec?.state === 'recording') vn.rec.stop(); }
+function closeVideoNote() {
+  if (vn.rec?.state === 'recording') { vn.rec.onstop = null; vn.rec.stop(); }
+  vnStopStream(); $('#vnPlay').pause(); vnClear();
+  $('#vnDlg').classList.remove('on');
+}
+async function sendVideoNote() {
+  const blob = vn.blob, secs = vn.secs, jid = vn.jid;
+  if (!blob) return;
+  const local = URL.createObjectURL(blob); // the bubble plays it from here while it uploads
+  closeVideoNote();
+  const r = current === jid ? replyTo : null; if (r) cancelReply();
+  const tmp = {id: 'tmp' + (++tmpN), jid, fromMe: true, ts: Math.floor(Date.now() / 1000), pending: true, type: 'ptv', dur: secs, local,
+    quote: r ? {id: r.id, text: quotePreview(r), name: r.fromMe ? 'You' : r.senderName || ''} : undefined};
+  if (current === jid) { upsert(tmp); renderMsgs(true); }
+  try {
+    const qs = `?jid=${encodeURIComponent(jid)}&ptv=1&seconds=${secs}` + (r ? `&replyTo=${encodeURIComponent(r.id)}` : '');
+    const real = await call('POST', '/send-media' + qs, blob, {'content-type': blob.type || 'video/webm'});
+    if (current === jid) { msgs = msgs.filter(m => m.id !== tmp.id); if (real) upsert({...real, local}); renderMsgs(true); }
+    loadChats();
+  } catch (x) {
+    tmp.pending = false; tmp.failed = true; renderMsgs(false);
+    toast('Not sent: ' + x.message, 5000);
+  }
+}
+$('#vnBtn').addEventListener('click', openVideoNote);
+$('#vnRec').addEventListener('click', () => (vn.rec?.state === 'recording' ? vnStop() : vnStart()));
+$('#vnRetake').addEventListener('click', () => { $('#vnPlay').pause(); vnClear(); vnTime(0); vnSet('ready'); });
+$('#vnSend').addEventListener('click', sendVideoNote);
+$('#vnCancel').addEventListener('click', closeVideoNote);
+$('#vnDlg').addEventListener('click', e => { if (e.target.id === 'vnDlg' && vn.rec?.state !== 'recording') closeVideoNote(); });
+window.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && $('#vnDlg').classList.contains('on')) { e.preventDefault(); e.stopImmediatePropagation(); closeVideoNote(); }
+}, true);
 
 // ---------------------------------------------------------- attachments
 function loadImage(file) {
@@ -1669,6 +1873,7 @@ function stream() {
   es.onmessage = (ev) => {
     const d = JSON.parse(ev.data);
     if (d.type === 'message' && d.message) stopTypingFor(d.message);
+    if (d.type === 'message' && d.message && !d.message.fromMe) maybeRing(d.message);
     if (d.type === 'status') setStatus(d);
     else if (d.type === 'chats') loadChats();
     else if (d.type === 'scheduled') { if (!d.jid || d.jid === current) loadScheduled(); }
@@ -1748,7 +1953,8 @@ $('#chips').addEventListener('click', e => {
   renderChats();
 });
 $('#prefs').addEventListener('click', e => {
-  const b = e.target.closest('.seg button'); if (b) setPref(b.closest('.seg').dataset.p, b.dataset.v);
+  const b = e.target.closest('.seg[data-p] button'); if (b) setPref(b.closest('.seg').dataset.p, b.dataset.v);
+  const n = e.target.closest('.seg[data-n] button'); if (n) setNotif(n.closest('.seg').dataset.n, n.dataset.v);
   if (e.target.id === 'prefsX' || e.target.id === 'prefs') $('#prefs').classList.remove('on');
 });
 document.addEventListener('keydown', e => {
@@ -2714,8 +2920,161 @@ window.addEventListener('message', (e) => {
 navigator.serviceWorker?.addEventListener?.('message', (e) => {
   if (e.data?.type === 'open-todo') openTodo(false, e.data.taskId || null);
   else if (e.data?.type === 'todo-notify') { todoChime.play(); refreshTodoBadge(); }
+  else if (e.data?.type === 'open-chat' && e.data.jid) openChatFromNotification(e.data.jid);
 });
 try { navigator.serviceWorker?.startMessages?.(); } catch {}
+
+// ---------------------------------------------------------------- notifications
+// New WhatsApp messages as phone / computer notifications, through the Todolist's service
+// worker and push setup. Each device opts in here (a phone that already has WhatsApp would
+// otherwise ring twice). While you're using Whats Up there's no notification; a short sound
+// plays instead (Settings → Sound while Whats Up is open).
+const SW_URL = '/todo/sw.js', SW_SCOPE = '/';
+let notif = {settings: null, devices: [], key: '', endpoint: null};
+async function todoApi(method, path, body) {
+  const r = await fetch('/todo/api' + path, {method, credentials: 'same-origin', headers: body ? {'content-type': 'application/json'} : {}, body: body ? JSON.stringify(body) : undefined});
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.error || `Request failed (${r.status})`);
+  return d;
+}
+const standalone = () => { try { return matchMedia('(display-mode: standalone)').matches || navigator.standalone === true; } catch { return false; } };
+const appleMobile = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+function notifSupport() {
+  if ('serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window) return 'ok';
+  return appleMobile() && !standalone() ? 'ios-install' : 'unsupported';
+}
+const swReg = async () => (await navigator.serviceWorker.getRegistration(SW_SCOPE)) || navigator.serviceWorker.register(SW_URL, {scope: SW_SCOPE});
+function urlB64(s) { const p = '='.repeat((4 - s.length % 4) % 4); const raw = atob((s + p).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(raw, c => c.charCodeAt(0)); }
+async function loadNotif() {
+  try {
+    const d = await todoApi('GET', '/wa-notify');
+    notif.settings = d.settings; notif.devices = d.devices || []; notif.key = d.key;
+    let sub = null;
+    if (notifSupport() === 'ok') { try { sub = await (await navigator.serviceWorker.getRegistration(SW_SCOPE))?.pushManager.getSubscription(); } catch {} }
+    notif.endpoint = sub?.endpoint || null;
+  } catch { notif.settings = null; }
+  paintNotif();
+}
+const notifHere = () => !!notif.endpoint && notif.devices.some(d => d.endpoint === notif.endpoint && d.wa);
+function paintNotif() {
+  const st = $('#ntState'), on = notifHere(), support = notifSupport();
+  $('#ntOn').textContent = on ? 'Turn off' : 'Turn on';
+  $('#ntOn').disabled = support !== 'ok' || !notif.settings;
+  $('#ntTest').hidden = !on;
+  $('#ntMore').hidden = !on;
+  st.className = 'nt-state' + (on ? ' ok' : '');
+  if (!notif.settings) st.textContent = 'Couldn’t load your notification settings.';
+  else if (support === 'ios-install') st.textContent = 'On iPhone and iPad: Share → Add to Home Screen, open Whats Up from there, then turn this on.';
+  else if (support !== 'ok') st.textContent = 'This browser can’t show notifications.';
+  else if (on) st.textContent = '✓ On: new messages show up here even when Whats Up is closed.';
+  else if (Notification.permission === 'denied') { st.textContent = 'Notifications are blocked for this site. Allow them in the browser’s site settings (the 🔒 next to the address), then try again.'; st.className = 'nt-state bad'; }
+  else st.textContent = 'Off on this device. Your phone still gets WhatsApp’s own notifications.';
+  const s = notif.settings || {};
+  document.querySelectorAll('#prefs .seg[data-n]').forEach(g => g.querySelectorAll('button').forEach(x => {
+    const v = g.dataset.n === 'preview' ? (s.preview === false ? 'off' : 'on') : s[g.dataset.n];
+    x.classList.toggle('on', x.dataset.v === v);
+  }));
+}
+async function notifOn() {
+  if (notifSupport() !== 'ok') return paintNotif();
+  const perm = await Notification.requestPermission();
+  if (perm !== 'granted') { paintNotif(); return toast(perm === 'denied' ? 'Notifications are blocked for this site' : 'Notifications weren’t allowed'); }
+  const reg = await swReg();
+  await navigator.serviceWorker.ready;
+  let sub = await reg.pushManager.getSubscription();
+  if (!sub) sub = await reg.pushManager.subscribe({userVisibleOnly: true, applicationServerKey: urlB64(notif.key)});
+  await todoApi('POST', '/push/subscribe', {subscription: sub.toJSON(), tz: Intl.DateTimeFormat().resolvedOptions().timeZone, wa: true});
+  await loadNotif();
+  toast('Notifications on for this device');
+}
+async function notifOff() {
+  // the device stays signed up for Todolist reminders; it just stops getting messages
+  if (notif.endpoint) await todoApi('POST', '/push/wa', {endpoint: notif.endpoint, on: false}).catch(() => {});
+  await loadNotif();
+  toast('Message notifications off for this device');
+}
+async function setNotif(k, v) {
+  try {
+    const d = await todoApi('POST', '/wa-notify', {[k]: k === 'preview' ? v === 'on' : v});
+    notif.settings = d.settings; paintNotif();
+  } catch (x) { toast(x.message); }
+}
+$('#ntOn').addEventListener('click', async () => {
+  $('#ntOn').disabled = true;
+  try { await (notifHere() ? notifOff() : notifOn()); } catch (x) { toast(x.message || 'Couldn’t turn notifications on'); }
+  paintNotif();
+});
+$('#ntTest').addEventListener('click', async () => {
+  try { const r = await todoApi('POST', '/wa-notify/test', {endpoint: notif.endpoint}); toast(r.sent ? 'Sent. It should pop up in a moment' : 'Couldn’t reach this device'); }
+  catch (x) { toast(x.message); }
+});
+$('#rPrefs').addEventListener('click', loadNotif);
+document.querySelector('#menu [data-m="prefs"]')?.addEventListener('click', loadNotif);
+
+// a short "pop" for a new message while you're here (not for the chat you're looking at)
+const msgPop = (() => {
+  let ctx = null, last = 0;
+  const get = () => (ctx ||= new (window.AudioContext || window.webkitAudioContext)());
+  for (const ev of ['pointerdown', 'keydown', 'touchend']) addEventListener(ev, () => { try { const c = get(); if (c.state === 'suspended') c.resume(); } catch {} }, {capture: true, passive: true});
+  return () => {
+    const now = Date.now(); if (now - last < 1200) return false; last = now;
+    window.__pops = (window.__pops || 0) + 1; // (tests count these)
+    try {
+      const c = get(); if (c.state !== 'running') return false;
+      const t = c.currentTime;
+      for (const [f, dt] of [[880, 0], [1320, 0.09]]) {
+        const o = c.createOscillator(), g = c.createGain();
+        o.type = 'sine'; o.frequency.value = f;
+        g.gain.setValueAtTime(0.0001, t + dt); g.gain.exponentialRampToValueAtTime(0.16, t + dt + 0.015); g.gain.exponentialRampToValueAtTime(0.0001, t + dt + 0.16);
+        o.connect(g).connect(c.destination); o.start(t + dt); o.stop(t + dt + 0.18);
+      }
+      return true;
+    } catch { return false; }
+  };
+})();
+function maybeRing(m) {
+  if (prefs.msgSound === 'off' || locked || panicOn) return;
+  if (document.visibilityState !== 'visible') return; // away: the notification (if on) makes the sound
+  if (Date.now() / 1000 - (m.ts || 0) > 120) return; // catching up, not new
+  if (chats.find(x => x.jid === m.jid)?.muted) return;
+  if (m.jid === current && $('#todoPane').hidden && document.hasFocus()) return; // you're reading it
+  msgPop();
+}
+function openChatFromNotification(jid) {
+  if (!$('#todoPane').hidden) closeTodo();
+  const c = chats.find(x => x.jid === jid);
+  if (c) openChat(jid, c.name); else { wantChat = jid; loadChats(); }
+}
+
+// mute a chat (this site's notifications and sound; WhatsApp on your phone isn't told)
+function openMuteMenu(btn) {
+  document.getElementById('muteMenu')?.remove();
+  const c = chats.find(x => x.jid === current); if (!c && !current) return;
+  const until = c?.muted || 0;
+  const el = document.createElement('div'); el.id = 'muteMenu';
+  const when = until === -1 ? 'Muted until you unmute' : until ? `Muted until ${new Date(until).toLocaleString([], {weekday: 'short', hour: 'numeric', minute: '2-digit'})}` : 'Notifications for this chat';
+  el.innerHTML = `<div class="hd">${esc(when)}</div>` + (until
+    ? '<button data-mute="0">🔔 Unmute</button>'
+    : '<button data-mute="8h">🔕 8 hours</button><button data-mute="1w">🔕 1 week</button><button data-mute="always">🔕 Always</button>');
+  document.body.appendChild(el);
+  const r = btn.getBoundingClientRect();
+  el.style.left = Math.max(8, Math.min(innerWidth - 220, r.right - 210)) + 'px';
+  el.style.top = (r.bottom + 6) + 'px';
+}
+$('#muteBtn').addEventListener('click', (e) => { e.stopPropagation(); openMuteMenu(e.currentTarget); });
+document.addEventListener('click', async (e) => {
+  const b = e.target.closest?.('#muteMenu [data-mute]');
+  if (!b) { if (!e.target.closest?.('#muteMenu')) document.getElementById('muteMenu')?.remove(); return; }
+  document.getElementById('muteMenu')?.remove();
+  const v = b.dataset.mute, jid = current;
+  const until = v === 'always' ? -1 : v === '8h' ? Date.now() + 8 * 3600e3 : v === '1w' ? Date.now() + 7 * 86400e3 : 0;
+  try {
+    const r = await call('POST', '/mute', {jid, until});
+    const c = chats.find(x => x.jid === jid); if (c) c.muted = r.muted || undefined;
+    renderChats(); updateTitle();
+    toast(r.muted ? 'Muted' : 'Unmuted');
+  } catch (x) { toast(x.message); }
+});
 $('#rLock').addEventListener('click', (e) => { e.stopPropagation(); $('#lockBtn').click(); });
 $('#rBlur').addEventListener('click', (e) => { e.stopPropagation(); setPref('blur', prefs.blur === 'on' ? 'off' : 'on'); syncRail(); });
 $('#rPrefs').addEventListener('click', (e) => { e.stopPropagation(); applyPrefs(); $('#prefs').classList.add('on'); });
@@ -2743,7 +3102,7 @@ function closeChat() {
   $('#text').value = ''; $('#text').style.height = 'auto';
   $('#msgs').innerHTML = EMPTY_CHAT;
   $('#title').innerHTML = '<b>Select a chat</b><small></small>';
-  for (const id of ['tav', 'grpBtn', 'nickBtn', 'pinBtn', 'archBtn', 'chatMore']) $('#' + id).hidden = true;
+  for (const id of ['tav', 'grpBtn', 'nickBtn', 'pinBtn', 'archBtn', 'muteBtn', 'chatMore']) $('#' + id).hidden = true;
   $('#chatActs').classList.remove('on');
   document.body.classList.remove('open');
   showJump(false); setComposer(); renderChats();
@@ -2904,6 +3263,7 @@ $('#about').addEventListener('click', e => { if (e.target.id === 'about') $('#ab
 $('#text').addEventListener('keydown', e => { if (e.key === 'Escape' && replyTo) cancelReply(); });
 $('#msgs').addEventListener('click', async e => {
   if (e.target.id === 'more') return loadOlder(e.target);
+  const pv = e.target.closest('.ptv'); if (pv) return togglePtv(pv);
   const add = e.target.closest('[data-rx-add]');
   if (add) {
     const pick = add.parentElement.querySelector('.rxpick');
@@ -3073,7 +3433,7 @@ function selectable(m) { return !!m && !m.pending && !m.failed && !String(m.id).
 function canForward(m) {
   if (!selectable(m) || m.deleted) return false;
   if (m.type === 'text' || m.type === 'location') return !!m.text;
-  return ['image', 'video', 'audio', 'document', 'sticker'].includes(m.type) && !!m.media;
+  return ['image', 'video', 'ptv', 'audio', 'document', 'sticker'].includes(m.type) && !!m.media;
 }
 function canCopy(m) { return !m.deleted && m.type === 'text' && !!m.text; }
 function msgEl(id) { return [...document.querySelectorAll('#msgs .m[data-id]')].find(x => x.dataset.id === id); }
@@ -3200,9 +3560,23 @@ $('#msgs').addEventListener('click', e => {
   if (r) toggleSel(r.dataset.sel);
 }, true);
 
+// video notes: the ring fills as it plays; media events don't bubble, so listen on the way down
+for (const ev of ['play', 'pause', 'ended', 'timeupdate', 'loadedmetadata', 'error']) {
+  $('#msgs').addEventListener(ev, e => {
+    const v = e.target; if (!(v instanceof HTMLVideoElement)) return;
+    const box = v.closest('.ptv'); if (!box) return;
+    if (ev === 'play') box.classList.add('playing');
+    if (ev === 'pause' || ev === 'ended') box.classList.remove('playing');
+    if (ev === 'ended') { v.currentTime = 0; }
+    if (ev === 'error') box.querySelector('.pbtn')?.remove();
+    ptvTick(v);
+  }, true);
+}
+$('#msgs').addEventListener('keydown', e => { const pv = e.target.closest?.('.ptv'); if (pv && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); togglePtv(pv); } });
+
 // double-click (or double-tap on a phone) a message to reply to it
 let dblAt = 0, lastTap = null;
-const DBL_SKIP = 'button, a, input, textarea, img, video, audio, .rxpick, .rxs, .q, .hov';
+const DBL_SKIP = 'button, a, input, textarea, img, video, audio, .ptv, .rxpick, .rxs, .q, .hov';
 function replyByDouble(target) {
   if (selMode || Date.now() - dblAt < 400) return false;
   const el = target.closest('#msgs .m[data-id]');

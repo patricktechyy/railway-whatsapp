@@ -58,10 +58,24 @@ export class Push {
     if (typeof endpoint !== 'string' || !/^https?:\/\//.test(endpoint) || endpoint.length > 2000) throw new HttpError(400, 'Invalid push subscription')
     if (typeof sub.keys?.p256dh !== 'string' || typeof sub.keys?.auth !== 'string') throw new HttpError(400, 'Invalid push subscription keys')
     const tz = validTz(body.tz) ? body.tz : 'UTC'
+    const before = this.devices(username).find((d) => d.subscription.endpoint === endpoint)
     const devices = this.devices(username).filter((d) => d.subscription.endpoint !== endpoint)
-    devices.push({ subscription: { endpoint, keys: { p256dh: sub.keys.p256dh, auth: sub.keys.auth } }, tz, addedAt: Date.now() })
+    // wa: this device also gets WhatsApp message notifications (switched on from Whats Up; kept when the Todolist re-subscribes)
+    const wa = typeof body.wa === 'boolean' ? body.wa : !!before?.wa
+    devices.push({ subscription: { endpoint, keys: { p256dh: sub.keys.p256dh, auth: sub.keys.auth } }, tz, addedAt: before?.addedAt || Date.now(), ...(wa ? { wa: true } : {}) })
     this.save(username, devices.slice(-MAX_DEVICES))
     return { ok: true, devices: Math.min(devices.length, MAX_DEVICES) }
+  }
+
+  /** WhatsApp message notifications on one device, on or off. */
+  setWa(username, endpoint, on) {
+    const devices = this.devices(username)
+    const d = devices.find((x) => x.subscription.endpoint === endpoint)
+    if (!d) throw new HttpError(404, 'This device isn’t set up for notifications')
+    if (on) d.wa = true
+    else delete d.wa
+    this.save(username, devices)
+    return { ok: true, wa: !!on }
   }
 
   unsubscribe(username, endpoint) {
@@ -76,15 +90,15 @@ export class Push {
    * Dead subscriptions are forgotten. `errors` says what the push services answered
    * when they refused, so a test can explain itself.
    */
-  async send(username, payload, { only = null } = {}) {
+  async send(username, payload, { only = null, filter = null, ttl = 12 * 3600 } = {}) {
     const all = this.devices(username)
-    const devices = only ? all.filter((d) => d.subscription.endpoint === only) : all
+    const devices = (only ? all.filter((d) => d.subscription.endpoint === only) : all).filter((d) => !filter || filter(d))
     let sent = 0
     const dead = new Set()
     const errors = []
     await Promise.all(devices.map(async (d) => {
       try {
-        await webpush.sendNotification(d.subscription, JSON.stringify(payload), { TTL: 12 * 3600, urgency: 'high' })
+        await webpush.sendNotification(d.subscription, JSON.stringify(payload), { TTL: ttl, urgency: 'high' })
         sent++
       } catch (e) {
         const host = (() => { try { return new URL(d.subscription.endpoint).host } catch { return '?' } })()

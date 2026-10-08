@@ -518,6 +518,11 @@ async function route(req, res) {
     if (!jid) throw new HttpError(400, 'jid required')
     const buf = await readBody(req, MAX_UPLOAD)
     if (!buf.length) throw new HttpError(400, 'Empty file')
+    // a video note recorded in the browser
+    if (url.searchParams.get('ptv') === '1') {
+      if (!/^video\//.test(mime)) throw new HttpError(400, 'That isn’t a video')
+      return json(res, await s.sendVideoNote(jid, buf, { mime, seconds: url.searchParams.get('seconds'), replyTo: url.searchParams.get('replyTo') || undefined }))
+    }
     const thumbHeader = req.headers['x-thumb']
     const thumb = thumbHeader ? Buffer.from(String(thumbHeader), 'base64') : undefined
     const msg = await s.sendMedia(jid, buf, {
@@ -548,6 +553,10 @@ async function route(req, res) {
   if (api === '/pin') {
     if (!body.jid) throw new HttpError(400, 'jid required')
     return json(res, await s.setPinned(body.jid, !!body.pinned))
+  }
+  if (api === '/mute') {
+    if (!body.jid) throw new HttpError(400, 'jid required')
+    return json(res, await s.setMuted(body.jid, body.until))
   }
   if (api === '/archive') {
     if (!body.jid) throw new HttpError(400, 'jid required')

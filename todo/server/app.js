@@ -2,7 +2,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { HttpError } from './auth.js'
-import { Store } from './store.js'
+import { Store, WA_NOTIFY_DEFAULTS } from './store.js'
+import { previewOf } from '../../store.js' // Whats Up's own chat store: how a message reads in a list
 import { Push } from './push.js'
 import { Reminders } from './reminders.js'
 import { LocalLink } from './local.js'
@@ -542,6 +543,10 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
     if (p === '/api/study' && M === 'PUT') return json(res, study.put(u, await readJson(req)))
     if (p === '/api/events' && M === 'GET') return events(req, res, u)
     if (p === '/api/push/key' && M === 'GET') return json(res, { key: push.publicKey, devices: push.devices(u).length })
+    // Whats Up message notifications: the account's choices, and which devices get them
+    if (p === '/api/wa-notify' && M === 'GET') {
+      return json(res, { settings: waNotifySettings(u), key: push.publicKey, devices: push.devices(u).map((d) => ({ endpoint: d.subscription.endpoint, wa: !!d.wa })) })
+    }
 
     if (M === 'GET') throw new HttpError(404, 'Not found')
     const body = M === 'DELETE' ? {} : await readJson(req)
@@ -551,6 +556,17 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
       return json(res, me(c))
     }
     if (p === '/api/push/subscribe' && M === 'POST') return json(res, push.subscribe(u, body))
+    if (p === '/api/push/wa' && M === 'POST') return json(res, push.setWa(u, String(body.endpoint || ''), !!body.on))
+    if (p === '/api/wa-notify/test' && M === 'POST') {
+      const only = typeof body.endpoint === 'string' && push.devices(u).some((d) => d.subscription.endpoint === body.endpoint && d.wa) ? body.endpoint : null
+      if (!only) throw new HttpError(409, 'This device isn’t set up for message notifications. Turn them off and on again.')
+      const r = await push.send(u, { kind: 'wa', title: 'Whats Up', body: 'Notifications work on this device 🎉', tag: 'wa-test', user: u, url: `/u/${encodeURIComponent(u)}/` }, { only, ttl: 600 })
+      return json(res, { sent: r.sent, errors: r.errors })
+    }
+    if (p === '/api/wa-notify' && M === 'POST') {
+      store.setProfile(u, { waNotify: body })
+      return json(res, { settings: waNotifySettings(u) })
+    }
     if (p === '/api/push/unsubscribe' && M === 'POST') return json(res, push.unsubscribe(u, String(body.endpoint || '')))
     if (p === '/api/push/test' && M === 'POST') {
       // with `endpoint`: just this device, so you find out whether *this* one works
@@ -717,6 +733,53 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
   /** Listen to one Whats Up account's WhatsApp (call for every session, including new ones). */
   function attach(username, s) {
     s.on('wa:new', (msg) => onWhatsApp(username, s, msg).catch((e) => console.warn(`[todo/whatsapp] ${username}: ${e.message}`)))
+    s.on('wa:new', (msg) => notifyMessage(username, s, msg).catch((e) => console.warn(`[notify] ${username}: ${e.message}`)))
+  }
+
+  // ---------------------------------------------------- message notifications
+  const waNotifySettings = (u) => ({ ...WA_NOTIFY_DEFAULTS, ...(store.snapshot(u).profile.waNotify || {}) })
+  const lastPush = new Map() // `${user}|${chat}` -> when
+  /**
+   * A new WhatsApp message: a notification on the devices that asked for them in Whats Up,
+   * unless you're using Whats Up right now (the page rings instead), the chat is muted
+   * (here or on your phone), it's a group you only want @mentions from, or it's Buddy.
+   */
+  async function notifyMessage(username, s, pub) {
+    if (!pub || pub.fromMe || pub.deleted) return
+    if (Date.now() - Number(pub.ts || 0) * 1000 > 3 * 60e3) return // catching up after a reconnect: old news
+    if (!push.devices(username).some((d) => d.wa)) return
+    const st = waNotifySettings(username)
+    if (!st.on) return
+    const jid = s.store.canon(pub.jid)
+    if (!/@(s\.whatsapp\.net|g\.us|lid)$/.test(jid)) return
+    const mine = s.me?.jid ? s.store.canon(s.me.jid) : null
+    if (jid === mine) return
+    if (s.selfWanted) return
+    if (s.store.mutedUntil(jid)) return
+    const bot = botUser()
+    const botJid = bot && bot !== username ? sessions.get(bot)?.me?.jid : null
+    if (botJid && s.store.canon(botJid) === jid) return // Buddy: reminders already notify
+    const m = s.store.findMessage(jid, pub.id) || pub
+    const group = jid.endsWith('@g.us')
+    if (group && st.groups === 'off') return
+    if (group && st.groups === 'mentions') {
+      const forMe = (m.mentions || []).some((x) => x.j && s.store.canon(x.j) === mine) || !!m.quote?.fromMe
+      if (!forMe) return
+    }
+    const key = `${username}|${jid}`
+    if (Date.now() - (lastPush.get(key) || 0) < 2500) return // a burst: one buzz
+    lastPush.set(key, Date.now())
+    const n = s.store.chats.get(jid)?.unread || 1
+    const body = st.preview ? previewOf(m, s.store) : n > 1 ? `${n} new messages` : 'New message'
+    await push.send(username, {
+      kind: 'wa',
+      title: s.store.displayName(jid),
+      body: String(body || 'New message').slice(0, 240),
+      tag: `wa-${jid}`,
+      user: username,
+      jid,
+      url: `/u/${encodeURIComponent(username)}/#chat=${encodeURIComponent(jid)}`,
+    }, { filter: (d) => d.wa, ttl: 3600 })
   }
 
   /** A group as members see it: names for everyone in it. */

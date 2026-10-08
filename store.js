@@ -238,6 +238,9 @@ export class Store {
     if (patch.unread != null) chat.unread = patch.unread
     if (patch.localArchived != null) chat.localArchived = !!patch.localArchived
     if (patch.localPinned != null) chat.localPinned = !!patch.localPinned
+    // muted until (ms, -1 = always, 0 = not): on this site, and as WhatsApp on the phone says
+    if (patch.localMute !== undefined) { if (patch.localMute) chat.localMute = patch.localMute; else delete chat.localMute }
+    if (patch.waMute !== undefined) { if (patch.waMute) chat.waMute = patch.waMute; else delete chat.waMute }
     this.dirty = true
     return chat
   }
@@ -429,7 +432,18 @@ export class Store {
         group: isGroup(c.jid),
         archived: !!c.localArchived,
         pinned: !!c.localPinned,
+        muted: this.mutedUntil(c.jid) || undefined, // ms, or -1 for always
       }))
+  }
+
+  /** When notifications for a chat come back: 0 (not muted), -1 (muted for good) or a time (ms). */
+  mutedUntil(jid, now = Date.now()) {
+    const c = this.chats.get(this.canon(jid))
+    if (!c) return 0
+    const live = (v) => (v === -1 || v > now ? v : 0)
+    const a = live(c.localMute || 0), b = live(c.waMute || 0)
+    if (a === -1 || b === -1) return -1
+    return Math.max(a, b)
   }
 
   /** Newest `limit` messages, or a page before `beforeId`, or everything from `sinceId` on. */
@@ -458,6 +472,7 @@ export class Store {
       text: m.text,
       media: !!m.rm,
       fileName: m.fileName,
+      dur: m.dur || undefined,
       quote: this.quoteView(m.quote),
       deleted: !!m.deleted,
       edited: !!m.edited,
@@ -523,6 +538,7 @@ export function previewOf(msg, store) {
       : {
           image: '📷 Photo',
           video: '🎥 Video',
+          ptv: '📹 Video message',
           audio: '🎤 Voice message',
           document: '📄 ' + (msg.fileName || msg.text || 'Document'),
           sticker: 'Sticker',

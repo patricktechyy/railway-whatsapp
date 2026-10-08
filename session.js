@@ -2,6 +2,8 @@ import { EventEmitter } from 'node:events'
 import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
+import os from 'node:os'
+import { execFile } from 'node:child_process'
 import QRCode from 'qrcode'
 import { Store, historyCutoff, bare, isGroup, isLid, isPn, phoneOf, toPn } from './store.js'
 
@@ -46,6 +48,52 @@ function makeLogger(prefix, level) {
   return l
 }
 const silent = makeLogger('', 'silent')
+
+// ---------------------------------------------------------- video notes
+// Browsers record WebM (Chrome, Firefox) or MP4 (Safari, newer Chrome), any shape. Phones
+// want a square H.264/AAC MP4, so ffmpeg (in the Docker image) turns it into one, with a
+// thumbnail and the length. Without ffmpeg an MP4 goes as it is; a WebM can't.
+const VIDEO_NOTE_MAX_S = 60
+const exec = (cmd, args, opts = {}) => new Promise((resolve, reject) =>
+  execFile(cmd, args, { timeout: 90000, maxBuffer: 4 * 1024 * 1024, ...opts }, (e, stdout, stderr) => (e ? reject(Object.assign(e, { stderr })) : resolve(stdout))))
+let ffmpegOk = null
+export async function hasFfmpeg() {
+  if (ffmpegOk === null) ffmpegOk = await exec(process.env.FFMPEG || 'ffmpeg', ['-version']).then(() => true, () => false)
+  return ffmpegOk
+}
+export async function makeVideoNote(buffer, mime = '') {
+  if (!(await hasFfmpeg())) {
+    if (/mp4|quicktime/.test(mime)) return { video: buffer, seconds: null, thumb: null }
+    throw Object.assign(new Error('Video messages from this browser need ffmpeg on the server (it’s in the Docker image).'), { status: 415 })
+  }
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ptv-'))
+  try {
+    const src = path.join(dir, 'in'), out = path.join(dir, 'out.mp4'), jpg = path.join(dir, 'thumb.jpg')
+    fs.writeFileSync(src, buffer)
+    const ff = process.env.FFMPEG || 'ffmpeg'
+    await exec(ff, ['-y', '-v', 'error', '-i', src, '-t', String(VIDEO_NOTE_MAX_S),
+      // centre square, 480×480, like WhatsApp's own video notes
+      '-vf', "crop='min(iw,ih)':'min(iw,ih)',scale=480:480,setsar=1,fps=30",
+      '-c:v', 'libx264', '-profile:v', 'baseline', '-level', '3.1', '-pix_fmt', 'yuv420p', '-preset', 'veryfast', '-crf', '26',
+      '-c:a', 'aac', '-b:a', '96k', '-ac', '1', '-ar', '44100', '-movflags', '+faststart', out])
+    let seconds = null
+    try {
+      const d = await exec(process.env.FFPROBE || 'ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', out])
+      seconds = Math.max(1, Math.round(Number(String(d).trim()) || 0)) || null
+    } catch {}
+    let thumb = null
+    try {
+      await exec(ff, ['-y', '-v', 'error', '-ss', '0.3', '-i', out, '-frames:v', '1', '-vf', 'scale=96:96', '-q:v', '5', jpg])
+      thumb = fs.readFileSync(jpg)
+    } catch {}
+    return { video: fs.readFileSync(out), seconds, thumb }
+  } catch (e) {
+    if (e.status) throw e
+    throw Object.assign(new Error('Couldn’t process that video'), { status: 400, detail: String(e.stderr || e.message).slice(0, 300) })
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
+}
 
 let cached = null
 async function loadBaileys() {
@@ -102,7 +150,7 @@ const SELF_TTL = Number.isFinite(selfTtlEnv) && selfTtlEnv >= 1000 ? selfTtlEnv 
 
 // What can be forwarded. Contacts aren't (we only keep their name, not the card),
 // and neither is view-once media, same as on WhatsApp.
-const FORWARD_TYPES = new Set(['text', 'image', 'video', 'audio', 'document', 'sticker', 'location'])
+const FORWARD_TYPES = new Set(['text', 'image', 'video', 'audio', 'document', 'sticker', 'location', 'ptv'])
 const forwardable = (m) =>
   !!m && !m.deleted && FORWARD_TYPES.has(m.type) &&
   (m.type === 'text' || m.type === 'location' ? !!m.text : !!m.rm && !Object.values(m.rm.message || {})[0]?.viewOnce)
@@ -809,6 +857,11 @@ export class Session extends EventEmitter {
       this.store.setContact(jid, { name: c.name || c.displayName })
     }
     const patch = {}
+    // muted on the phone: WhatsApp sends an end time (ms or s), -1 for "always", null/0 when unmuted
+    if ('muteEndTime' in c) {
+      const v = c.muteEndTime == null ? 0 : num(c.muteEndTime)
+      patch.waMute = v < 0 ? -1 : v > 1e12 ? v : v > 0 ? v * 1000 : 0
+    }
     const t = num(c.conversationTimestamp || c.lastMessageRecvTimestamp)
     if (t) patch.t = t
     if (c.unreadCount != null) {
@@ -876,6 +929,7 @@ export class Session extends EventEmitter {
     if (c.conversation) text = c.conversation
     else if (c.extendedTextMessage?.text) text = c.extendedTextMessage.text
     else if (c.imageMessage) { type = 'image'; text = c.imageMessage.caption || ''; mediaKey = 'imageMessage' }
+    else if (c.ptvMessage) { type = 'ptv'; mediaKey = 'ptvMessage' } // a video note (the round one)
     else if (c.videoMessage) { type = 'video'; text = c.videoMessage.caption || ''; mediaKey = 'videoMessage' }
     else if (c.audioMessage) { type = 'audio'; mediaKey = 'audioMessage' }
     else if (c.stickerMessage) { type = 'sticker'; mediaKey = 'stickerMessage' }
@@ -918,7 +972,8 @@ export class Session extends EventEmitter {
       delete sub.contextInfo
       rm = toJsonSafe({
         key: { remoteJid: rj, id: k.id, fromMe: !!k.fromMe, participant: part },
-        message: { [mediaKey]: sub },
+        // a video note downloads like any video (same keys); kept as one so every Baileys version can fetch it
+        message: { [mediaKey === 'ptvMessage' ? 'videoMessage' : mediaKey]: sub },
       })
     }
 
@@ -930,7 +985,8 @@ export class Session extends EventEmitter {
       const qText =
         q.conversation || q.extendedTextMessage?.text || q.imageMessage?.caption || q.videoMessage?.caption ||
         (q.imageMessage ? '📷 Photo' : q.videoMessage ? '🎥 Video' : q.audioMessage ? '🎤 Voice message' :
-         q.documentMessage ? '📄 ' + (q.documentMessage.fileName || 'Document') : q.stickerMessage ? 'Sticker' : '')
+         q.documentMessage ? '📄 ' + (q.documentMessage.fileName || 'Document') : q.stickerMessage ? 'Sticker' :
+         q.ptvMessage ? '📹 Video message' : '')
       const qSender = ctx.participant ? this.store.canon(ctx.participant) : null
       quote = {
         id: ctx.stanzaId,
@@ -961,6 +1017,7 @@ export class Session extends EventEmitter {
       type,
       text,
       fileName,
+      dur: mediaKey && num(c[mediaKey]?.seconds) ? num(c[mediaKey].seconds) : undefined, // video / voice length (s)
       sender,
       rj: rj !== jid ? rj : undefined, // original address, needed for receipts
       rp: part || undefined,
@@ -1108,6 +1165,7 @@ export class Session extends EventEmitter {
       text: m.text,
       media: !!m.rm,
       fileName: m.fileName,
+      dur: m.dur || undefined,
       quote: this.store.quoteView(m.quote),
       deleted: !!m.deleted,
       edited: !!m.edited,
@@ -1335,6 +1393,7 @@ export class Session extends EventEmitter {
     const mimetype = file.mime || sub.mimetype || undefined
     const caption = m.text || undefined
     if (m.type === 'image') return { image: file.buffer, mimetype, caption, contextInfo }
+    if (m.type === 'ptv') return { video: file.buffer, mimetype: mimetype || 'video/mp4', ptv: true, seconds: m.dur || undefined, contextInfo }
     if (m.type === 'video') return { video: file.buffer, mimetype, caption, gifPlayback: !!sub.gifPlayback || undefined, contextInfo }
     if (m.type === 'audio') return { audio: file.buffer, mimetype, ptt: !!sub.ptt, contextInfo }
     if (m.type === 'sticker') return { sticker: file.buffer, mimetype: mimetype || 'image/webp', contextInfo }
@@ -1578,6 +1637,26 @@ export class Session extends EventEmitter {
     return msg ? this.publicMsg(msg) : null
   }
 
+  /** A video note (the round one): recorded in the browser, made phone-friendly here. */
+  async sendVideoNote(jid, buffer, { mime, seconds, replyTo } = {}) {
+    this.ensureConnected()
+    const note = await makeVideoNote(buffer, mime)
+    const target = await this.sendJid(jid)
+    const content = { video: note.video, ptv: true, mimetype: 'video/mp4' }
+    const secs = note.seconds || Math.round(Number(seconds) || 0)
+    if (secs > 0) content.seconds = Math.min(VIDEO_NOTE_MAX_S, secs)
+    if (note.thumb) content.jpegThumbnail = note.thumb
+    const quoted = this.quotedFor(jid, replyTo)
+    const sent = await this.sock.sendMessage(target, content, quoted ? { quoted } : undefined)
+    const msg = this.ingest(sent, { bumpUnread: false })
+    this.metrics.messagesOut++
+    this.metrics.lastOutboundAt = Date.now()
+    this.metrics.lastEventAt = Date.now()
+    if (msg) this.emit('event', { type: 'message', message: this.publicMsg(msg) })
+    this.emit('event', { type: 'chats' })
+    return msg ? this.publicMsg(msg) : null
+  }
+
   /** Validate a phone number against WhatsApp and return its chat JID. */
   // ------------------------------------------------ group read receipts
   // WhatsApp: ✓✓ once EVERY member has received it, blue once EVERY member read it.
@@ -1802,6 +1881,17 @@ export class Session extends EventEmitter {
     this.store.touchChat(jid, archived ? { localArchived: true, localPinned: false } : { localArchived: false })
     this.emit('event', { type: 'chats' })
     return { archived: !!archived }
+  }
+
+  /** Mute notifications for a chat on this site: until (ms), -1 for always, 0 to unmute. WhatsApp isn't told. */
+  async setMuted(jid, until) {
+    jid = this.store.canon(jid)
+    const v = Number(until)
+    const val = v === -1 ? -1 : v > Date.now() ? Math.round(v) : 0
+    // unmuting here also lifts a mute that came from the phone (for this site's notifications)
+    this.store.touchChat(jid, { localMute: val, ...(val ? {} : { waMute: 0 }) })
+    this.emit('event', { type: 'chats' })
+    return { muted: this.store.mutedUntil(jid) }
   }
 
   /** Pin / unpin on this site only. Pinning brings a chat out of the archive. */

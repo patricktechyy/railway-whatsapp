@@ -182,6 +182,16 @@ function cleanBuddy(v) {
   }
 }
 
+/** Whats Up message notifications: on/off, show the text or not, and which group messages. */
+export const WA_NOTIFY_DEFAULTS = { on: true, preview: true, groups: 'all' }
+function cleanWaNotify(v) {
+  return {
+    on: v?.on !== false,
+    preview: v?.preview !== false,
+    groups: ['all', 'mentions', 'off'].includes(v?.groups) ? v.groups : 'all',
+  }
+}
+
 function cleanTags(v) {
   if (!Array.isArray(v)) return []
   return [...new Set(v.map((t) => str(t, 24).replace(/^#/, '').toLowerCase()).filter(Boolean))].slice(0, 10)
@@ -331,6 +341,7 @@ export class Store {
       if ('appearance' in body) doc.profile.appearance = cleanAppearance(body.appearance)
       if ('tourDone' in body) doc.profile.tourDone = !!body.tourDone
       if ('buddy' in body) doc.profile.buddy = cleanBuddy(body.buddy)
+      if ('waNotify' in body) doc.profile.waNotify = cleanWaNotify({ ...(doc.profile.waNotify || {}), ...(body.waNotify || {}) })
       return doc.profile
     })
     // other devices pick up the new name, colours and holidays straight away
