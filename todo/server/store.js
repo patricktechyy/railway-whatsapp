@@ -172,7 +172,10 @@ function cleanBuddy(v) {
   const t = (x) => (typeof x === 'string' && TIME_RE.test(x) ? x : null)
   return {
     on: !!v?.on, style: BUDDY_STYLES.includes(v?.style) ? v.style : 'friendly', morning: t(v?.morning), evening: t(v?.evening),
-    via: v?.via === 'self' ? 'self' : 'bot', // from the bot's number, or your own "Message yourself" chat
+    // Your own "Message yourself" chat unless you picked the bot's number yourself: whoever runs
+    // that number can read Buddy's messages and your replies. (Picks made before 3.5.6 don't count.)
+    via: v?.via === 'bot' && v?.viaChosen ? 'bot' : 'self',
+    viaChosen: !!v?.viaChosen, // you've answered "where should Buddy message you?"
     exams: v?.exams !== false, examsAt: t(v?.examsAt) || '20:00', // the evening before an exam
     study: t(v?.study), // today's study plan at this time (null: off)
     studyBlocks: v?.studyBlocks !== false, // a nudge when a study block with a time starts

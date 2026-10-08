@@ -87,7 +87,16 @@ test('admin switch off → silent', async () => {
 })
 
 test('the bot number: messages go to your phone from the bot account', async () => {
-  const { buddy, sent } = setup({ bot: 'buddybot' })
+  const { store, buddy, sent } = setup({ bot: 'buddybot' })
+  // private by default: your own "Message yourself" chat, even with a bot number set up
+  await buddy.send('gavin', 'hi')
+  assert.equal(sent.at(-1).username, 'gavin')
+  // an old saved "bot" that was never actually chosen doesn't count
+  store.setProfile('gavin', { buddy: { via: 'bot' } })
+  await buddy.send('gavin', 'hi')
+  assert.equal(sent.at(-1).username, 'gavin')
+  // only once you pick Buddy's number yourself
+  store.setProfile('gavin', { buddy: { via: 'bot', viaChosen: true } })
   await buddy.send('gavin', 'hi')
   assert.deepEqual(sent.at(-1), { ep: 'send', username: 'buddybot', jid: '6591234567@s.whatsapp.net', text: 'hi' })
   process.env.WA_BOT_USER = ''

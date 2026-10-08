@@ -36,7 +36,7 @@ import { Mark, WhatsUpLogo } from './components/Login'
 import { TaskList, type Group } from './components/TaskList'
 import { TaskEditor } from './components/TaskEditor'
 import { NewTaskForm } from './components/NewTaskForm'
-import { ListDialog, SettingsDialog } from './components/Dialogs'
+import { BuddyFromDialog, ListDialog, SettingsDialog } from './components/Dialogs'
 import { Toaster, toast } from './components/Toast'
 import { celebrate, rain } from './components/confetti'
 import { CalendarView } from './views/CalendarView'
@@ -183,6 +183,15 @@ function Shell({ me, setMe }: { me: Me; setMe: (m: Me | null) => void }) {
     setReminderSetup(false)
     if (pushError) toast(`Not everything got turned on. ${pushError}`)
     else toast('Reminders saved')
+  }
+
+  // where Buddy messages you: asked once, after the admin has set up a bot number
+  const askBuddyFrom = !!me.whatsapp.buddy && !!me.whatsapp.bot && !me.buddy.viaChosen
+  const answerBuddyFrom = async (via: 'self' | 'bot') => {
+    try {
+      setMe(await api<Me>('/profile', 'PATCH', { buddy: { ...me.buddy, via, viaChosen: true } }))
+      toast(via === 'bot' ? 'Buddy will message you from its number' : 'Buddy will message you in “Message yourself”')
+    } catch (e: any) { toast(e.message) }
   }
 
   waStyle.bot = me.whatsapp.botNumber // how Buddy's replies are worded in the pickers
@@ -944,6 +953,7 @@ function Shell({ me, setMe }: { me: Me; setMe: (m: Me | null) => void }) {
           onLater={() => { try { localStorage.setItem(`todo-reminder-setup:${me.username}`, '1') } catch {}; setReminderSetup(false) }}
         />
       )}
+      {askBuddyFrom && !tour && !reminderSetup && <BuddyFromDialog me={me} onDone={answerBuddyFrom} />}
       {groupDialog && (
         <GroupDialog
           group={groupDialog.group}

@@ -157,12 +157,12 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
         reminders: !!wa.reminders, share: !!wa.share, inbox: !!wa.inbox, jump: false,
         buddy: !!wa.reminders && wa.buddy !== false,
         // Buddy writes from the bot's number (and you reply in that chat), unless you picked "Message yourself"
-        botNumber: !!bot && bot.username !== c.u && (doc.profile.buddy?.via || 'bot') !== 'self',
+        botNumber: buddy.viaBot(c.u), // only if you picked the bot's number (Message yourself is the default)
         bot: bot && bot.username !== c.u ? { name: bot.name, phone: bot.phone, connected: bot.connected } : null,
         linked: !!mine.connected || !!mine.phone,
         phone: mine.phone || '',
       },
-      buddy: { ...BUDDY_DEFAULTS, ...(doc.profile.buddy || {}) },
+      buddy: (({ ...x }) => (x.viaChosen ? x : { ...x, via: 'self' }))({ ...BUDDY_DEFAULTS, ...(doc.profile.buddy || {}) }),
     }
   }
 

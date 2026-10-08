@@ -14,7 +14,10 @@ A to-do list for Gavin (and friends), **built into Whats Up** (Apa yang Diatas).
 
 ---
 
-## What's in it (v2.5)
+## What's in it (v2.6)
+
+**New in 2.6**
+- **Private by default**: Buddy writes in your own “Message yourself” chat unless you pick Buddy's number. You're asked once (when the admin has set up a bot number), and can change it in Settings → WhatsApp Buddy. Whoever runs Buddy's number can read what it sends and your replies, and the app says so.
 
 **New in 2.5**
 - **Study planner, more of it**: tap a block's RE/P pill to switch between revise, practice and both; make your own **tags** (past paper, flashcards…); give blocks a **start time and length**; run a **focus timer** (▶ on a block) that logs the minutes you studied, survives a refresh and chimes when it's done; **filter** by RE, P, priority, a subject or a tag; **repeat** a block weekly; add topics with **+ topic**; **Undo** a delete; and a **progress** summary of topics done and time focused per subject. Priority can be set right in a block.
@@ -162,7 +165,7 @@ Since 2.0 the Todolist isn't a separate website any more: it lives **inside What
 
 ![WhatsApp Buddy](docs/buddy.png)
 
-**With a bot number (recommended).** The admin links a **spare WhatsApp number** to its own Whats Up account (say `buddy`) and picks it in **Admin → ✓ Todolist → WhatsApp → Bot account**. Buddy then writes **from that number to each person's real WhatsApp number** (the one their Whats Up account is linked to), exactly like any other contact: phones buzz even when nobody has Whats Up open, and it works in the real WhatsApp app. People answer **right in that chat**, no prefix needed:
+**With a bot number.** Each person chooses: **Message yourself** (the default, private) or **Buddy's number** (asked once, and in Settings → WhatsApp Buddy). Whoever runs the bot's phone can read what it sends and the replies, which is why it's opt-in. The admin links a **spare WhatsApp number** to its own Whats Up account (say `buddy`) and picks it in **Admin → ✓ Todolist → WhatsApp → Bot account**. Buddy then writes **from that number to each person's real WhatsApp number** (the one their Whats Up account is linked to), exactly like any other contact: phones buzz even when nobody has Whats Up open, and it works in the real WhatsApp app. People answer **right in that chat**, no prefix needed:
 
 | You send Buddy | Buddy does |
 | --- | --- |

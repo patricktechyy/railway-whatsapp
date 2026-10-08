@@ -348,6 +348,42 @@ const COMMANDS: [string, string][] = [
 ]
 
 /** WhatsApp Buddy: its personality, the daily messages, an example on demand, and what you can answer. */
+/**
+ * Asked once, when the admin has set up a bot number: where Buddy should message you.
+ * "Message yourself" is the default (and private); the bot's number buzzes like a normal
+ * chat, but whoever runs that number can read it.
+ */
+export function BuddyFromDialog({ me, onDone }: { me: Me; onDone: (via: 'self' | 'bot') => void }) {
+  const [via, setVia] = useState<'self' | 'bot'>('self')
+  const bot = me.whatsapp.bot!
+  return (
+    <Dialog title="Where should Buddy message you?" onClose={() => onDone('self')} className="buddy-from-dialog" closeButton>
+      <p className="help">Buddy sends your WhatsApp reminders, and exam and study nudges. Pick where they arrive.</p>
+      <div className="bf-options" role="radiogroup" aria-label="Where Buddy messages you">
+        <button type="button" role="radio" aria-checked={via === 'self'} className={`bf-option${via === 'self' ? ' on' : ''}`} onClick={() => setVia('self')}>
+          <span className="bf-radio" aria-hidden="true" />
+          <span className="bf-body">
+            <b>Message yourself <span className="bf-tag">Recommended</span></b>
+            <span>🔒 Private: Buddy writes in your own “Message yourself” chat, and only you can see it. Your phone doesn’t buzz for it. Reply with <code>td done</code>, <code>td snooze 1h</code>.</span>
+          </span>
+        </button>
+        <button type="button" role="radio" aria-checked={via === 'bot'} className={`bf-option${via === 'bot' ? ' on' : ''}`} onClick={() => setVia('bot')}>
+          <span className="bf-radio" aria-hidden="true" />
+          <span className="bf-body">
+            <b>Buddy’s number{bot.phone ? ` (${bot.phone})` : ''}</b>
+            <span>🔔 Buddy messages you like a normal contact, so your phone buzzes. 🔓 <b>Not private:</b> pake nomor Hanzel yang lama...</span>
+          </span>
+        </button>
+      </div>
+      <p className="help bf-later">You can change this any time in Settings → WhatsApp Buddy.</p>
+      <div className="dialog-actions">
+        <span className="spacer" />
+        <button className="btn" onClick={() => onDone(via)}>Save</button>
+      </div>
+    </Dialog>
+  )
+}
+
 function BuddySetting({ me, onChange }: { me: Me; onChange: (b: BuddySettings) => void }) {
   const [b, setB] = useState<BuddySettings>(me.buddy)
   const [kind, setKind] = useState('task')
@@ -364,15 +400,15 @@ function BuddySetting({ me, onChange }: { me: Me; onChange: (b: BuddySettings) =
   }
   const style = STYLES.find((x) => x.key === b.style) || STYLES[0]
   const bot = me.whatsapp.bot
-  const fromBot = !!bot && b.via !== 'self'
+  const fromBot = !!bot && b.via === 'bot' && b.viaChosen
   return (
     <div className="buddy">
       {bot && (
         <div className="field buddy-from">
           <span className="label">Messages come from</span>
           <div className="seg" role="radiogroup" aria-label="Who sends Buddy's messages">
-            <button role="radio" aria-checked={fromBot} className={fromBot ? 'on' : ''} onClick={() => set({ via: 'bot' })}>Buddy’s number</button>
-            <button role="radio" aria-checked={!fromBot} className={!fromBot ? 'on' : ''} onClick={() => set({ via: 'self' })}>Message yourself</button>
+            <button role="radio" aria-checked={!fromBot} className={!fromBot ? 'on' : ''} onClick={() => set({ via: 'self', viaChosen: true })}>Message yourself</button>
+            <button role="radio" aria-checked={fromBot} className={fromBot ? 'on' : ''} onClick={() => set({ via: 'bot', viaChosen: true })}>Buddy’s number</button>
           </div>
         </div>
       )}
@@ -380,12 +416,13 @@ function BuddySetting({ me, onChange }: { me: Me; onChange: (b: BuddySettings) =
         <p className="help buddy-intro">
           Pick <b>💬 WhatsApp me</b> on a task and Buddy messages you from <b>its own number{bot.phone ? ` (${bot.phone})` : ''}</b>.
           Reply in that chat with <b>done</b>, <b>snooze 1h</b> or <b>today</b>.
-          <small className="buddy-privacy"> Its messages also show on the bot’s phone, which your admin looks after.</small>
+          <small className="buddy-privacy"> 🔓 Whoever runs that number (your admin) can read these messages and your replies. Pick <b>Message yourself</b> to keep them private.</small>
         </p>
       ) : (
         <p className="help buddy-intro">
           Pick <b>💬 WhatsApp me</b> on a task and Buddy messages you in <b>“Message yourself”</b>.
           Reply there with <b>td done</b> or <b>td snooze 1h</b>.
+          {bot && <small className="buddy-privacy"> 🔒 Only you can see these messages.</small>}
         </p>
       )}
       <WaWarning me={me} />

@@ -34,7 +34,7 @@ export const plain = (text) => String(text)
   .replace(/(?<![a-z])td\?/gi, 'today')
   .replace(/(?<![a-z])td:\s?/gi, 'add ')
   .replace(/(?<![a-z])td (?=[a-z])/gi, '')
-export const BUDDY_DEFAULTS = { on: false, style: 'friendly', morning: '07:30', evening: '21:00', via: 'bot', exams: true, examsAt: '20:00', study: null, studyBlocks: true }
+export const BUDDY_DEFAULTS = { on: false, style: 'friendly', morning: '07:30', evening: '21:00', via: 'self', viaChosen: false, exams: true, examsAt: '20:00', study: null, studyBlocks: true }
 const LATE = 12 * 3600e3 // a reminder missed by more than this (server was down) is skipped
 const BRIEF_WINDOW = 3 * 3600e3 // a morning/evening message more than 3h late isn't sent
 const MAX_LIST = 12
@@ -186,7 +186,7 @@ export class Buddy {
   }
   get botUser() { return this.getBot() || null }
   /** Does Buddy write to this person from the bot number (so they reply there, without "td")? They can pick "Message yourself" instead. */
-  viaBot(u) { return !!this.botUser && this.botUser !== u && this.settings(u).via !== 'self' }
+  viaBot(u) { const b = this.settings(u); return !!this.botUser && this.botUser !== u && b.via === 'bot' && !!b.viaChosen }
   /** Is Buddy usable at all right now (link set up, admin hasn't switched it off)? */
   get available() { return !!this.link?.enabled('reminders') && this.link.settings().whatsapp.buddy !== false }
 

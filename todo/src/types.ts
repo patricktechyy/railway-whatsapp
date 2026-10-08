@@ -42,7 +42,8 @@ export interface WaRemind { at?: number; before?: number; sent?: string }
 export type BuddyStyle = 'friendly' | 'short' // shown as Long / Short
 export interface BuddySettings {
   on: boolean; style: BuddyStyle; morning: string | null; evening: string | null
-  via: 'bot' | 'self' // from the bot's number, or your own "Message yourself" chat
+  via: 'bot' | 'self' // from the bot's number, or your own "Message yourself" chat (the default)
+  viaChosen: boolean // answered the "where should Buddy message you?" question
   exams: boolean; examsAt: string | null // the evening before an exam
   study: string | null // today's study plan at this time
   studyBlocks: boolean // a nudge when a timed study block starts

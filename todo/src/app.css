@@ -1850,3 +1850,19 @@ input[type="checkbox"]:not(#_):disabled { opacity: .45; cursor: not-allowed; }
   .sp-focus { left: 12px; right: 12px; bottom: 12px; width: auto; }
   .sp-prog-list { grid-template-columns: 1fr; }
 }
+
+/* ---- where Buddy messages you (asked once) */
+.dialog.buddy-from-dialog { width: min(480px, calc(100vw - 32px)); }
+.buddy-from-dialog .help { margin: 0; }
+.bf-options { display: flex; flex-direction: column; gap: 10px; margin: 14px 0 10px; }
+.bf-option { display: flex; align-items: flex-start; gap: 12px; width: 100%; padding: 14px 16px; border: 1.5px solid var(--line); border-radius: var(--r-md); background: var(--surface); color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
+.bf-option:hover { background: var(--hover); }
+.bf-option.on { border-color: var(--leaf); background: color-mix(in srgb, var(--leaf) 7%, var(--surface)); }
+.bf-radio { flex: none; width: 18px; height: 18px; margin-top: 1px; border: 2px solid var(--line); border-radius: 50%; }
+.bf-option.on .bf-radio { border-color: var(--leaf); box-shadow: inset 0 0 0 3px var(--surface), inset 0 0 0 9px var(--leaf); }
+.bf-body { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.bf-body b { font-size: var(--t-sm); font-weight: 750; }
+.bf-body > span { font-size: var(--t-xs); line-height: 1.5; color: var(--muted); }
+.bf-body code { font-size: 11.5px; }
+.bf-tag { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px; background: var(--leaf-soft); color: var(--leaf); font-size: 10.5px; font-weight: 750; vertical-align: 1px; }
+.buddy-from-dialog .bf-later { font-size: var(--t-xs); }
