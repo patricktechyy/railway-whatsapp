@@ -189,6 +189,8 @@ Buddy only answers numbers that belong to a Whats Up account, stays quiet for �
 
 **Without a bot number** (or if you pick **Message yourself** under Settings → WhatsApp Buddy → Messages come from). Buddy writes into your own **“Message yourself”** chat, through your own WhatsApp (WhatsApp doesn't buzz for those). Answer there starting with `td`: `td?`, `td done`, `td snooze 1h`, `td add buy milk tomorrow 5pm`, `td study`, `td tick 2`, `td exams`, `td delete 2`, `td clear reminders`, `td help`.
 
+**Only the one you picked answers.** Picked Buddy's number: `td` commands in your own “Message yourself” chat do nothing (unless the bot's phone is offline, when Buddy writes to that chat for the time being and listens there too). Picked Message yourself: Buddy's number ignores you completely, even “hi”.
+
 **Exams and study.** Under Settings → WhatsApp Buddy: **the evening before an exam** (on by default, 8pm; it uses your school's timetable from the Exams page), **today's study plan** at a time you pick, and **when a study block starts** (on by default, for blocks you've given a start time). These work even with the daily morning/evening messages off.
 
 **When.** Buddy checks every 30 seconds. A reminder that comes due while the server is down is still sent if it's less than 12 hours late; a morning or evening message is sent up to 3 hours after its time, once a day. Each reminder goes out once; changing its time, or the task's date or time for a relative one, sets it again.

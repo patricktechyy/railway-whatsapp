@@ -681,6 +681,8 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
       if (msg.fromMe || !jid.endsWith('@s.whatsapp.net')) return
       const u = await buddy.userOfJid(jid, people())
       if (!u) return // not one of us: the bot stays quiet
+      // they chose "Message yourself": the bot's number is switched off for them (it never answers)
+      if (!buddy.viaBot(u)) return
       let reply
       try { reply = botReply(u, msg.text) } catch (e) { reply = `⚠️ ${e.message}` }
       if (reply) await link.call('send', { username: bot, jid, text: plain(reply) })
@@ -691,6 +693,9 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
     const self = s.me?.jid && s.store.canon(s.me.jid)
     if (!msg.fromMe || !self || jid !== self || !isTodoCommand(msg.text)) return
     if (!link.enabled('inbox') && !buddy.available) return
+    // they chose Buddy's number: "td …" in their own chat does nothing (use the bot's chat instead),
+    // unless the bot's phone is offline, when Buddy falls back to this chat and has to hear the replies
+    if (username !== bot && buddy.viaBot(username) && botView()?.connected) return
     let reply
     const selfBody = stripTodo(msg.text)
     try {
