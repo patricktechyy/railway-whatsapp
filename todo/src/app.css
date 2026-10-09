@@ -221,6 +221,8 @@ body.resizing .app, body.resizing .app::before, body.resizing .resize-handle { t
 .page { --page-w: 880px; max-width: var(--page-w); margin: 0 auto; animation: pageIn .32s var(--ease-out, ease-out) backwards; }
 .page.wide { --page-w: 1280px; }
 .page-board { --page-w: 1360px; }
+.page.page-study { --page-w: 2400px; } /* the planner is a grid of days: it uses the whole screen */
+@media (min-width: 861px) { .main:has(.page-study) { padding-left: 28px; padding-right: 28px; } }
 @keyframes pageIn { from { opacity: 0; transform: translateY(8px); } }
 .main-head { display: flex; align-items: center; gap: 16px; margin-bottom: 28px; min-height: 44px; }
 .menu-btn { display: none; }
@@ -1683,8 +1685,9 @@ input[type="checkbox"]:not(#_):disabled { opacity: .45; cursor: not-allowed; }
 .sp-start { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 18px 20px; }
 .sp-start .help { margin: 0 0 6px; }
 
-.sp-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--surface); overscroll-behavior-x: contain; scroll-snap-type: x proximity; scroll-padding-left: 116px; /* days snap in beside the row labels */ }
-.sp-board { display: grid; grid-template-columns: 116px repeat(var(--days), minmax(192px, 1fr)); grid-template-rows: auto auto 1fr; min-width: min-content; }
+.sp-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--surface); overscroll-behavior-x: contain; scroll-snap-type: x proximity; scroll-padding-left: 96px; /* days snap in beside the row labels */ }
+.sp-weeks { display: flex; flex-direction: column; gap: 14px; }
+.sp-board { display: grid; grid-template-columns: 96px repeat(var(--days), minmax(140px, 1fr)); grid-template-rows: auto auto 1fr; min-width: min-content; }
 .sp-corner, .sp-rowhead { position: sticky; left: 0; z-index: 2; background: var(--surface); border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
 .sp-rowhead { display: flex; flex-direction: column; gap: 2px; padding: 12px; font-size: var(--t-sm); font-weight: 750; }
 .sp-rowhead small { font-size: var(--t-xs); font-weight: 500; color: var(--muted); }
@@ -1732,6 +1735,14 @@ input[type="checkbox"]:not(#_):disabled { opacity: .45; cursor: not-allowed; }
 .sp-block-top { display: flex; align-items: flex-start; gap: 5px; }
 .sp-block-top .sp-mode { margin-top: 1px; }
 .sp-block-top .sp-block-head { flex: 1; min-width: 0; }
+/* in a narrow day (a whole week on a laptop) the subject gets its own line, and words break between words, not inside them */
+.sp-cell.sp-study { container-type: inline-size; }
+@container (max-width: 190px) {
+  .sp-block-top { flex-wrap: wrap; }
+  .sp-block-top .sp-block-head { flex: 1 1 100%; }
+  .sp-block-top .sp-mode { margin: 0 auto 0 0; }
+  .sp-subject { overflow-wrap: normal; word-break: normal; hyphens: auto; }
+}
 .sp-mode { flex: none; min-width: 30px; padding: 1px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--ink); font: inherit; font-size: 10.5px; font-weight: 800; letter-spacing: .03em; cursor: pointer; }
 .sp-mode:hover { border-color: var(--leaf); color: var(--leaf-text); }
 .sp-mode.empty { color: var(--muted); font-weight: 600; border-style: dashed; }

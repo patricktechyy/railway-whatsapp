@@ -44,6 +44,8 @@ type Filter = { kind: 'mode' | 'prio' | 'subject' | 'tag'; id: string } | null
 /** The focus timer (kept on this device, so it survives a refresh). */
 type Focus = { id: string; minutes: number; start: number; paused: number | null; idle: number }
 const FOCUS_KEY = 'todo-focus'
+/** Width a whole week needs side by side: the row labels (96px) plus 7 days of at least 140px (see .sp-board). */
+const STACK_MIN = 2 + 96 + 7 * 140
 
 export function StudyView({ study, exams, weekStartsMonday, onExams }: { study: StudyApi; exams: Exam[]; weekStartsMonday: boolean; onExams: () => void }) {
   const { plan, change } = study
@@ -60,20 +62,31 @@ export function StudyView({ study, exams, weekStartsMonday, onExams }: { study: 
   const [filter, setFilter] = useState<Filter>(null)
   const [focus, setFocus] = useState<Focus | null>(() => { try { return JSON.parse(localStorage.getItem(FOCUS_KEY) || 'null') } catch { return null } })
   const board = useRef<HTMLDivElement>(null)
+  // room for a whole week side by side? Then two weeks stack as two rows instead of one long strip
+  const [roomy, setRoomy] = useState(false)
   const drag = useRef<string | null>(null) // the block being dragged
   useEffect(() => { try { localStorage.setItem('todo-study-span', String(span)) } catch {} }, [span])
   useEffect(() => { try { focus ? localStorage.setItem(FOCUS_KEY, JSON.stringify(focus)) : localStorage.removeItem(FOCUS_KEY) } catch {} }, [focus])
 
   const days = useMemo(() => Array.from({ length: span }, (_, i) => addDays(start, i)), [start, span])
+  useEffect(() => {
+    const el = board.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(([e]) => setRoomy(e.contentRect.width >= STACK_MIN))
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [plan === null]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // bring today into view if it's off to the right (phones show about one day at a time)
   useEffect(() => {
-    const box = board.current
-    const el = box?.querySelector<HTMLElement>('.sp-head.today')
-    if (!box || !el) { if (box) box.scrollLeft = 0; return }
+    const wrap = board.current
+    const el = wrap?.querySelector<HTMLElement>('.sp-head.today')
+    const box = el?.closest<HTMLElement>('.sp-scroll')
+    if (!wrap || !el || !box) { wrap?.querySelectorAll<HTMLElement>('.sp-scroll').forEach((x) => { x.scrollLeft = 0 }); return }
     const labels = box.querySelector<HTMLElement>('.sp-corner')?.offsetWidth || 0 // the sticky row labels
     const left = el.getBoundingClientRect().left - box.getBoundingClientRect().left + box.scrollLeft
     box.scrollLeft = left + el.offsetWidth > box.clientWidth ? left - labels : 0
-  }, [start, span, plan === null]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [start, span, roomy, plan === null]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // the block being timed was deleted (here or on another device): drop the timer
   useEffect(() => { if (plan && focus && !plan.blocks.some((b) => b.id === focus.id)) setFocus(null) }, [plan, focus])
@@ -176,6 +189,7 @@ export function StudyView({ study, exams, weekStartsMonday, onExams }: { study: 
   const focused = inRange.reduce((n, b) => n + (b.spent || 0), 0)
 
   const label = `${short(days[0])} – ${short(days[days.length - 1])}`
+  const weeks = span === 14 && roomy ? [days.slice(0, 7), days.slice(7)] : [days]
   const subjectsUsed = plan.subjects.filter((s) => plan.blocks.some((b) => b.subject === s.id))
   const focusBlock = focus && plan.blocks.find((b) => b.id === focus.id)
 
@@ -225,8 +239,10 @@ export function StudyView({ study, exams, weekStartsMonday, onExams }: { study: 
         </div>
       )}
 
-      <div className="sp-scroll" ref={board}>
-        <div className="sp-board" style={{ ['--days' as string]: span }}>
+      <div className={`sp-weeks${weeks.length > 1 ? ' stacked' : ''}`} ref={board}>
+      {weeks.map((days) => (
+      <div className="sp-scroll" key={days[0]}>
+        <div className="sp-board" style={{ ['--days' as string]: days.length }}>
           <div className="sp-corner" />
           {days.map((k) => {
             const dd = fromKey(k)
@@ -345,6 +361,8 @@ export function StudyView({ study, exams, weekStartsMonday, onExams }: { study: 
             </div>
           ))}
         </div>
+      </div>
+      ))}
       </div>
 
       <Progress plan={plan} days={days} label={label} done={doneN} total={items.length} focused={focused} />
