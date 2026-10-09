@@ -372,6 +372,9 @@ export class Buddy {
       '• *td study* today’s study plan · *td tick 2* tick a topic off',
       '• *td exams* your next exams', '',
       'Numbers refer to my last list. Dates: today, tomorrow, Mon, or a date. Times: 5pm or 17:00. Also *!3* priority, *#tag*, *@List*, and repeats like daily or every 2 weeks.', '',
+      '⏰ *Quick reminders* (start with *-*, they don’t go on your list)',
+      '• *-reminder 30m* buy milk · *-reminder 5pm* call mum',
+      '• *-reminders* see them · *-cancel 2*', '',
       `_Buddy settings: ${this.brand} → Settings_`,
     ].join('\n')
   }

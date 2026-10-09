@@ -17,6 +17,7 @@ import { CalendarFeeds } from './calendar.js'
 import { parseQuickAdd } from './quickadd.js'
 import { Exams } from './exams.js'
 import { StudyPlans } from './study.js'
+import { QuickReminders } from './quickremind.js'
 
 /**
  * Gavin's Todolist, as a part of Whats Up.
@@ -69,6 +70,20 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
   const buddy = new Buddy(dataDir, store, link, { brand, onTaskChange: (t) => toldAdmin(t), getBot: botUser, planner: { study, exams }, nameOf: (u) => nameOf(u) })
   buddy.start(tickMs)
   new Reminders(dataDir, store, push, link, buddy).start(tickMs)
+  // the second bot in Buddy's chat: "-reminder 30m buy milk". Its reminders aren't tasks.
+  const quick = new QuickReminders(dataDir, {
+    tzOf: (u) => tzOf(u),
+    enabled: () => !!link.enabled('reminders'),
+    send: async ({ user, chat, text }) => {
+      const bot = botUser()
+      if (chat?.via === 'bot' && chat.jid && bot && bot !== user) {
+        try { return await link.call('send', { username: bot, jid: chat.jid, text: plain(text) }) }
+        catch (e) { console.warn(`[quickremind] bot couldn't send to ${user} (${e.message}); using "Message yourself"`) }
+      }
+      return link.call('send', { username: user, text })
+    },
+  })
+  quick.start(tickMs)
 
   /** Every Whats Up account, plus the ADMIN_PASSWORD login if it keeps tasks here too. */
   const people = () => {
@@ -700,13 +715,20 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
       // they chose "Message yourself": the bot's number is switched off for them (it never answers)
       if (!buddy.viaBot(u)) return
       let reply
-      try { reply = botReply(u, msg.text) } catch (e) { reply = `⚠️ ${e.message}` }
+      try { reply = QuickReminders.wants(msg.text) ? quick.command(u, msg.text, { via: 'bot', jid }) : botReply(u, msg.text) } catch (e) { reply = `⚠️ ${e.message}` }
       if (reply) await link.call('send', { username: bot, jid, text: plain(reply) })
       return
     }
 
     // ---- "td …" in your own "Message yourself" chat
     const self = s.me?.jid && s.store.canon(s.me.jid)
+    // "-reminder …" in your own chat: the reminder bot answers, nothing goes on the to-do list
+    if (msg.fromMe && self && jid === self && QuickReminders.wants(msg.text)) {
+      let reply
+      try { reply = quick.command(username, msg.text, { via: 'self' }) } catch (e) { reply = `⚠️ ${e.message}` }
+      if (reply) await link.call('send', { username, text: reply })
+      return
+    }
     if (!msg.fromMe || !self || jid !== self || !isTodoCommand(msg.text)) return
     if (!link.enabled('inbox') && !buddy.available) return
     // they chose Buddy's number: "td …" in their own chat does nothing (use the bot's chat instead),
@@ -823,6 +845,7 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
       // with the same username starts clean
       fs.rmSync(push.file(username), { force: true })
       buddy.forget(username)
+      quick.forget(username)
       groups.forget(username)
       calendars.forget(username)
       exams.forget(username)

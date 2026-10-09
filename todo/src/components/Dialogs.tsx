@@ -426,6 +426,7 @@ function BuddySetting({ me, onChange }: { me: Me; onChange: (b: BuddySettings) =
           {bot && <small className="buddy-privacy"><Icon name="lock" /> Only you can see these messages.</small>}
         </p>
       )}
+      <p className="help buddy-quick"><Icon name="clock" /> <b>Quick reminders</b>: send <b>-reminder 30m buy milk</b> or <b>-reminder 5pm call mum</b> in the same chat. They go off there and stay out of your to-do list. <b>-reminders</b> lists them, <b>-cancel 2</b> drops one.</p>
       <WaWarning me={me} />
       <div className="field">
         <span className="label">Message length</span>

@@ -1,7 +1,7 @@
 import { Collapsible } from './Collapsible'
 import { colorClass } from '../listColor'
 import { ListMenu } from './ListMenu'
-import { memo, useRef, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
+import { memo, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
 import { DndContext, PointerSensor, TouchSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -53,6 +53,8 @@ interface Props {
 export const LISTS_SHOWN = 4
 
 const same = (a: View, b: View) => JSON.stringify(a) === JSON.stringify(b)
+/** Which of the page groups (Plan, Study, Tasks, You) you rolled up, on this device. */
+const NAV_KEY = 'todo-nav-groups'
 
 export const SidebarIcon = () => (
   <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="3.5" width="15" height="13" rx="3" /><path d="M8 3.5v13M4.8 7h1M4.8 9.5h1" /></svg>
@@ -148,6 +150,12 @@ function Item({ icon, label, count, danger, active, onClick }: { icon: ReactNode
 
 export const Sidebar = memo(function Sidebar({ me, view, lists, tags, counts, online, open, collapsed, peek, onCollapse, onPeek, onReorderLists, onNavigate, onNewList, onEditList, onDeleteList, onSettings, onSignOut, onWhatsApp, listsCollapsed, listsShowAll, onListsUi, groups, onNewGroup }: Props) {
   const svg = (k: string) => <svg viewBox="0 0 20 20" aria-hidden="true">{ICONS[k]}</svg>
+  const [shut, setShut] = useState<Record<string, boolean>>(() => { try { return JSON.parse(localStorage.getItem(NAV_KEY) || '{}') || {} } catch { return {} } })
+  const toggleGroup = (id: string) => setShut((x) => {
+    const next = { ...x, [id]: !x[id] }
+    try { localStorage.setItem(NAV_KEY, JSON.stringify(next)) } catch {}
+    return next
+  })
   const go = (v: View) => () => onNavigate(v)
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -179,27 +187,50 @@ export const Sidebar = memo(function Sidebar({ me, view, lists, tags, counts, on
         </button>
       </div>
 
-      {/* one list, in three quiet groups: plan your days → your tasks → you */}
-      <ul className="nav main-nav">
-        <Item icon={svg('today')} label="Today" count={counts.today + counts.overdue} danger={counts.overdue > 0} active={same(view, { kind: 'today' })} onClick={go({ kind: 'today' })} />
-        <Item icon={svg('upcoming')} label="Upcoming" count={counts.upcoming} active={same(view, { kind: 'upcoming' })} onClick={go({ kind: 'upcoming' })} />
-        <Item icon={svg('calendar')} label="Calendar" active={same(view, { kind: 'calendar' })} onClick={go({ kind: 'calendar' })} />
-        <Item icon={svg('study')} label="Study planner" active={same(view, { kind: 'study' })} onClick={go({ kind: 'study' })} />
-        <Item icon={svg('exams')} label="Exams" active={same(view, { kind: 'exams' })} onClick={go({ kind: 'exams' })} />
-        <li className="nav-sep" aria-hidden="true" />
-        <Item icon={svg('all')} label="All tasks" count={counts.all} active={same(view, { kind: 'all' })} onClick={go({ kind: 'all' })} />
-        <Item icon={svg('inbox')} label="No list" count={counts.inbox} active={same(view, { kind: 'inbox' })} onClick={go({ kind: 'inbox' })} />
-        <Item icon={svg('completed')} label="Completed" active={same(view, { kind: 'completed' })} onClick={go({ kind: 'completed' })} />
-        <li className="nav-sep" aria-hidden="true" />
-        <Item icon={svg('stats')} label="Stats" active={same(view, { kind: 'stats' })} onClick={go({ kind: 'stats' })} />
-        <li>
-          <button className={`nav-item personalize-btn${view.kind === 'board' ? ' on' : ''}`} onClick={go({ kind: 'board' })} aria-current={view.kind === 'board' ? 'page' : undefined}>
-            <span className="nav-icon"><Icon name="palette" /></span>
-            <span className="nav-label">Personalize It</span>
-          </button>
-        </li>
-        {me.admin && <Item icon={svg('admin')} label="Admin" active={same(view, { kind: 'admin' })} onClick={go({ kind: 'admin' })} />}
-      </ul>
+      {/* the pages, in groups you can roll up like Lists: plan your days → study → your tasks → you */}
+      {(() => {
+        const item = (kind: View['kind'], label: string, extra: { count?: number; danger?: boolean } = {}) => {
+          const v = { kind } as View
+          return { key: kind, active: same(view, v), node: <Item key={kind} icon={svg(kind)} label={label} {...extra} active={same(view, v)} onClick={go(v)} /> }
+        }
+        const personalize = {
+          key: 'board', active: view.kind === 'board',
+          node: (
+            <li key="board">
+              <button className={`nav-item personalize-btn${view.kind === 'board' ? ' on' : ''}`} onClick={go({ kind: 'board' })} aria-current={view.kind === 'board' ? 'page' : undefined}>
+                <span className="nav-icon"><Icon name="palette" /></span>
+                <span className="nav-label">Personalize It</span>
+              </button>
+            </li>
+          ),
+        }
+        const groups: { id: string; label: string; items: { key: string; active: boolean; node: ReactNode }[]; badge?: { n: number; danger?: boolean } }[] = [
+          { id: 'plan', label: 'Plan', items: [item('today', 'Today', { count: counts.today + counts.overdue, danger: counts.overdue > 0 }), item('upcoming', 'Upcoming', { count: counts.upcoming }), item('calendar', 'Calendar')], badge: { n: counts.today + counts.overdue, danger: counts.overdue > 0 } },
+          { id: 'study', label: 'Study', items: [item('study', 'Study planner'), item('exams', 'Exams')] },
+          { id: 'tasks', label: 'Tasks', items: [item('all', 'All tasks', { count: counts.all }), item('inbox', 'No list', { count: counts.inbox }), item('completed', 'Completed')], badge: { n: counts.all } },
+          { id: 'you', label: 'You', items: [item('stats', 'Stats'), personalize, ...(me.admin ? [item('admin', 'Admin')] : [])] },
+        ]
+        return groups.map((g) => {
+          const closed = !!shut[g.id]
+          const active = g.items.find((x) => x.active)
+          return (
+            <div className="nav-group" key={g.id}>
+              <div className="nav-section nav-group-head">
+                <button type="button" className="section-toggle" onClick={() => toggleGroup(g.id)} aria-expanded={!closed} aria-controls={`nav-${g.id}`} title={closed ? `Show ${g.label}` : `Roll up ${g.label}`}>
+                  <span>{g.label}</span>
+                  <svg className={`chev${closed ? '' : ' open'}`} viewBox="0 0 20 20" aria-hidden="true"><path d="m7.5 5 5 5-5 5" /></svg>
+                  {closed && !!g.badge?.n && <span className={`section-count${g.badge.danger ? ' danger' : ''}`}>{g.badge.n}</span>}
+                </button>
+              </div>
+              {/* rolled up, the page you're on stays in view */}
+              {closed && active && <ul className="nav">{active.node}</ul>}
+              <Collapsible open={!closed}>
+                <ul className="nav" id={`nav-${g.id}`} aria-label={g.label}>{g.items.map((x) => x.node)}</ul>
+              </Collapsible>
+            </div>
+          )
+        })
+      })()}
 
       <div className="nav-section lists-head">
         <button type="button" className="section-toggle" onClick={() => onListsUi({ listsCollapsed: !listsCollapsed })} aria-expanded={!listsCollapsed} aria-controls="side-lists" title={listsCollapsed ? 'Show your lists' : 'Hide your lists'}>

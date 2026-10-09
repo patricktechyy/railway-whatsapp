@@ -1191,6 +1191,10 @@ body.resizing-board.y { cursor: ns-resize; } body.resizing-board.xy { cursor: nw
 .section-toggle .chev, .view-more .chev { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; transition: transform .22s ease; }
 .section-toggle .chev.open { transform: rotate(90deg); }
 .section-count { margin-left: 4px; font-size: 11px; padding: 0 6px; border-radius: 999px; background: var(--side-hover); color: var(--side-ink); letter-spacing: 0; }
+.section-count.danger { background: #c4313a; color: #fff; }
+/* the page groups (Plan, Study, Tasks, You): headed like Lists, a little tighter so the sidebar doesn't grow much */
+.nav-group-head { padding: 12px 12px 4px; }
+.nav-group:first-of-type .nav-group-head { padding-top: 2px; }
 .view-more { display: flex; align-items: center; gap: 6px; width: 100%; margin: 2px 0 4px; padding: 7px 12px; border: 0; background: none; border-radius: var(--r-sm);
   color: var(--side-muted); font: inherit; font-size: var(--t-sm); font-weight: 650; cursor: pointer; text-align: left; }
 .view-more:hover { background: var(--side-hover); color: var(--side-ink); }
@@ -1904,3 +1908,5 @@ h3 > .ico, .blocks-check span > .ico { margin-right: 7px; color: var(--muted); }
 .tchip .ico, .menu-item .ico { width: 18px; height: 18px; }
 /* keyboard focus in the sidebar: a solid ring in the sidebar's text colour, on every row (the selected one and Personalize It too) */
 .sidebar .nav-item:focus-visible, .sidebar .nav-item.on:focus-visible, .sidebar .nav-item.personalize-btn:focus-visible { box-shadow: 0 0 0 2px var(--side-ink); }
+.buddy-quick { margin-top: 10px; }
+.buddy-quick .ico { margin-right: 4px; }
