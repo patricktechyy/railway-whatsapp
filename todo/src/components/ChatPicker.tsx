@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { api } from '../api'
+import { Icon } from './Icon'
 
 interface Chat { jid: string; name: string; phone: string; group: boolean }
 
@@ -35,7 +36,7 @@ export function ChatPicker({ taskTitle, onPick, onClose, onSent }: { taskTitle: 
           {chats?.map((c) => (
             <li key={c.jid}>
               <button disabled={!!busy} onClick={async () => { setBusy(c.jid); try { await onPick(c.jid); onSent(c.name) } catch (e: any) { setErr(e.message); setBusy(null) } }}>
-                <span className="chat-avatar" aria-hidden="true">{c.group ? '👥' : (c.name || '?').trim()[0]?.toUpperCase()}</span>
+                <span className="chat-avatar" aria-hidden="true">{c.group ? <Icon name="users" /> : (c.name || '?').trim()[0]?.toUpperCase()}</span>
                 <span className="chat-name">{c.name}{c.phone && !c.group && <small>{c.phone}</small>}</span>
                 <span className="chat-send">{busy === c.jid ? 'Sending…' : 'Send'}</span>
               </button>

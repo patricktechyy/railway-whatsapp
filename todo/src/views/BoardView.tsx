@@ -6,6 +6,7 @@ import type { Board, Widget, WidgetType } from '../types'
 import { WIDGET_INFO, WidgetBody, type WidgetEnv } from '../components/widgets'
 import { MenuItem, Popover, usePopover } from '../components/Popover'
 import { Select } from '../components/Select'
+import { Icon } from '../components/Icon'
 
 const TYPES = Object.keys(WIDGET_INFO) as WidgetType[]
 const newId = () => Math.random().toString(36).slice(2, 12)
@@ -163,7 +164,7 @@ function Block({ widget, env, editing, onChange, onRemove }: {
         <button type="button" className="widget-grip" ref={setActivatorNodeRef} {...attributes} {...listeners} aria-label={`Move the ${name} block`} title="Drag to move">⠿</button>
         {editing
           ? <input className="input sm widget-rename" value={widget.title} placeholder={info.name} maxLength={40} onChange={(e) => onChange({ ...widget, title: e.target.value })} aria-label="Block name" />
-          : <h3><span aria-hidden="true">{info.icon}</span> {name}</h3>}
+          : <h3><Icon name={info.icon} />{name}</h3>}
         {editing && (
           <>
             <Select className="input sm" value={String(span)} onChange={(e) => { const c = Number(e.target.value); onChange({ ...widget, w: c, size: sizeFor(c) }) }} aria-label="Width">
@@ -239,9 +240,9 @@ export function BoardView({ board, env, onSave }: { board: Board; env: WidgetEnv
       <div className="board-bar">
         <span className="spacer" />
         <button className="btn ghost sm" onClick={addSticky} disabled={full} data-add-sticky>+ Sticky note</button>
-        <button ref={blocks.ref} className="btn ghost sm" onClick={blocks.toggle} aria-haspopup="dialog" aria-expanded={blocks.open} data-blocks>☑ Blocks</button>
+        <button ref={blocks.ref} className="btn ghost sm" onClick={blocks.toggle} aria-haspopup="dialog" aria-expanded={blocks.open} data-blocks><Icon name="blocks" />Blocks</button>
         {editing && <button ref={add.ref} className="btn ghost sm" onClick={add.toggle} disabled={full}>+ Add block</button>}
-        <button className={`btn sm${editing ? '' : ' ghost'}`} onClick={() => setEditing((e) => !e)} data-board-edit>{editing ? 'Done' : '✎ Edit board'}</button>
+        <button className={`btn sm${editing ? '' : ' ghost'}`} onClick={() => setEditing((e) => !e)} data-board-edit>{editing ? 'Done' : <><Icon name="pencil" />Edit board</>}</button>
       </div>
 
       {blocks.open && (
@@ -255,7 +256,7 @@ export function BoardView({ board, env, onSave }: { board: Board; env: WidgetEnv
                   <li key={w.id}>
                     <label className="toggle tight">
                       <input type="checkbox" checked={!w.hidden} onChange={(e) => save(widgets.map((x) => (x.id === w.id ? { ...x, hidden: !e.target.checked } : x)))} />
-                      <span><span aria-hidden="true">{info.icon}</span> {w.title || info.name}</span>
+                      <span><Icon name={info.icon} />{w.title || info.name}</span>
                     </label>
                   </li>
                 )
@@ -269,7 +270,7 @@ export function BoardView({ board, env, onSave }: { board: Board; env: WidgetEnv
                     <li key={t}>
                       <label className="toggle tight">
                         <input type="checkbox" checked={false} disabled={full} onChange={() => addType(t)} />
-                        <span><span aria-hidden="true">{WIDGET_INFO[t].icon}</span> {WIDGET_INFO[t].name}</span>
+                        <span><Icon name={WIDGET_INFO[t].icon} />{WIDGET_INFO[t].name}</span>
                       </label>
                     </li>
                   ))}
@@ -288,14 +289,14 @@ export function BoardView({ board, env, onSave }: { board: Board; env: WidgetEnv
         <Popover anchor={add.anchor} onClose={add.close} label="Add a block" width={300}>
           <div className="menu" role="menu">
             {TYPES.map((t) => (
-              <MenuItem key={t} icon={WIDGET_INFO[t].icon} label={WIDGET_INFO[t].name} sub={WIDGET_INFO[t].help} onClick={() => { add.close(); addType(t) }} />
+              <MenuItem key={t} icon={<Icon name={WIDGET_INFO[t].icon} />} label={WIDGET_INFO[t].name} sub={WIDGET_INFO[t].help} onClick={() => { add.close(); addType(t) }} />
             ))}
           </div>
         </Popover>
       )}
 
       {visible.length === 0 ? (
-        <div className="empty">{widgets.length ? <>All your blocks are hidden. Turn some on in <b>☑ Blocks</b>.</> : <>Your board is empty. Add something from <b>☑ Blocks</b>.</>}</div>
+        <div className="empty">{widgets.length ? <>All your blocks are hidden. Turn some on in <b>Blocks</b>.</> : <>Your board is empty. Add something from <b>Blocks</b>.</>}</div>
       ) : (
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={end}>
           <SortableContext items={visible.map((w) => w.id)} strategy={rectSortingStrategy}>

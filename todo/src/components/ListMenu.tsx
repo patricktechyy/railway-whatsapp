@@ -1,5 +1,6 @@
 import type { List } from '../types'
 import { MenuItem, Popover, usePopover } from './Popover'
+import { Icon } from './Icon'
 
 /** ⋯ on a list: Edit or Delete. Also opens on right-click of the list's row (see Sidebar). */
 export function ListMenu({ list, onEdit, onDelete, className = 'icon-btn sm edit' }: {
@@ -17,8 +18,8 @@ export function ListMenu({ list, onEdit, onDelete, className = 'icon-btn sm edit
       {menu.open && (
         <Popover anchor={menu.anchor} onClose={menu.close} label={`List ${list.name}`} width={210}>
           <div className="menu" role="menu">
-            <MenuItem icon="✏️" label="Edit list" onClick={() => { menu.close(); onEdit() }} />
-            <MenuItem icon="🗑" label="Delete list…" danger onClick={() => { menu.close(); onDelete() }} />
+            <MenuItem icon={<Icon name="pencil" />} label="Edit list" onClick={() => { menu.close(); onEdit() }} />
+            <MenuItem icon={<Icon name="trash" />} label="Delete list…" danger onClick={() => { menu.close(); onDelete() }} />
           </div>
         </Popover>
       )}

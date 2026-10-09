@@ -46,6 +46,7 @@ import { StudyView } from './views/StudyView'
 import { useExams } from './useExams'
 import { useStudy } from './useStudy'
 import { Select } from './components/Select'
+import { Icon } from './components/Icon'
 
 // ------------------------------------------------------------------ routing
 function parseHash(): View {
@@ -274,8 +275,8 @@ function Shell({ me, setMe }: { me: Me; setMe: (m: Me | null) => void }) {
       const ev = (e as CustomEvent).detail
       // (with notifications on, the push for it rings already)
       if ((ev?.type === 'assigned' || (ev?.type === 'nudge' && ev.taskId)) && !pushedHere()) chime().play()
-      if (ev?.type === 'assigned') toast(`📌 ${ev.by} gave you a task: ${ev.title}`, { label: 'Open', run: () => setSelectedId(ev.taskId) })
-      else if (ev?.type === 'nudge' && ev.taskId) toast(`👋 ${ev.by} reminds you: ${ev.title}`, { label: 'Open', run: () => setSelectedId(ev.taskId) })
+      if (ev?.type === 'assigned') toast(`${ev.by} gave you a task: ${ev.title}`, { label: 'Open', run: () => setSelectedId(ev.taskId) })
+      else if (ev?.type === 'nudge' && ev.taskId) toast(`${ev.by} reminds you: ${ev.title}`, { label: 'Open', run: () => setSelectedId(ev.taskId) })
     }
     window.addEventListener('todo:event', onEv)
     return () => window.removeEventListener('todo:event', onEv)
@@ -446,7 +447,7 @@ function Shell({ me, setMe }: { me: Me; setMe: (m: Me | null) => void }) {
       else if (at?.x !== undefined && at.y !== undefined) celebrate(at.x, at.y)
     }
     const next = t.repeat ? nextOccurrence(t.due, t.repeat) : null
-    const msg = allTodayDone ? 'Everything due today is done 🎉' : next ? `Done. Next one: ${formatDay(next)} ↻` : `Done: ${t.title}`
+    const msg = allTodayDone ? 'Everything due today is done' : next ? `Done. Next one: ${formatDay(next)} ↻` : `Done: ${t.title}`
     toast(msg, { label: 'Undo', run: () => actions.updateTask(t.id, { status: before }) })
   }
   const remove = (t: Task) => {
@@ -513,7 +514,7 @@ function Shell({ me, setMe }: { me: Me; setMe: (m: Me | null) => void }) {
     case 'today': {
       const d = new Date()
       title = 'Today'
-      subtitle = `${WEEKDAYS[d.getDay()]}, ${d.getDate()} ${MONTHS[d.getMonth()]}${holidayName(today) ? ` · 🎉 ${holidayName(today)}` : ''}`
+      subtitle = `${WEEKDAYS[d.getDay()]}, ${d.getDate()} ${MONTHS[d.getMonth()]}${holidayName(today) ? ` · ${holidayName(today)}` : ''}`
       defaults = { due: today }
       const byTime = (a: Task, b: Task) => doingFirst(a, b) || (a.time || '99').localeCompare(b.time || '99') || b.priority - a.priority || byOrder(a, b)
       groups = [
@@ -531,7 +532,7 @@ function Shell({ me, setMe }: { me: Me; setMe: (m: Me | null) => void }) {
       const future = active.filter((t) => t.due && t.due > today && matches(t)).sort(byDue)
       const days = Array.from({ length: 14 }, (_, i) => addDays(today, i + 1))
       groups = [
-        ...days.map((k) => ({ key: k, title: `${formatDay(k)}${daysBetween(today, k) > 1 ? ` · ${fromKey(k).getDate()} ${MONTHS[fromKey(k).getMonth()].slice(0, 3)}` : ''}${holidayName(k) ? ` · 🎉 ${holidayName(k)}` : ''}`, tasks: future.filter((t) => t.due === k) })),
+        ...days.map((k) => ({ key: k, title: `${formatDay(k)}${daysBetween(today, k) > 1 ? ` · ${fromKey(k).getDate()} ${MONTHS[fromKey(k).getMonth()].slice(0, 3)}` : ''}${holidayName(k) ? ` · ${holidayName(k)}` : ''}`, tasks: future.filter((t) => t.due === k) })),
         { key: 'later', title: 'Later', tasks: future.filter((t) => t.due! > days[days.length - 1]) },
       ]
       scope = tasks.filter((t) => t.due && t.due > today && matches(t))
@@ -589,7 +590,6 @@ function Shell({ me, setMe }: { me: Me; setMe: (m: Me | null) => void }) {
       break
     case 'board':
       title = 'Personalize It'
-      emoji = '✨'
       break
     case 'group': {
       const g = groupsApi.groups?.find((x) => x.id === view.id)
@@ -729,7 +729,7 @@ function Shell({ me, setMe }: { me: Me; setMe: (m: Me | null) => void }) {
 
           {announcements.filter((a) => !hiddenAnn.includes(a.id)).slice(0, 2).map((a) => (
             <div key={a.id} className="nudge announce" role="status">
-              <span>📣 <b>{a.title}</b>{a.body && <> · {a.body}</>}</span>
+              <span><Icon name="megaphone" className="nudge-ico" /><b>{a.title}</b>{a.body && <> · {a.body}</>}</span>
               <button className="icon-btn sm" aria-label="Dismiss" onClick={() => hideAnn(a.id)}>
                 <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6 6l8 8M14 6l-8 8" /></svg>
               </button>
@@ -798,7 +798,7 @@ function Shell({ me, setMe }: { me: Me; setMe: (m: Me | null) => void }) {
                       <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5 5 15" /></svg>
                     </button>
                   </div>
-                  {holidayName(day) && <p className="day-holiday">🎉 {holidayName(day)}</p>}
+                  {holidayName(day) && <p className="day-holiday"><Icon name="star" />{holidayName(day)}</p>}
                   <DayNote
                     key={`note-${day}`}
                     date={day}

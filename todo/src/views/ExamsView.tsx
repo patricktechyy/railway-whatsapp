@@ -5,6 +5,7 @@ import { Select } from '../components/Select'
 import { toast } from '../components/Toast'
 import type { Exam, ExamRequest, School } from '../types'
 import type { ExamInput, ExamsApi } from '../useExams'
+import { Icon } from '../components/Icon'
 
 /**
  * Exams: your school's exam timetable, as a calendar or a list, counting down to
@@ -80,7 +81,7 @@ export function ExamsView({ exams: x, weekStartsMonday, onPlan }: { exams: Exams
           </Select>
         ) : d.school ? (
           // picked once; the admin changes it if it's wrong
-          <span className="ex-school" title="Your admin can change this">🏫 {schoolName(d.school)}</span>
+          <span className="ex-school" title="Your admin can change this"><Icon name="school" />{schoolName(d.school)}</span>
         ) : null}
         {!noSchool && (
           <div className="seg sm" role="radiogroup" aria-label="Show as">
@@ -188,7 +189,7 @@ function PickSchool({ schools, onPick }: { schools: School[]; onPick: (id: strin
   const [sid, setSid] = useState(schools[0]?.id || '')
   return (
     <div className="ex-empty card">
-      <div className="ex-empty-icon" aria-hidden="true">🏫</div>
+      <div className="ex-empty-icon"><Icon name="school" /></div>
       <h3>Which school are you at?</h3>
       {schools.length ? (
         <>
@@ -212,7 +213,7 @@ function PickSchool({ schools, onPick }: { schools: School[]; onPick: (id: strin
 function NextUp({ exams, today, onOpen, onPlan }: { exams: Exam[]; today: string; onOpen: (e: Exam) => void; onPlan?: () => void }) {
   const next = exams.find((e) => e.date >= today)
   if (!next) {
-    return exams.length ? <div className="ex-next done card"><span className="ex-next-big">🎉</span><div><b>All done</b><p className="help">No more exams on the timetable.</p></div></div> : null
+    return exams.length ? <div className="ex-next done card"><span className="ex-next-big"><Icon name="done" /></span><div><b>All done</b><p className="help">No more exams on the timetable.</p></div></div> : null
   }
   const n = daysBetween(today, next.date)
   // "this exam period": the papers within a few weeks either side of the next one

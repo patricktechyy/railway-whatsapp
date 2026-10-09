@@ -37,7 +37,7 @@ export function useReminders(tasks: Task[] | undefined, onOpen: (t: Task) => voi
         // don't ring for reminders that were missed by more than a day
         if (now - at > 864e5) continue
         const body = t.due ? `Due ${formatDue(t)}` : ''
-        toast(`🔔 ${t.title}`, { label: 'Open', run: () => latest.current.onOpen(t) })
+        toast(`Reminder: ${t.title}`, { label: 'Open', run: () => latest.current.onOpen(t) })
         // if this device gets server push, the server sends the system notification (and the
         // service worker rings); otherwise this page does both
         if (!pushedHere()) {

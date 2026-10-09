@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { LIST_COLORS, type DayNote as Note, type ListColor } from '../types'
+import { Icon } from './Icon'
 
 /**
  * Your own note on a day: a short label (shown next to the date on the
@@ -34,7 +35,7 @@ export function DayNote({ date, note, onSave, onDelete }: {
   if (!open) {
     return (
       <button type="button" className="day-note-add" onClick={() => setOpen(true)}>
-        <span aria-hidden="true">✎</span> Add a note for this day
+        <Icon name="pencil" /> Add a note for this day
       </button>
     )
   }

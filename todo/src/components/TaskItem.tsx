@@ -5,7 +5,8 @@ import { describeRepeat } from '../repeat'
 import type { List, Task } from '../types'
 import { STATUS_LABEL, nextStatus, statusOf, type Status } from '../status'
 import { ExtLink } from './Links'
-import { describeWa, waSent } from './WaPicker'
+import { WaIcon, describeWa, waSent } from './WaPicker'
+import { Icon } from './Icon'
 
 export const PRIORITY_LABEL = ['None', 'Low', 'Medium', 'High'] as const
 
@@ -130,17 +131,17 @@ export const TaskItem = memo(function TaskItem({ task, list, showList, selected,
         {task.notes && <span className="task-note">{task.notes.split('\n').find((l) => l.trim()) || ''}</span>}
         <span className="task-meta">
           {status !== 'done' && <span className={`status-pill st-${status}`}>{STATUS_LABEL[status]}</span>}
-          {task.from && <span className="meta from" title={`Given to you by ${task.from.name}`}>📌 From {task.from.name}</span>}
-          {task.chat && <span className="meta chat" title={`From your chat with ${task.chat.name}`}>💬 {task.chat.name}</span>}
+          {task.from && <span className="meta from" title={`Given to you by ${task.from.name}`}><Icon name="pin" />From {task.from.name}</span>}
+          {task.chat && <span className="meta chat" title={`From your chat with ${task.chat.name}`}><Icon name="chat" />{task.chat.name}</span>}
           {task.due && (
             <span className={`meta due${overdue ? ' overdue' : ''}`}>
               <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="3" width="12" height="11" rx="2.5" /><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3" /></svg>
               {formatDue(task)}
-              {task.remind !== null && <span aria-label="reminder set"> 🔔</span>}
+              {task.remind !== null && <Icon name="bell" label="Reminder set" />}
             </span>
           )}
           {task.wa && !task.done && (
-            <span className={`meta wa${waSent(task) ? ' sent' : ''}`} title="WhatsApp Buddy will message you">💬 {describeWa(task)}</span>
+            <span className={`meta wa${waSent(task) ? ' sent' : ''}`} title="WhatsApp Buddy will message you"><WaIcon />{describeWa(task)}</span>
           )}
           {task.repeat && (
             <span className="meta">

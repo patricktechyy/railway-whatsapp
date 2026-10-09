@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import { Icon, type IconName } from './Icon'
 
 export interface TourStep {
-  icon: string
+  icon: IconName
   title: string
   body: ReactNode
   /** Go here first (the "teleport"). */
@@ -128,7 +129,7 @@ export function Tour({ steps, onEnd }: { steps: TourStep[]; onEnd: () => void })
         aria-modal="false"
         aria-labelledby="tour-title"
       >
-        <div className="tour-icon" aria-hidden="true">{step.icon}</div>
+        <div className="tour-icon"><Icon name={step.icon} /></div>
         <h3 id="tour-title">{step.title}</h3>
         <div className="tour-body">{step.body}</div>
         {missing && step.demo && <div className="tour-demo" aria-hidden="true">{step.demo}</div>}

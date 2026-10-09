@@ -9,6 +9,7 @@ import { chime } from '../sound'
 import { toast } from './Toast'
 import { api } from '../api'
 import { Select } from './Select'
+import { Icon } from './Icon'
 
 /**
  * A modal window. Only the person closes it (Esc, backdrop, a button): we never
@@ -211,7 +212,7 @@ export function SettingsDialog({ me, prefs, setPrefs, onRename, onWaReminders, o
 
       {me.whatsapp.configured && (
         <section className="set-section">
-          <h3 className="set-title">WhatsApp Buddy 🤖</h3>
+          <h3 className="set-title">WhatsApp Buddy</h3>
           <BuddySetting me={me} onChange={onBuddy} />
         </section>
       )}
@@ -258,7 +259,7 @@ export function NotificationsSetting() {
       {support !== 'ok' ? (
         <p className="help">{supportMessage(support)}</p>
       ) : blocked ? (
-        <p className="help">Notifications are blocked for this site. Allow them in your browser’s site settings (the 🔒 by the address), then come back. {deviceTip().replace(/^Nothing showed\? /, '')}</p>
+        <p className="help">Notifications are blocked for this site. Allow them in your browser’s site settings (the padlock by the address), then come back. {deviceTip().replace(/^Nothing showed\? /, '')}</p>
       ) : on ? (
         <>
           <span className="badge ok"><i className="dot" />On for this device</span>
@@ -414,15 +415,15 @@ function BuddySetting({ me, onChange }: { me: Me; onChange: (b: BuddySettings) =
       )}
       {fromBot && bot ? (
         <p className="help buddy-intro">
-          Pick <b>💬 WhatsApp me</b> on a task and Buddy messages you from <b>its own number{bot.phone ? ` (${bot.phone})` : ''}</b>.
+          Pick <b>WhatsApp me</b> on a task and Buddy messages you from <b>its own number{bot.phone ? ` (${bot.phone})` : ''}</b>.
           Reply in that chat with <b>done</b>, <b>snooze 1h</b> or <b>today</b>.
-          <small className="buddy-privacy"> 🔓 Whoever runs that number (your admin) can read these messages and your replies. Pick <b>Message yourself</b> to keep them private.</small>
+          <small className="buddy-privacy"><Icon name="unlock" /> Whoever runs that number (your admin) can read these messages and your replies. Pick <b>Message yourself</b> to keep them private.</small>
         </p>
       ) : (
         <p className="help buddy-intro">
-          Pick <b>💬 WhatsApp me</b> on a task and Buddy messages you in <b>“Message yourself”</b>.
+          Pick <b>WhatsApp me</b> on a task and Buddy messages you in <b>“Message yourself”</b>.
           Reply there with <b>td done</b> or <b>td snooze 1h</b>.
-          {bot && <small className="buddy-privacy"> 🔒 Only you can see these messages.</small>}
+          {bot && <small className="buddy-privacy"><Icon name="lock" /> Only you can see these messages.</small>}
         </p>
       )}
       <WaWarning me={me} />
@@ -442,12 +443,12 @@ function BuddySetting({ me, onChange }: { me: Me; onChange: (b: BuddySettings) =
           <div className="buddy-times">
             <label className="buddy-time">
               <input type="checkbox" checked={!!b.morning} onChange={(e) => set({ morning: e.target.checked ? '07:30' : null })} />
-              <span>☀️ Morning brief</span>
+              <span><Icon name="sun" />Morning brief</span>
               <input className="input sm" type="time" value={b.morning || ''} disabled={!b.morning} onChange={(e) => e.target.value && set({ morning: e.target.value })} aria-label="Morning brief time" />
             </label>
             <label className="buddy-time">
               <input type="checkbox" checked={!!b.evening} onChange={(e) => set({ evening: e.target.checked ? '21:00' : null })} />
-              <span>🌙 Evening check-in</span>
+              <span><Icon name="moon" />Evening check-in</span>
               <input className="input sm" type="time" value={b.evening || ''} disabled={!b.evening} onChange={(e) => e.target.value && set({ evening: e.target.value })} aria-label="Evening check-in time" />
             </label>
           </div>
@@ -458,17 +459,17 @@ function BuddySetting({ me, onChange }: { me: Me; onChange: (b: BuddySettings) =
         <div className="buddy-times flat">
           <label className="buddy-time">
             <input type="checkbox" checked={b.exams} onChange={(e) => set({ exams: e.target.checked, examsAt: b.examsAt || '20:00' })} />
-            <span>📝 The evening before an exam</span>
+            <span><Icon name="note" />The evening before an exam</span>
             <input className="input sm" type="time" value={b.examsAt || ''} disabled={!b.exams} onChange={(e) => e.target.value && set({ examsAt: e.target.value })} aria-label="Exam reminder time" />
           </label>
           <label className="buddy-time">
             <input type="checkbox" checked={!!b.study} onChange={(e) => set({ study: e.target.checked ? '18:00' : null })} />
-            <span>📚 Today’s study plan</span>
+            <span><Icon name="book" />Today’s study plan</span>
             <input className="input sm" type="time" value={b.study || ''} disabled={!b.study} onChange={(e) => e.target.value && set({ study: e.target.value })} aria-label="Study plan time" />
           </label>
           <label className="buddy-time">
             <input type="checkbox" checked={b.studyBlocks} onChange={(e) => set({ studyBlocks: e.target.checked })} />
-            <span>⏰ When a study block starts</span>
+            <span><Icon name="clock" />When a study block starts</span>
           </label>
         </div>
         <span className="help">Exams come from your school’s timetable. Study blocks get a nudge when you give them a time.</span>

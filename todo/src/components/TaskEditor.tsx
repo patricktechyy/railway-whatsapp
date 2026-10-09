@@ -17,6 +17,7 @@ import { openWhatsAppChat } from '../api'
 import { WhatsUpLogo } from './Login'
 import { AddLinkForm, ExtLink, LinkIcon } from './Links'
 import { WaIcon, WaPicker, describeWa } from './WaPicker'
+import { Icon } from './Icon'
 
 interface Props {
   task: Task
@@ -153,7 +154,7 @@ export function TaskEditor({ task, lists, weekStartsMonday, onChange, onToggle, 
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5 5 15" /></svg>
         </button>
       </header>
-      {task.from && <p className="from-note">📌 From <b>{task.from.name}</b></p>}
+      {task.from && <p className="from-note"><Icon name="pin" />From <b>{task.from.name}</b></p>}
       {task.chat && (
         <p className="from-note chat-note">
           <WhatsUpLogo size={16} /> From your chat with <b>{task.chat.name}</b>

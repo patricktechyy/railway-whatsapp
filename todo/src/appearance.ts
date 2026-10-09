@@ -89,6 +89,9 @@ export function applyAppearance(input: Appearance | null | undefined) {
   set('--leaf-strong', c.accent && shade(c.accent, -0.18))
   set('--leaf-ink', c.accent && inkOn(c.accent))
   set('--leaf-soft', c.accent && `color-mix(in srgb, ${c.accent} 16%, var(--surface))`)
+  // the accent as text: pulled toward the text colour so it stays readable in light and dark
+  set('--leaf-text', c.accent && `color-mix(in srgb, ${c.accent} 70%, var(--ink))`)
+  set('--pz-shade', c.accent && (inkOn(c.accent) === '#ffffff' ? '#000' : '#fff'))
 
   set('--btn-bg', c.button)
   set('--btn-strong', c.button && shade(c.button, inkOn(c.button) === '#ffffff' ? 0.16 : -0.12))

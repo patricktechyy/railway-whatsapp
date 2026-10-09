@@ -10,6 +10,7 @@ import { Select } from '../components/Select'
 import { GroupDialog, Avatars, type GroupInfo } from './GroupView'
 import { ExamsView } from './ExamsView'
 import { useExams } from '../useExams'
+import { Icon } from '../components/Icon'
 
 interface Person {
   username: string
@@ -70,7 +71,7 @@ const FEATURES: { key: keyof Settings['whatsapp']; label: string; help: string }
   { key: 'reminders', label: 'Reminders on WhatsApp', help: 'People can get their reminders on WhatsApp too.' },
   { key: 'share', label: 'Share a task to a chat', help: 'Send a task to a chat from your own WhatsApp.' },
   { key: 'inbox', label: 'Add tasks from WhatsApp', help: 'Message the bot “add buy milk 5pm” to add a task.' },
-  { key: 'buddy', label: 'WhatsApp Buddy 🤖', help: 'Task messages, daily briefs and replies like “done”. Needs reminders on WhatsApp.' },
+  { key: 'buddy', label: 'WhatsApp Buddy', help: 'Task messages, daily briefs and replies like “done”. Needs reminders on WhatsApp.' },
 ]
 
 const ST_LABEL: Record<St, string> = { todo: 'Not started', doing: 'In progress', done: 'Completed', removed: 'Deleted it' }
@@ -264,7 +265,7 @@ function OverviewTab({ overview: o, assigned, onGo, onRefresh }: { overview: Ove
           </div>
           <div className="row">
             <button className="btn ghost sm" onClick={onRefresh}>Refresh</button>
-            <button className="btn sm" onClick={() => onGo('tasks')}>📌 Give a task</button>
+            <button className="btn sm" onClick={() => onGo('tasks')}><Icon name="pin" />Give a task</button>
           </div>
         </div>
         {recent.length === 0 ? <p className="muted admin-empty">You haven’t given anyone a task yet.</p> : (
@@ -373,7 +374,7 @@ function TasksTab({ me, people, settings, assigned, preselect, onPreselectUsed, 
     <div className="admin-cols assign-cols">
       <section className="card">
         <h2>Give people a task</h2>
-        <p className="help">It shows up in their list marked 📌, with a notification.</p>
+        <p className="help">It shows up in their list with your name on it, and they get a notification.</p>
         <form className="assign-form" onSubmit={submit}>
           <input className="input" name="title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="What needs doing?" maxLength={300} aria-label="Title" required />
           <textarea className="input" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Notes (optional)" maxLength={5000} aria-label="Notes" />
@@ -436,7 +437,7 @@ function TasksTab({ me, people, settings, assigned, preselect, onPreselectUsed, 
           <div className="assign-actions">
             {!urlOk && <span className="help bad">The link should start with https://</span>}
             <span className="spacer" />
-            <button className="btn" disabled={!can}>{busy ? 'Sending…' : `📌 Give to ${plural(count, 'person', 'people')}`}</button>
+            <button className="btn" disabled={!can}>{busy ? 'Sending…' : `Give to ${plural(count, 'person', 'people')}`}</button>
           </div>
         </form>
       </section>
@@ -482,7 +483,7 @@ function TasksTab({ me, people, settings, assigned, preselect, onPreselectUsed, 
                     </ul>
                   )}
                   <div className="row wrap assign-tools">
-                    <button className="btn ghost sm" disabled={!left} onClick={() => remind(a)} title={left ? 'Notify everyone who hasn’t finished it' : 'Everyone’s finished it'}>👋 Remind {left ? `the ${left} not done` : ''}</button>
+                    <button className="btn ghost sm" disabled={!left} onClick={() => remind(a)} title={left ? 'Notify everyone who hasn’t finished it' : 'Everyone’s finished it'}><Icon name="bell" />Remind {left ? `the ${left} not done` : ''}</button>
                     <span className="spacer" />
                     <button className="btn quiet sm" onClick={() => setConfirm(a)}>Remove…</button>
                   </div>
@@ -539,7 +540,7 @@ function PeopleTab({ people, onRefresh, onGive, onAnnounce }: { people: Person[]
             <tbody>
               {shown.map((p) => (
                 <tr key={p.username}>
-                  <td><b>{p.name}{p.bot && <span className="badge bot-badge" title="WhatsApp Buddy writes from this account">🤖 Bot</span>}</b><small>@{p.username}{p.tz ? ` · ${p.tz}` : ''}</small></td>
+                  <td><b>{p.name}{p.bot && <span className="badge bot-badge" title="WhatsApp Buddy writes from this account">Bot</span>}</b><small>@{p.username}{p.tz ? ` · ${p.tz}` : ''}</small></td>
                   <td>{p.open}</td>
                   <td>{p.overdue ? <span className="bad">{p.overdue}</span> : 0}</td>
                   <td>{p.done}</td>
@@ -553,8 +554,8 @@ function PeopleTab({ people, onRefresh, onGive, onAnnounce }: { people: Person[]
                     {p.waReminders && <small>Reminders on WhatsApp</small>}
                   </td>
                   <td className="people-actions">
-                    <button className="btn ghost sm" onClick={() => onGive(p.username)}>📌 Give a task</button>
-                    <button className="btn quiet sm" onClick={() => onAnnounce(p.username)}>📣 Message</button>
+                    <button className="btn ghost sm" onClick={() => onGive(p.username)}><Icon name="pin" />Give a task</button>
+                    <button className="btn quiet sm" onClick={() => onAnnounce(p.username)}><Icon name="megaphone" />Message</button>
                     <button className="btn quiet sm" onClick={() => tour(p)} disabled={!p.tourDone} title={p.tourDone ? 'Show them the tutorial next time they open the app' : 'They’ll get it next time they open the app'}>{p.tourDone ? '▶ Tutorial again' : 'Tutorial due'}</button>
                   </td>
                 </tr>
@@ -665,7 +666,7 @@ function WhatsAppTab({ settings, setSettings, onChanged }: { settings: Settings 
   return (
     <>
       <section className="card admin-narrow">
-        <h2>WhatsApp Buddy bot 🤖</h2>
+        <h2>WhatsApp Buddy bot</h2>
         <p className="help">
           Pick an account linked to a <b>spare WhatsApp number</b> and Buddy messages everyone from it, so their phones buzz like a normal chat.
           Without one, Buddy writes in each person’s “Message yourself” chat, which doesn’t notify.

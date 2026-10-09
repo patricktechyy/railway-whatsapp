@@ -8,6 +8,7 @@ import { chime } from '../sound'
 import type { ColorName, Exam, StudyBlock, StudyMode, StudyPlan, StudySubject, StudyTag } from '../types'
 import type { StudyApi } from '../useStudy'
 import { examTitle, subjectColor } from './ExamsView'
+import { Icon } from '../components/Icon'
 
 /**
  * The study planner. Built like a revision timetable on a spreadsheet: one column
@@ -23,7 +24,7 @@ import { examTitle, subjectColor } from './ExamsView'
 
 const COLORS: ColorName[] = ['blue', 'orange', 'aqua', 'magenta', 'green', 'violet', 'yellow', 'none']
 const MODES: { v: StudyMode; label: string; help: string }[] = [
-  { v: '', label: '—', help: 'No particular way' },
+  { v: '', label: 'Any', help: 'No particular way' },
   { v: 'RE', label: 'RE', help: 'Revise / memorise' },
   { v: 'P', label: 'P', help: 'Practice questions' },
   { v: 'RE+P', label: 'RE+P', help: 'Both' },
@@ -280,7 +281,7 @@ export function StudyView({ study, exams, weekStartsMonday, onExams }: { study: 
               onDrop={onDrop(k)}
             >
               <span className="sp-cap">Study</span>
-              {plan.days[k] === 'rest' && !blocksOn(k).length && <span className="sp-rest">Rest 🌿</span>}
+              {plan.days[k] === 'rest' && !blocksOn(k).length && <span className="sp-rest"><Icon name="leaf" />Rest</span>}
               {blocksOn(k).map((b) => {
                 const s = subj(b.subject)
                 const done = blockDone(b)
@@ -307,7 +308,7 @@ export function StudyView({ study, exams, weekStartsMonday, onExams }: { study: 
                     {(meta || b.spent > 0) && (
                       <div className="sp-meta">
                         {meta && <span>{meta}</span>}
-                        {b.spent > 0 && <span className="sp-spent" title="Time on the focus timer">⏱ {fmtMin(b.spent)}</span>}
+                        {b.spent > 0 && <span className="sp-spent" title="Time on the focus timer"><Icon name="timer" />{fmtMin(b.spent)}</span>}
                       </div>
                     )}
                     {(b.tags || []).length > 0 && (
@@ -570,7 +571,7 @@ function BlockDialog({ plan, block, date, onClose, onSave, onDelete }: {
           <label className="field"><span>Start</span><input className="input" type="time" value={time} onChange={(e) => setTime(e.target.value)} /></label>
           <label className="field"><span>Length</span>
             <Select className="input" value={String(minutes || '')} onChange={(e) => setMinutes(e.target.value ? Number(e.target.value) : null)}>
-              <option value="">—</option>
+              <option value="">Not set</option>
               {LENGTHS.map((m) => <option key={m} value={String(m)}>{fmtMin(m)}</option>)}
             </Select>
           </label>

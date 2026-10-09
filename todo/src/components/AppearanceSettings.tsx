@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { CUSTOM_KEYS, GRADIENTS, PRESET_DEFAULTS, PRESET_LABEL, applyAppearance, basePreset, contrast, effective, emptyCustom, inkOn } from '../appearance'
 import type { Appearance, BasePreset, CustomKey, CustomLook, Gradient } from '../types'
+import { Icon } from './Icon'
 
 const FIELDS: Record<CustomKey, { label: string; help?: string }> = {
   sidebar: { label: 'Sidebar' },
@@ -12,18 +13,26 @@ const FIELDS: Record<CustomKey, { label: string; help?: string }> = {
   text: { label: 'Text' },
 }
 const DIRECTIONS = [{ a: 90, label: '→', name: 'Left to right' }, { a: 135, label: '↘', name: 'Diagonal down' }, { a: 180, label: '↓', name: 'Top to bottom' }, { a: 45, label: '↗', name: 'Diagonal up' }]
-const DEFAULT_PZ: Gradient = { from: '#7c83f7', to: '#a855f7', angle: 135 }
 const gradientCss = (g: Gradient) => `linear-gradient(${g.angle}deg, ${g.from}, ${g.to})`
+/** The default gradient, as the page draws it now: the look's accent, deepening (see --pz-bg in app.css). */
+function defaultGradient(): Gradient {
+  const cs = getComputedStyle(document.documentElement)
+  const hex = (v: string, f: string) => (/^#[0-9a-f]{6}$/i.test(v.trim()) ? v.trim().toLowerCase() : f)
+  const from = hex(cs.getPropertyValue('--leaf-strong'), '#4752c4')
+  const shade = hex(cs.getPropertyValue('--pz-shade'), '#000000')
+  const mix = (a: string, b: string, t: number) => '#' + [1, 3, 5].map((i) => Math.round(parseInt(a.slice(i, i + 2), 16) * t + parseInt(b.slice(i, i + 2), 16) * (1 - t)).toString(16).padStart(2, '0')).join('')
+  return { from, to: mix(from, shade.length === 4 ? shade.replace(/#(.)(.)(.)/, '#$1$1$2$2$3$3') : shade, 0.68), angle: 135 }
+}
 
 /** The Personalize It button and page colours: ready-made gradients or your own two colours. */
 function PersonalizeColors({ value, onChange }: { value: Gradient | null | undefined; onChange: (g: Gradient | null) => void }) {
-  const g = value || DEFAULT_PZ
+  const g = value || defaultGradient()
   const same = (x: Gradient) => value && x.from === value.from && x.to === value.to
   return (
     <div className="pz-settings">
-      <span className="label">✨ Personalize It colours</span>
+      <span className="label">Personalize It colours</span>
       <div className="pz-row">
-        <span className="pz-preview" style={{ background: gradientCss(g), color: inkOn(g.from) }}>✨ Personalize It</span>
+        <span className="pz-preview" style={value ? { background: gradientCss(g), color: inkOn(g.from) } : { background: 'var(--pz-bg)', color: 'var(--pz-ink, var(--leaf-ink))' }}><Icon name="palette" /> Personalize It</span>
         <button type="button" className="btn quiet sm" disabled={!value} onClick={() => onChange(null)}>Reset</button>
       </div>
       <div className="pz-chips" role="radiogroup" aria-label="Ready-made gradients">
@@ -88,7 +97,7 @@ export function AppearanceSettings({ value, onChange }: { value: Appearance | nu
       <div className="seg" role="radiogroup" aria-label="Style">
         {STYLES.map((p) => (
           <button key={p} type="button" role="radio" aria-checked={a.preset === p} className={a.preset === p ? 'on' : ''} onClick={() => pick(p)}>
-            {p === 'custom' ? '🎨 Custom' : PRESET_LABEL[p]}
+            {PRESET_LABEL[p]}
           </button>
         ))}
       </div>

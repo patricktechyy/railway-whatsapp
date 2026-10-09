@@ -7,6 +7,7 @@ import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } 
 import { CSS } from '@dnd-kit/utilities'
 import type { Group, List, Me, View } from '../types'
 import { Mark, WhatsUpLogo } from './Login'
+import { Icon } from './Icon'
 
 export const SIDEBAR_MIN = 200
 export const SIDEBAR_MAX = 420
@@ -193,7 +194,7 @@ export const Sidebar = memo(function Sidebar({ me, view, lists, tags, counts, on
         <Item icon={svg('stats')} label="Stats" active={same(view, { kind: 'stats' })} onClick={go({ kind: 'stats' })} />
         <li>
           <button className={`nav-item personalize-btn${view.kind === 'board' ? ' on' : ''}`} onClick={go({ kind: 'board' })} aria-current={view.kind === 'board' ? 'page' : undefined}>
-            <span className="nav-icon" aria-hidden="true">✨</span>
+            <span className="nav-icon"><Icon name="palette" /></span>
             <span className="nav-label">Personalize It</span>
           </button>
         </li>

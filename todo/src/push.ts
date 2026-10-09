@@ -230,8 +230,8 @@ export function supportMessage(s: PushSupport) {
 
 function blockedMessage() {
   if (isIOS()) return 'Notifications are blocked. Turn them on in Settings → Notifications → Whats Up, then try again.'
-  if (isMac()) return 'Notifications are blocked for this site. Allow them from the 🔒 by the address (in Safari: Settings → Websites → Notifications), then try again.'
-  return 'Notifications are blocked. Allow them from the 🔒 by the address, then try again.'
+  if (isMac()) return 'Notifications are blocked for this site. Allow them from the padlock by the address (in Safari: Settings → Websites → Notifications), then try again.'
+  return 'Notifications are blocked. Allow them from the padlock by the address, then try again.'
 }
 
 /** Where to look when a test notification doesn't show up, for this kind of device. */

@@ -13,6 +13,7 @@ import { streakDays } from '../stats'
 import type { List, Priority, StickyColor, Task, TaskInput, Widget, WidgetType } from '../types'
 import { Fire } from './Fire'
 import { PRIORITY_LABEL, StatusButton } from './TaskItem'
+import type { IconName } from './Icon'
 
 /** Everything a board block needs from the app. */
 export interface WidgetEnv {
@@ -27,17 +28,17 @@ export interface WidgetEnv {
   onShowTodo: () => void
 }
 
-export const WIDGET_INFO: Record<WidgetType, { icon: string; name: string; help: string }> = {
-  priority: { icon: '🚩', name: 'Priority board', help: 'Drag tasks between columns to change priority.' },
-  todo: { icon: '✅', name: 'To-do list', help: 'All your open tasks.' },
-  status: { icon: '🚦', name: 'Status board', help: 'Drag tasks between columns to change status.' },
-  today: { icon: '☀️', name: 'Today', help: 'Overdue and due today.' },
-  upcoming: { icon: '🗓️', name: 'Next 7 days', help: 'The week ahead.' },
-  doing: { icon: '⏳', name: 'In progress', help: 'Tasks you’ve started.' },
-  overdue: { icon: '⚠️', name: 'Overdue', help: 'Past due and not done.' },
-  list: { icon: '📋', name: 'One list', help: 'Open tasks from one list.' },
-  stats: { icon: '📊', name: 'Quick stats', help: 'Open, done today, streak.' },
-  notes: { icon: '📝', name: 'Sticky note', help: 'Free text.' },
+export const WIDGET_INFO: Record<WidgetType, { icon: IconName; name: string; help: string }> = {
+  priority: { icon: 'flag', name: 'Priority board', help: 'Drag tasks between columns to change priority.' },
+  todo: { icon: 'checkbox', name: 'To-do list', help: 'All your open tasks.' },
+  status: { icon: 'columns', name: 'Status board', help: 'Drag tasks between columns to change status.' },
+  today: { icon: 'sun', name: 'Today', help: 'Overdue and due today.' },
+  upcoming: { icon: 'calendar', name: 'Next 7 days', help: 'The week ahead.' },
+  doing: { icon: 'progress', name: 'In progress', help: 'Tasks you’ve started.' },
+  overdue: { icon: 'warning', name: 'Overdue', help: 'Past due and not done.' },
+  list: { icon: 'clipboard', name: 'One list', help: 'Open tasks from one list.' },
+  stats: { icon: 'chart', name: 'Quick stats', help: 'Open, done today, streak.' },
+  notes: { icon: 'sticky', name: 'Sticky note', help: 'Free text.' },
 }
 
 const sensorsConfig = () => [
