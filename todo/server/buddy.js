@@ -409,7 +409,11 @@ export class Buddy {
     return p.blocks.filter((b) => b.date === date).sort((a, b) => (a.time || '99').localeCompare(b.time || '99') || a.order - b.order)
   }
   blockDone(b) { return b.topics.length ? b.topics.every((t) => t.done) : b.done }
-  /** One study block, with its topics numbered for "td tick 2" (n is the running number). */
+  /**
+   * One study block: its topics as bullets, each with its number for "td tick 2" in brackets
+   * at the end. The numbers run on through the whole message (so every topic has its own),
+   * which is why they aren't a numbered list: Biology's first topic can be (2).
+   */
   blockLines(u, b, codes) {
     const p = this.plan(u)
     const s = p?.subjects.find((x) => x.id === b.subject)
@@ -421,9 +425,9 @@ export class Buddy {
       codes.push([b.date, b.id, t ? t.id : null])
       const done = t ? t.done : b.done
       const text = t ? t.text : 'the whole block'
-      lines.push(`   ${codes.length}. ${done ? `~${text}~ ✓` : text}`)
+      lines.push(`• ${done ? `~${text}~ ✓` : text} (${codes.length})`)
     }
-    if (b.note) lines.push(`   _${b.note}_`)
+    if (b.note) lines.push(`_${b.note}_`)
     return lines
   }
   studyMessage(u, date, now = Date.now()) {
@@ -433,12 +437,12 @@ export class Buddy {
     const when = date === today ? 'today' : dayLabel(date, today).toLowerCase()
     if (!blocks.length) return p?.days?.[date] === 'rest' ? `🌿 Rest day ${when}. Nothing planned.` : `📚 Nothing in your study planner for ${when}.`
     const codes = []
-    const lines = blocks.flatMap((b) => this.blockLines(u, b, codes))
+    const lines = blocks.flatMap((b, i) => [...(i ? [''] : []), ...this.blockLines(u, b, codes)]) // a blank line between subjects
     this.st(u).studyCodes = codes
     this.saveState()
     const head = style === 'short' ? `📚 Study ${when}` : `📚 ${say(style, 'hello', { name })}, here’s your study plan for ${when}:`
     const exams = this.examsOn(u, date)
-    return [head, ...(exams.length ? ['', ...exams.map((e) => this.examLine(e))] : []), '', ...lines, '', this.replyHint(u, '*td tick 1* when you finish one')].join('\n')
+    return [head, ...(exams.length ? ['', ...exams.map((e) => this.examLine(e))] : []), '', ...lines, '', this.replyHint(u, '*td tick 1* when you finish topic (1)')].join('\n')
   }
   blockMessage(u, b, now = Date.now()) {
     const { style, name } = this.ctx(u, now)
@@ -446,7 +450,7 @@ export class Buddy {
     const lines = this.blockLines(u, b, codes)
     this.st(u).studyCodes = codes
     this.saveState()
-    return [style === 'short' ? '⏰ Study time' : `⏰ ${say(style, 'hello', { name })}, time to study:`, '', ...lines, '', this.replyHint(u, '*td tick 1* when you finish one · *td study* for the whole day')].join('\n')
+    return [style === 'short' ? '⏰ Study time' : `⏰ ${say(style, 'hello', { name })}, time to study:`, '', ...lines, '', this.replyHint(u, '*td tick 1* when you finish topic (1) · *td study* for the whole day')].join('\n')
   }
   /** Short lines for the morning brief: today's exams and what's on the study plan. */
   plannerLines(u, today) {

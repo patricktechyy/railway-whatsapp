@@ -163,3 +163,31 @@ test('plain(): messages from the bot number drop the "td" (you just reply there)
   assert.equal(plain('🤖 *Buddy commands* (start with *td*):'), '🤖 *Buddy commands* (just reply here):')
   assert.equal(plain('get the std dev'), 'get the std dev')
 })
+
+test('the study plan on WhatsApp: bullets with tick numbers, a blank line between subjects', () => {
+  const { buddy } = setup()
+  let plan = {
+    subjects: [{ id: 'm', name: 'Mathematics', priority: false }, { id: 'b', name: 'Biology', priority: true }],
+    tags: [], days: {},
+    blocks: [
+      { id: 'x1', date: '2026-10-09', subject: 'm', mode: 'RE', time: '18:00', minutes: 90, topics: [{ id: 't1', text: 'All units', done: false }], note: '', order: 1 },
+      { id: 'x2', date: '2026-10-09', subject: 'b', mode: 'RE', time: '20:00', minutes: 120, topics: [{ id: 't2', text: 'All applicable units', done: false }], note: 'For Biology Paper 3 on 13 Oct', order: 2 },
+    ],
+  }
+  buddy.planner = { study: { get: () => plan, update: (u, fn) => { plan = fn(JSON.parse(JSON.stringify(plan))); return plan } } }
+  const msg = buddy.studyMessage('gavin', '2026-10-09', zonedTime('2026-10-09', '07:00', TZ))
+  const lines = msg.split('\n')
+  const maths = lines.findIndex((l) => l.startsWith('*Mathematics*'))
+  assert.deepEqual(lines.slice(maths, maths + 6), [
+    '*Mathematics* · RE · 6:00 PM · 90 min',
+    '• All units (1)',
+    '',
+    '🔴 *Biology* · RE · 8:00 PM · 120 min',
+    '• All applicable units (2)',
+    '_For Biology Paper 3 on 13 Oct_',
+  ])
+  assert.ok(!/^\s*\d+\.\s/m.test(msg), 'no line starts like a numbered list')
+  // the numbers in brackets are what "tick" uses
+  assert.match(buddy.tickTopic('gavin', 2), /All applicable units/)
+  assert.equal(plan.blocks[1].topics[0].done, true)
+})
