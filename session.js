@@ -1743,17 +1743,39 @@ export class Session extends EventEmitter {
     return [j, bare(j), c, ...lids]
   }
   myIds() { return [this.me?.jid, this.me?.lid, ...this.idsOf(this.me?.jid)].filter(Boolean) }
-  /** Does this chat sign with hidden ids (LIDs) rather than phone numbers? */
-  lidChat(poll) {
-    const raw = poll.rj || poll.jid
-    if (isLid(raw) || isLid(poll.rp || '')) return true
-    return isGroup(poll.jid) && this.groupCache?.get?.(poll.jid)?.addressingMode === 'lid'
+  /** A phone-number id's hidden id (LID), if we know it. */
+  lidOf(j) {
+    if (!j || isLid(j)) return j ? bare(j) : null
+    const pn = this.store.canon(j)
+    if (pn === this.me?.jid && this.me?.lid) return this.me.lid
+    for (const [lid, p] of this.store.alias) if (p === pn && isLid(lid)) return lid
+    return null
   }
-  /** Who made the poll and who's voting, as WhatsApp signs them. */
-  pollIds(poll) {
-    const lid = this.lidChat(poll) && this.me?.lid
-    const me = lid ? this.me.lid : this.me?.jid
-    return { creator: poll.fromMe ? me : poll.rp || poll.rj || poll.jid, voter: me }
+  /**
+   * Does this poll's chat sign votes with hidden ids (LIDs) or phone numbers? A vote that
+   * already opened tells us for sure; otherwise it follows how the vote is addressed (we
+   * send 1:1 messages to the LID when we know it, and the phone then reads us as our LID).
+   */
+  lidChat(poll, target) {
+    if (typeof poll.poll?.lid === 'boolean') return poll.poll.lid && !!this.me?.lid
+    if (!this.me?.lid) return false
+    if (isGroup(poll.jid)) {
+      const mode = this.groupCache?.get?.(poll.jid)?.addressingMode
+      return mode ? mode === 'lid' : isLid(poll.rp || '')
+    }
+    return isLid(target || '') || isLid(poll.rj || '')
+  }
+  /** Who made the poll, who's voting, and the poll's key, all written the way WhatsApp signs them. */
+  pollIds(poll, target) {
+    const lid = this.lidChat(poll, target)
+    const as = (j) => (lid ? this.lidOf(j) || bare(j) : this.store.canon(j))
+    const me = poll.poll?.meAs && isLid(poll.poll.meAs) === lid ? poll.poll.meAs : lid ? this.me.lid : this.me?.jid
+    const group = isGroup(poll.jid)
+    const them = group ? poll.rp : lid && isLid(target || '') ? target : poll.rj || poll.jid
+    const creator = poll.fromMe ? me : as(them)
+    const key = { remoteJid: group ? poll.jid : lid && isLid(target || '') ? target : as(poll.rj || poll.jid), fromMe: !!poll.fromMe, id: poll.id }
+    if (group && !poll.fromMe && poll.rp) key.participant = as(poll.rp)
+    return { creator, voter: me, key }
   }
   setVotes(poll, who, picks) {
     poll.votes = { ...(poll.votes || {}) }
@@ -1774,6 +1796,13 @@ export class Session extends EventEmitter {
     const voters = k.fromMe ? this.myIds() : [k.participant, k.participantAlt, k.remoteJid, k.remoteJidAlt, ...this.idsOf(voterRaw)]
     const o = openVote(pu.vote, { secret: poll.poll.secret, pollId: poll.id, creators, voters })
     if (!o) { this.log(`a poll vote (${poll.id}) didn't open`); return }
+    // remember how this chat signs votes, so ours are signed the same way
+    const lid = isLid(o.creator)
+    if (poll.poll.lid !== lid || (k.fromMe && poll.poll.meAs !== bare(o.voter))) {
+      poll.poll.lid = lid
+      if (k.fromMe) poll.poll.meAs = bare(o.voter)
+      this.store.dirty = true
+    }
     const who = this.store.canon(k.fromMe ? this.me.jid : voterRaw)
     this.setVotes(poll, who, pickedOptions(o.hashes, poll.poll.options))
   }
@@ -1814,11 +1843,10 @@ export class Session extends EventEmitter {
     const n = poll.poll.options.length
     const chosen = [...new Set((Array.isArray(picks) ? picks : []).map(Number).filter((i) => Number.isInteger(i) && i >= 0 && i < n))].sort((a, b) => a - b)
     if (!poll.poll.multi && chosen.length > 1) throw Object.assign(new Error('This poll takes one answer'), { status: 400 })
-    const { creator, voter } = this.pollIds(poll)
     const target = await this.sendJid(poll.jid)
+    const { creator, voter, key } = this.pollIds(poll, target)
+    this.log(`vote on ${poll.id}: signed as ${voter}, poll by ${creator}`)
     const vote = encryptVote(chosen.map((i) => poll.poll.options[i]), { secret: poll.poll.secret, pollId: poll.id, creator, voter })
-    const key = { remoteJid: poll.rj || poll.jid, fromMe: !!poll.fromMe, id: poll.id }
-    if (!poll.fromMe && poll.rp) key.participant = poll.rp
     const message = { pollUpdateMessage: { pollCreationMessageKey: key, vote, senderTimestampMs: Date.now() } }
     await this.sock.relayMessage(target, message, { messageId: '3EB0' + crypto.randomBytes(9).toString('hex').toUpperCase() })
     this.setVotes(poll, this.store.canon(this.me.jid), chosen)

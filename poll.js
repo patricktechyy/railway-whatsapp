@@ -81,14 +81,14 @@ export function decryptVote({ encPayload, encIv }, { secret, pollId, creator, vo
 
 /**
  * Try every way the creator and voter might be written (phone number or hidden id, with or
- * without a device suffix) until the vote opens. Returns { hashes, voter } or null.
+ * without a device suffix) until the vote opens. Returns { hashes, voter, creator } or null.
  */
 export function openVote(vote, { secret, pollId, creators, voters }) {
   const variants = (list) => [...new Set(list.filter(Boolean).flatMap((j) => [j, String(j).replace(/:\d+(?=@)/, '')]))]
   for (const creator of variants(creators)) {
     for (const voter of variants(voters)) {
       const hashes = decryptVote(vote, { secret, pollId, creator, voter })
-      if (hashes) return { hashes, voter }
+      if (hashes) return { hashes, voter, creator }
     }
   }
   return null
