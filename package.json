@@ -1,6 +1,6 @@
 {
   "name": "wa-lite",
-  "version": "3.10.4",
+  "version": "3.10.5",
   "private": true,
   "type": "module",
   "description": "Several independent WhatsApp accounts, one per person, each with their own login. With Gavin's Todolist built in, and WhatsApp Buddy reminders from a real WhatsApp number.",
