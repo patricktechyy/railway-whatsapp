@@ -20,7 +20,7 @@ ENV NODE_ENV=production
 COPY package.json ./
 RUN npm install --omit=dev --no-audit --no-fund
 
-COPY server.js session.js store.js auth.js schedule.js backup.js ./src/
+COPY server.js session.js store.js auth.js schedule.js backup.js poll.js ./src/
 COPY chat.html login.html setup.html admin.html status.html ui.css ./public/
 # the Todolist: its server part, and the page built above (served at /todo/)
 COPY todo/server ./src/todo/server

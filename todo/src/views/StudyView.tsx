@@ -9,6 +9,7 @@ import type { ColorName, Exam, StudyBlock, StudyMode, StudyPlan, StudySubject, S
 import type { StudyApi } from '../useStudy'
 import { examTitle, subjectColor } from './ExamsView'
 import { Icon } from '../components/Icon'
+import { StudyToday } from './StudyToday'
 
 /**
  * The study planner. Built like a revision timetable on a spreadsheet: one column
@@ -37,6 +38,8 @@ const colorOfSubject = (name: string) => subjectColor(name).slice(2) as ColorNam
 const weekStart = (k: string, monday: boolean) => addDays(k, -((fromKey(k).getDay() - (monday ? 1 : 0) + 7) % 7))
 const blockDone = (b: StudyBlock) => (b.topics.length ? b.topics.every((t) => t.done) : b.done)
 const fmtMin = (m: number) => (m < 60 ? `${m}m` : `${Math.floor(m / 60)}h${m % 60 ? ` ${m % 60}m` : ''}`)
+/** "Today", "Tomorrow", "Yesterday" or the weekday and date. */
+const dayTitle = (k: string, today: string) => { const d = fromKey(k); const n = daysBetween(today, k); return `${n === 0 ? 'Today' : n === 1 ? 'Tomorrow' : n === -1 ? 'Yesterday' : WEEKDAYS[d.getDay()]}, ${d.getDate()} ${MONTHS[d.getMonth()]}` }
 const byTime = (a: StudyBlock, b: StudyBlock) => (a.time || '99').localeCompare(b.time || '99') || a.order - b.order
 
 /** What the filter chips can pick: a way of studying, priority subjects, a subject or a tag. */
@@ -53,6 +56,10 @@ export function StudyView({ study, exams, weekStartsMonday, onExams }: { study: 
   const phone = typeof window !== 'undefined' && window.innerWidth < 760
   const [span, setSpan] = useState<7 | 14>(() => { try { return localStorage.getItem('todo-study-span') === '7' || phone ? 7 : 14 } catch { return 14 } })
   const [start, setStart] = useState(() => weekStart(today, weekStartsMonday))
+  // Today (one day, in detail) or Week (the timetable); remembered on this device
+  const [tab, setTab] = useState<'today' | 'week'>(() => { try { return localStorage.getItem('todo-study-tab') === 'week' ? 'week' : 'today' } catch { return 'today' } })
+  const [onDay, setOnDay] = useState(today)
+  useEffect(() => { try { localStorage.setItem('todo-study-tab', tab) } catch {} }, [tab])
   const [edit, setEdit] = useState<{ block?: StudyBlock; date: string } | null>(null)
   const [subjectsOpen, setSubjectsOpen] = useState(false)
   const [planOpen, setPlanOpen] = useState(false)
@@ -75,7 +82,7 @@ export function StudyView({ study, exams, weekStartsMonday, onExams }: { study: 
     const ro = new ResizeObserver(([e]) => setRoomy(e.contentRect.width >= STACK_MIN))
     ro.observe(el)
     return () => ro.disconnect()
-  }, [plan === null]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [plan === null, tab]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // bring today into view if it's off to the right (phones show about one day at a time)
   useEffect(() => {
@@ -86,7 +93,7 @@ export function StudyView({ study, exams, weekStartsMonday, onExams }: { study: 
     const labels = box.querySelector<HTMLElement>('.sp-corner')?.offsetWidth || 0 // the sticky row labels
     const left = el.getBoundingClientRect().left - box.getBoundingClientRect().left + box.scrollLeft
     box.scrollLeft = left + el.offsetWidth > box.clientWidth ? left - labels : 0
-  }, [start, span, roomy, plan === null]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [start, span, roomy, tab, plan === null]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // the block being timed was deleted (here or on another device): drop the timer
   useEffect(() => { if (plan && focus && !plan.blocks.some((b) => b.id === focus.id)) setFocus(null) }, [plan, focus])
@@ -196,21 +203,48 @@ export function StudyView({ study, exams, weekStartsMonday, onExams }: { study: 
   return (
     <div className={`sp-page${filter ? ' filtering' : ''}`}>
       <div className="sp-bar">
-        <div className="sp-nav">
-          <button className="icon-btn" onClick={() => setStart(addDays(start, -7))} aria-label="Earlier"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m12 5-5 5 5 5" /></svg></button>
-          <button className="btn ghost sm" onClick={() => setStart(weekStart(today, weekStartsMonday))}>Today</button>
-          <button className="icon-btn" onClick={() => setStart(addDays(start, 7))} aria-label="Later"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5" /></svg></button>
-          <h3 className="sp-range">{label}</h3>
+        <div className="seg sp-tabs" role="tablist" aria-label="View">
+          <button role="tab" aria-selected={tab === 'today'} className={tab === 'today' ? 'on' : ''} onClick={() => setTab('today')}>Today</button>
+          <button role="tab" aria-selected={tab === 'week'} className={tab === 'week' ? 'on' : ''} onClick={() => setTab('week')}>Week</button>
         </div>
-        <div className="seg sm" role="radiogroup" aria-label="How many days">
-          <button role="radio" aria-checked={span === 7} className={span === 7 ? 'on' : ''} onClick={() => setSpan(7)}>1 week</button>
-          <button role="radio" aria-checked={span === 14} className={span === 14 ? 'on' : ''} onClick={() => setSpan(14)}>2 weeks</button>
-        </div>
+        {tab === 'today' ? (
+          <div className="sp-nav">
+            <button className="icon-btn" onClick={() => setOnDay(addDays(onDay, -1))} aria-label="Day before"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m12 5-5 5 5 5" /></svg></button>
+            <button className="btn ghost sm" onClick={() => setOnDay(today)} disabled={onDay === today}>Today</button>
+            <button className="icon-btn" onClick={() => setOnDay(addDays(onDay, 1))} aria-label="Day after"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5" /></svg></button>
+            <h3 className="sp-range">{dayTitle(onDay, today)}</h3>
+            {plan.days[onDay] && <span className={`sp-daykind ${plan.days[onDay]}`}>{plan.days[onDay] === 'rest' ? 'Rest day' : 'Late day'}</span>}
+            {exams.some((e) => e.date === onDay) && <span className="sp-daykind exam">Exam day</span>}
+            <button className="icon-btn sm" aria-label="Day options" title="Late day, rest day…" onClick={(e) => setMenu({ date: onDay, anchor: e.currentTarget })}>
+              <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="5" cy="10" r="1.3" /><circle cx="10" cy="10" r="1.3" /><circle cx="15" cy="10" r="1.3" /></svg>
+            </button>
+          </div>
+        ) : (
+          <>
+            <div className="sp-nav">
+              <button className="icon-btn" onClick={() => setStart(addDays(start, -7))} aria-label="Earlier"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m12 5-5 5 5 5" /></svg></button>
+              <button className="btn ghost sm" onClick={() => setStart(weekStart(today, weekStartsMonday))}>Today</button>
+              <button className="icon-btn" onClick={() => setStart(addDays(start, 7))} aria-label="Later"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5" /></svg></button>
+              <h3 className="sp-range">{label}</h3>
+            </div>
+            <div className="seg sm" role="radiogroup" aria-label="How many days">
+              <button role="radio" aria-checked={span === 7} className={span === 7 ? 'on' : ''} onClick={() => setSpan(7)}>1 week</button>
+              <button role="radio" aria-checked={span === 14} className={span === 14 ? 'on' : ''} onClick={() => setSpan(14)}>2 weeks</button>
+            </div>
+          </>
+        )}
         <span className="spacer" />
+        {tab === 'today' && <button className="btn ghost sm" onClick={() => (plan.subjects.length ? setEdit({ date: onDay }) : setSubjectsOpen(true))}>Add study</button>}
         <button className="btn ghost sm" onClick={() => setSubjectsOpen(true)}>Subjects &amp; tags</button>
         <button className="btn sm" onClick={() => setPlanOpen(true)}>Plan from exams</button>
       </div>
 
+      {tab === 'today' && plan.subjects.length > 0 && (
+        <StudyToday plan={plan} change={change} exams={exams} date={onDay} today={today} setDate={setOnDay} focus={focus}
+          onStartFocus={startFocus} onStopFocus={() => endFocus(true)} onFocusChange={setFocus} onEdit={(blk) => setEdit({ block: blk, date: blk.date })}
+          onAdd={(d) => setEdit({ date: d })} onPushOn={pushOn} onPlan={() => setPlanOpen(true)} />
+      )}
+      {(tab === 'week' || !plan.subjects.length) && (<>
       <div className="sp-legend" aria-label="Key and filters">
         <span className="sp-key exam">Exam day</span>
         <span className="sp-key late">Late day</span>
@@ -366,8 +400,9 @@ export function StudyView({ study, exams, weekStartsMonday, onExams }: { study: 
       </div>
 
       <Progress plan={plan} days={days} label={label} done={doneN} total={items.length} focused={focused} />
+      </>)}
 
-      {focus && focusBlock && (
+      {focus && focusBlock && !(tab === 'today' && plan.subjects.length > 0 && focusBlock.date === onDay) && (
         <FocusTimer
           focus={focus}
           subject={subj(focusBlock.subject)}

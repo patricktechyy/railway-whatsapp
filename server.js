@@ -510,6 +510,16 @@ async function route(req, res) {
     return send(res, 200, buf, { 'content-type': 'image/jpeg', 'cache-control': 'private, max-age=21600' })
   }
 
+  // the contact panel: who this is, their About, and the chat's photos, documents and links
+  if (api === '/contact') {
+    if (!jid) throw new HttpError(400, 'jid required')
+    return json(res, await s.contactInfo(jid))
+  }
+  if (api === '/chat-media') {
+    if (!jid) throw new HttpError(400, 'jid required')
+    return json(res, s.chatMedia(jid))
+  }
+
   if (M !== 'POST') throw new HttpError(405, 'Method not allowed')
 
   if (api === '/send-media') {
@@ -518,6 +528,11 @@ async function route(req, res) {
     if (!jid) throw new HttpError(400, 'jid required')
     const buf = await readBody(req, MAX_UPLOAD)
     if (!buf.length) throw new HttpError(400, 'Empty file')
+    // a voice message recorded in the browser
+    if (url.searchParams.get('ptt') === '1') {
+      if (!/^(audio|video)\//.test(mime)) throw new HttpError(400, 'That isn’t a recording')
+      return json(res, await s.sendVoiceNote(jid, buf, { mime, seconds: url.searchParams.get('seconds'), replyTo: url.searchParams.get('replyTo') || undefined }))
+    }
     // a video note recorded in the browser
     if (url.searchParams.get('ptv') === '1') {
       if (!/^video\//.test(mime)) throw new HttpError(400, 'That isn’t a video')
@@ -546,6 +561,14 @@ async function route(req, res) {
     return json(res, await s.send(body.jid, text, body.replyTo, body.mentions))
   }
   if (api === '/resolve') return json(res, await s.resolveNumber(body.phone))
+  if (api === '/poll') {
+    if (!body.jid) throw new HttpError(400, 'jid required')
+    return json(res, await s.sendPoll(body.jid, { name: body.name, options: body.options, multi: !!body.multi }))
+  }
+  if (api === '/vote') {
+    if (!body.jid || !body.id) throw new HttpError(400, 'jid and id required')
+    return json(res, await s.votePoll(body.jid, String(body.id), body.options))
+  }
   if (api === '/changelog/seen') {
     auth.markSeen(username, APP_VERSION)
     return json(res, { ok: true })

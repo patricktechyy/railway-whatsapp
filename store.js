@@ -473,6 +473,9 @@ export class Store {
       media: !!m.rm,
       fileName: m.fileName,
       dur: m.dur || undefined,
+      ptt: m.ptt || undefined,
+      wf: m.wf,
+      poll: this.pollView(m, mineJid),
       quote: this.quoteView(m.quote),
       deleted: !!m.deleted,
       edited: !!m.edited,
@@ -482,6 +485,24 @@ export class Store {
       reactions: this.reactionView(m, mineJid),
       mentions: this.mentionView(m, mineJid),
     }))
+  }
+
+  /** A poll as the page shows it: each answer with its votes (yours marked) and who voted. */
+  pollView(m, mineJid) {
+    if (!m?.poll) return undefined
+    const mine = mineJid ? this.canon(mineJid) : null
+    const options = m.poll.options.map((name) => ({ name, n: 0, mine: false, who: [] }))
+    const votes = m.votes || {}
+    for (const [who, picks] of Object.entries(votes)) {
+      for (const i of picks) {
+        const o = options[i]
+        if (!o) continue
+        o.n++
+        if (who === mine) o.mine = true
+        if (o.who.length < 12) o.who.push(who === mine ? 'You' : this.displayName(who))
+      }
+    }
+    return { multi: !!m.poll.multi, options, voters: Object.keys(votes).length, canVote: !!m.poll.secret }
   }
 
   /** People you can start a chat with: contacts + existing chats. */
@@ -533,7 +554,9 @@ function pickDefined(o = {}) {
 export function previewOf(msg, store) {
   if (msg.deleted) return msg.fromMe ? '🚫 You deleted this message' : '🚫 This message was deleted'
   const body =
-    msg.text && msg.type !== 'document'
+    msg.type === 'poll'
+      ? '📊 ' + (msg.text || 'Poll')
+      : msg.text && msg.type !== 'document'
       ? msg.text
       : {
           image: '📷 Photo',

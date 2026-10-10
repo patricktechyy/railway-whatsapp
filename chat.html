@@ -97,7 +97,7 @@ button{font:inherit;color:inherit;cursor:pointer}
 #aboutDlg h3{margin:0 0 6px;font-size:20px}
 #aboutDlg p{margin:0 0 18px;color:var(--muted)}
 html[data-panic] #app,html[data-panic] .overlay,html[data-panic] #toast,html[data-panic] #tour{visibility:hidden!important}
-html[data-locked] #app,html[data-locked] .overlay,html[data-locked] #toast,html[data-locked] #tour,html[data-locked] #msgMenu{visibility:hidden!important}
+html[data-locked] #app,html[data-locked] .overlay,html[data-locked] #toast,html[data-locked] #tour,html[data-locked] #msgMenu,html[data-locked] #plusMenu{visibility:hidden!important}
 #lock{position:fixed;inset:0;z-index:2147483000;background:var(--bg);display:none;align-items:center;justify-content:center;padding:24px}
 html[data-locked] #lock{display:flex}
 #lock .box{width:100%;max-width:320px;text-align:center}
@@ -377,6 +377,133 @@ html[data-locked] #lock{display:flex}
 #vnRec:disabled{opacity:.4;cursor:default;transform:none}
 #drop{position:absolute;inset:0;background:rgba(0,168,132,.12);border:3px dashed var(--accent);display:none;align-items:center;justify-content:center;font-weight:600;z-index:5;pointer-events:none}
 #drop.on{display:flex}
+/* ---- 3.10: the chat list's width, contact info, voice messages, the + menu, polls ---------- */
+/* the chat list: as narrow as before at least, as wide as WhatsApp's own at most */
+#sideGrip{position:absolute;top:0;bottom:0;right:-4px;width:8px;z-index:4;cursor:col-resize;touch-action:none}
+#sideGrip::after{content:'';position:absolute;top:0;bottom:0;left:3px;width:2px;background:var(--accent);opacity:0;transition:opacity .15s}
+#sideGrip:hover::after,#sideGrip:focus-visible::after,body.side-resizing #sideGrip::after{opacity:1}
+#sideGrip:focus-visible{outline:none}
+body.side-resizing{cursor:col-resize;user-select:none}
+@media (max-width:760px){#sideGrip{display:none}}
+
+/* the chat header: avatar and name open contact info */
+.tinfo{display:flex;align-items:center;gap:10px;flex:1;min-width:0;background:none;border:0;padding:0;margin:0;color:inherit;font:inherit;text-align:left;border-radius:10px;cursor:pointer}
+.tinfo:disabled{cursor:default}
+.tinfo:not(:disabled):hover #title b{text-decoration:underline;text-underline-offset:3px}
+.tinfo:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* contact info: a panel beside the chat, like WhatsApp's, without the heavy parts */
+#info{flex:0 0 400px;width:400px;display:flex;flex-direction:column;background:var(--panel);border-left:1px solid var(--line);min-width:0}
+#info[hidden]{display:none}
+#info .ihead{gap:8px}
+#info .ihead b{font-size:16px}
+.ibody{flex:1;overflow-y:auto;overscroll-behavior:contain}
+.ihero{display:flex;flex-direction:column;align-items:center;gap:6px;padding:26px 20px 22px;text-align:center;border-bottom:8px solid var(--bg)}
+.ihero .av{width:180px;height:180px;flex:none;font-size:56px;border-radius:50%}
+.ihero h2{margin:8px 0 0;font-size:22px;font-weight:650;overflow-wrap:anywhere}
+.ihero .isub{margin:0;color:var(--muted);font-size:15px}
+.isec{padding:14px 22px;border-bottom:8px solid var(--bg)}
+.isec:last-child{border-bottom:0}
+.isec h4{margin:0 0 6px;font-size:13px;font-weight:600;color:var(--muted)}
+.isec p{margin:0;font-size:15px;white-space:pre-wrap;overflow-wrap:anywhere}
+.isec small{display:block;margin-top:4px;color:var(--muted);font-size:12px}
+.irow{display:flex;align-items:center;gap:14px;width:100%;padding:12px 0;background:none;border:0;color:var(--fg);font:inherit;font-size:15px;text-align:left;cursor:pointer}
+.irow + .irow{border-top:1px solid var(--line)}
+.irow svg{flex:none;color:var(--muted)}
+.irow .iv{margin-left:auto;color:var(--muted);font-size:14px;display:flex;align-items:center;gap:4px}
+.irow:hover{color:var(--accent)}
+.irow:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+.ithumbs{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:4px}
+.ithumbs button{aspect-ratio:1;padding:0;border:0;border-radius:8px;overflow:hidden;background:var(--field);color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center}
+.ithumbs img,.ithumbs video{width:100%;height:100%;object-fit:cover;display:block}
+.itabs{display:flex;gap:4px;padding:10px 16px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--panel);z-index:1}
+.itabs button{flex:1;padding:8px;border:0;border-bottom:2px solid transparent;background:none;color:var(--muted);font:inherit;font-weight:600;cursor:pointer}
+.itabs button.on{color:var(--accent);border-bottom-color:var(--accent)}
+.igrid{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:12px 16px}
+.ilist{list-style:none;margin:0;padding:6px 16px}
+.ilist li{padding:10px 0;border-bottom:1px solid var(--line);font-size:14px;overflow-wrap:anywhere}
+.ilist a{color:var(--accent)}
+.ilist small{display:block;color:var(--muted);font-size:12px;margin-top:2px}
+.imember{display:flex;align-items:center;gap:12px;padding:8px 0}
+.imember .av{flex:none}
+.imember .gi{min-width:0;flex:1}
+.imember .gi b{display:block;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.imember .gi small{margin:0}
+.iempty{padding:28px 16px;text-align:center;color:var(--muted);font-size:14px}
+@media (max-width:1180px) and (min-width:761px){#info{position:absolute;top:0;right:0;bottom:0;z-index:6;box-shadow:-10px 0 30px rgba(0,0,0,.18)}}
+@media (max-width:760px){#info{position:fixed;inset:0;width:auto;z-index:20;border-left:0}}
+
+/* the + menu */
+#plusMenu{position:fixed;z-index:40;background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:0 12px 32px rgba(0,0,0,.22);padding:6px;min-width:220px}
+#plusMenu[hidden]{display:none}
+#plusMenu button{display:flex;align-items:center;gap:12px;width:100%;padding:9px 12px;border:0;border-radius:9px;background:none;color:var(--fg);font:inherit;font-size:15px;text-align:left;cursor:pointer}
+#plusMenu button:hover,#plusMenu button:focus-visible{background:var(--hover);outline:none}
+#plusMenu .pi{display:flex;width:22px;height:22px;flex:none}
+#plusMenu .pi svg{width:22px;height:22px}
+#plusMenu .pi.doc{color:#7f66ff}
+#plusMenu .pi.vid{color:#e8467a}
+#plusMenu .pi.poll{color:#d89a00}
+#attach.on{background:var(--hover);color:var(--fg)}
+
+/* the composer: a microphone while the box is empty, the send button once there's something to send */
+#composer.empty #send{display:none}
+#composer:not(.empty) #micBtn{display:none}
+#micBtn:disabled{opacity:.4;cursor:default}
+#recBar{display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--panel);border-top:1px solid var(--line)}
+#recBar[hidden]{display:none}
+#recBar .rdot{width:10px;height:10px;border-radius:50%;background:#e53e4f;flex:none}
+#recBar.paused .rdot{background:var(--muted)}
+#recTime{font-variant-numeric:tabular-nums;font-size:15px;min-width:42px}
+#recWave{flex:1;display:flex;align-items:center;justify-content:flex-end;gap:2px;height:32px;overflow:hidden}
+#recWave i{width:3px;flex:none;border-radius:2px;background:var(--muted);min-height:3px}
+#recSend{border:0;background:var(--accent);color:#fff;border-radius:50%;width:42px;height:42px;flex:0 0 42px;display:flex;align-items:center;justify-content:center}
+#recX:hover{color:#e53e4f}
+
+/* a voice message */
+.vp{display:flex;align-items:center;gap:10px;min-width:240px;max-width:320px;padding:4px 2px 2px}
+.vp-btn{flex:none;width:36px;height:36px;border-radius:50%;border:0;background:none;color:var(--muted);display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
+.vp-btn svg{width:24px;height:24px;fill:currentColor}
+.vp-btn:hover{color:var(--fg)}
+.vp-mid{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
+.vp-wave{display:flex;align-items:center;gap:2px;height:28px;cursor:pointer}
+.vp-wave i{flex:1;min-width:2px;border-radius:2px;background:color-mix(in srgb,var(--fg) 30%,transparent);min-height:3px}
+.vp-wave i.on{background:var(--accent)}
+.vp-time{font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.vp-rate{flex:none;min-width:40px;height:26px;padding:0 8px;border-radius:13px;border:0;background:color-mix(in srgb,var(--fg) 10%,transparent);color:var(--fg);font:inherit;font-size:12px;font-weight:700;cursor:pointer}
+.vp.playing .vp-btn{color:var(--accent)}
+
+/* a poll */
+.poll{min-width:250px;max-width:340px;padding:2px 0}
+.poll .pq{display:block;font-size:15px;font-weight:650;margin:2px 0 2px;overflow-wrap:anywhere}
+.poll .pmode{display:flex;align-items:center;gap:5px;color:var(--muted);font-size:12.5px;margin-bottom:6px}
+.popt{display:grid;grid-template-columns:22px 1fr auto;grid-template-rows:auto auto;align-items:center;gap:4px 10px;width:100%;padding:7px 0;border:0;background:none;color:var(--fg);font:inherit;font-size:14.5px;text-align:left;cursor:pointer}
+.popt:disabled{cursor:default}
+.popt .pchk{grid-row:1/3;width:20px;height:20px;border-radius:50%;border:2px solid color-mix(in srgb,var(--fg) 45%,transparent);display:flex;align-items:center;justify-content:center}
+.poll.multi .popt .pchk{border-radius:5px}
+.popt.mine .pchk{background:var(--accent);border-color:var(--accent)}
+.popt.mine .pchk::after{content:'';width:5px;height:9px;border:solid #fff;border-width:0 2px 2px 0;transform:translateY(-1px) rotate(45deg)}
+.popt .pname{overflow-wrap:anywhere}
+.popt .pn{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.popt .pbar{grid-column:2/4;height:6px;border-radius:3px;background:color-mix(in srgb,var(--fg) 12%,transparent);overflow:hidden}
+.popt .pbar i{display:block;height:100%;background:var(--accent);border-radius:3px;transition:width .3s}
+.popt:not(:disabled):hover .pname{text-decoration:underline;text-underline-offset:3px}
+.poll .pfoot{display:flex;justify-content:center;margin-top:4px;padding-top:6px;border-top:1px solid color-mix(in srgb,var(--fg) 12%,transparent)}
+.poll .pfoot button{border:0;background:none;color:var(--accent);font:inherit;font-size:14px;font-weight:600;padding:4px 10px;cursor:pointer}
+.poll .pfoot button:disabled{color:var(--muted);cursor:default}
+.poll .pnote{display:block;color:var(--muted);font-size:12px;margin-top:4px}
+#pollDlg .dlg{max-width:420px;max-height:90vh;overflow-y:auto}
+#pollOpts{display:flex;flex-direction:column;gap:8px}
+#pollOpts .po{display:flex;gap:6px;align-items:center}
+#pollOpts .po input{flex:1}
+#pollOpts .po .ib{width:32px;height:32px;flex-basis:32px}
+#pollDlg .pmulti{display:flex;align-items:center;gap:10px;font-weight:500;margin-top:16px;cursor:pointer}
+#pollDlg .pmulti input{width:18px;height:18px;accent-color:var(--accent)}
+#pollDlg .pnote{color:var(--danger);font-size:13px;min-height:1em;margin:8px 0 0}
+#votesDlg .dlg{max-width:380px;max-height:85vh;overflow-y:auto}
+#votesList h4{margin:14px 0 4px;font-size:14px;display:flex;justify-content:space-between}
+#votesList h4 span{color:var(--muted);font-weight:500}
+#votesList p{margin:0;color:var(--muted);font-size:14px}
+
 
 /* overlays */
 .overlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;padding:24px;z-index:9}
@@ -412,7 +539,7 @@ html[data-locked] #lock{display:flex}
 }
 
 /* ================= polish layer: shared look for the chat app ================= */
-@media (min-width:761px){#side{width:384px;flex-basis:384px}}
+@media (min-width:761px){#side{width:var(--side-w,384px);flex-basis:var(--side-w,384px)}}
 #side > .bar{gap:4px}
 #side > .bar .ib{width:34px;height:34px;flex-basis:34px;font-size:16px}
 #side > .bar .me{margin-left:6px}
@@ -791,6 +918,7 @@ html:root[data-theme="dark"][data-accent]{--out:color-mix(in srgb,var(--accent) 
     <div id="chips"><button data-f="all" class="on">All</button><button data-f="unread">Unread</button><button data-f="groups">Groups</button><button data-f="archived" id="archChip">📦 Archived</button></div>
     <div class="list" id="chats"><div class="empty">Loading…</div></div>
 
+    <div id="sideGrip" role="separator" aria-orientation="vertical" aria-label="Chat list width" tabindex="0" title="Drag to make the chat list wider · double-click to reset"></div>
     <div id="newchat">
       <div class="bar">
         <button class="ib" id="ncBack">←</button>
@@ -807,8 +935,10 @@ html:root[data-theme="dark"][data-accent]{--out:color-mix(in srgb,var(--accent) 
   <main id="main">
     <div class="bar" style="background:var(--panel)">
       <button class="ib" id="back">←</button>
-      <div class="av sm" id="tav" hidden></div>
-      <div id="title"><b>Select a chat</b><small></small></div>
+      <button type="button" class="tinfo" id="tinfo" title="Contact info" disabled>
+        <div class="av sm" id="tav" hidden></div>
+        <div id="title"><b>Select a chat</b><small></small></div>
+      </button>
       <div id="chatActs">
       <button class="pill" id="grpBtn" title="Group members" hidden>👥 Members</button>
       <button class="pill" id="nickBtn" title="Nickname only you can see" hidden>✏️ Nickname</button>
@@ -844,15 +974,23 @@ html:root[data-theme="dark"][data-accent]{--out:color-mix(in srgb,var(--accent) 
       <ul id="schedList" hidden></ul>
     </div>
     <div id="composer">
-      <button class="ib" id="attach" title="Attach photo or file" disabled><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+      <button class="ib" id="attach" title="Attach, video message or poll" aria-haspopup="menu" aria-expanded="false" disabled><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
       <input type="file" id="file" hidden>
       <div class="cwrap">
         <textarea id="text" autocorrect="off" autocomplete="off" autocapitalize="sentences" data-gramm="false" data-gramm_editor="false" data-enable-grammarly="false" rows="1" placeholder="Type a message" disabled></textarea>
         <button class="ib" id="emojiBtn" title="Emoji (or type :name)" disabled><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.8"/><path d="M8.6 14.2a4.6 4.6 0 0 0 6.8 0"/><path d="M9.2 9.6h.01M14.8 9.6h.01" stroke-width="2.4"/></svg></button>
       </div>
-      <button class="ib" id="vnBtn" title="Record a video message" disabled><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.8"/><path d="M9.6 9.3h3.6a1.1 1.1 0 0 1 1.1 1.1v3.2a1.1 1.1 0 0 1-1.1 1.1H9.6a1.1 1.1 0 0 1-1.1-1.1v-3.2a1.1 1.1 0 0 1 1.1-1.1z"/><path d="m14.3 11.3 2.2-1.3v4l-2.2-1.3"/></svg></button>
+      <button class="ib" id="vnBtn" title="Record a video message" hidden disabled><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.8"/><path d="M9.6 9.3h3.6a1.1 1.1 0 0 1 1.1 1.1v3.2a1.1 1.1 0 0 1-1.1 1.1H9.6a1.1 1.1 0 0 1-1.1-1.1v-3.2a1.1 1.1 0 0 1 1.1-1.1z"/><path d="m14.3 11.3 2.2-1.3v4l-2.2-1.3"/></svg></button>
       <button class="ib" id="schedBtn" title="Send later" hidden><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.6"/><path d="M12 7.5V12l3 2"/></svg></button>
+      <button class="ib" id="micBtn" title="Record a voice message" aria-label="Record a voice message" disabled><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3.5" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v2.5"/></svg></button>
       <button id="send" title="Send" disabled><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12 20 4.5l-5.2 15.5-3-6.2z"/><path d="M11.8 13.8 20 4.5"/></svg></button>
+    </div>
+    <div id="recBar" hidden role="group" aria-label="Recording a voice message">
+      <button class="ib" id="recX" title="Delete recording" aria-label="Delete recording"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 7h15"/><path d="M9.5 7V5.2c0-.7.5-1.2 1.2-1.2h2.6c.7 0 1.2.5 1.2 1.2V7"/><path d="m6.5 7 .8 11.6a2 2 0 0 0 2 1.9h5.4a2 2 0 0 0 2-1.9L17.5 7"/></svg></button>
+      <span class="rdot" aria-hidden="true"></span><span id="recTime" aria-live="off">0:00</span>
+      <div id="recWave" aria-hidden="true"></div>
+      <button class="ib" id="recPause" title="Pause" aria-label="Pause recording"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6v12M15 6v12"/></svg></button>
+      <button id="recSend" title="Send voice message" aria-label="Send voice message"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12 20 4.5l-5.2 15.5-3-6.2z"/><path d="M11.8 13.8 20 4.5"/></svg></button>
     </div>
     <div id="selbar" hidden>
       <button class="ib" id="selX" title="Cancel (Esc)" aria-label="Cancel selection"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
@@ -863,6 +1001,13 @@ html:root[data-theme="dark"][data-accent]{--out:color-mix(in srgb,var(--accent) 
     </div>
     <div id="drop">Drop to attach</div>
   </main>
+  <aside id="info" hidden aria-labelledby="infoTitle">
+    <div class="bar ihead">
+      <button class="ib" id="infoX" title="Close" aria-label="Close contact info"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+      <b id="infoTitle">Contact info</b>
+    </div>
+    <div class="ibody" id="infoBody"></div>
+  </aside>
 </div>
 
 <div class="overlay" id="gate">
@@ -1043,6 +1188,30 @@ html:root[data-theme="dark"][data-accent]{--out:color-mix(in srgb,var(--accent) 
     <div class="err" id="pwerr"></div>
     <div class="acts"><button type="button" class="btn ghost" id="pwx">Cancel</button><button class="btn">Save</button></div>
   </form>
+</div>
+<div id="plusMenu" role="menu" hidden>
+  <button type="button" role="menuitem" data-plus="file"><span class="pi doc"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 3.5h7l4 4v13h-11z"/><path d="M13.5 3.5v4h4M9 12.5h6M9 16h6"/></svg></span>Photo or file</button>
+  <button type="button" role="menuitem" data-plus="vn"><span class="pi vid"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.6"/><path d="M9.6 9.3h3.6a1.1 1.1 0 0 1 1.1 1.1v3.2a1.1 1.1 0 0 1-1.1 1.1H9.6a1.1 1.1 0 0 1-1.1-1.1v-3.2a1.1 1.1 0 0 1 1.1-1.1z"/><path d="m14.3 11.3 2.2-1.3v4l-2.2-1.3"/></svg></span>Video message</button>
+  <button type="button" role="menuitem" data-plus="poll"><span class="pi poll"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 20V10M10 20V4M15 20v-7M20 20v-4"/></svg></span>Poll</button>
+</div>
+<div class="overlay" id="pollDlg">
+  <div class="dlg" role="dialog" aria-modal="true" aria-labelledby="pollTitle">
+    <h3 id="pollTitle">Create poll</h3>
+    <label for="pollQ">Question</label>
+    <input id="pollQ" maxlength="255" placeholder="Ask a question" autocomplete="off">
+    <label id="pollOptsL">Options</label>
+    <div id="pollOpts" role="group" aria-labelledby="pollOptsL"></div>
+    <label class="pmulti"><input type="checkbox" id="pollMulti"> Allow multiple answers</label>
+    <p class="pnote" id="pollNote"></p>
+    <div class="acts"><button type="button" class="btn ghost" id="pollCancel">Cancel</button><button type="button" class="btn" id="pollSend" disabled>Send</button></div>
+  </div>
+</div>
+<div class="overlay" id="votesDlg">
+  <div class="dlg" role="dialog" aria-modal="true" aria-labelledby="votesTitle">
+    <h3 id="votesTitle">Votes</h3>
+    <div id="votesList"></div>
+    <div class="acts"><button type="button" class="btn" id="votesX">Done</button></div>
+  </div>
 </div>
 <div class="overlay" id="vnDlg" role="dialog" aria-modal="true" aria-labelledby="vnTitle">
   <div class="dlg">
@@ -1444,6 +1613,10 @@ function bubble(m) {
     const src = m.local || (m.media ? mediaUrl(m) : '');
     body = src ? `<img loading="lazy" src="${esc(src)}" alt="" data-full="${esc(src)}">` : '<span class="note">📷 Photo</span>';
     if (m.text) body += mentionize(rich(m.text), m.mentions);
+  } else if (m.type === 'audio' && !m.deleted && (m.media || m.local)) {
+    body = voiceBubble(m);
+  } else if (m.type === 'poll' && !m.deleted && m.poll) {
+    body = pollBubble(m);
   } else if (m.type === 'document' || m.type === 'video' || m.type === 'audio') {
     const label = m.type === 'document' ? (m.fileName || 'Document') : m.type === 'video' ? 'Video' : 'Voice message';
     const icon = {document: '📄', video: '🎥', audio: '🎤'}[m.type];
@@ -1517,6 +1690,7 @@ function renderMsgs(stick) {
   box.innerHTML = html || '<div class="empty">No messages here yet. Say hi 👋</div>';
   if (stick === 'keep') box.scrollTop = prevTop + (box.scrollHeight - prevH);
   else if (stick || nearBottom) box.scrollTop = box.scrollHeight;
+  paintVoice();
   if (selMode) syncSelbar();
 }
 function upsert(m) {
@@ -1527,6 +1701,7 @@ function upsert(m) {
 
 function quotePreview(m) {
   if (m.text) return m.text;
+  if (m.type === 'poll') return '📊 Poll';
   return {image: '📷 Photo', video: '🎥 Video', ptv: '📹 Video message', audio: '🎤 Voice message', sticker: 'Sticker'}[m.type] || ('📄 ' + (m.fileName || 'Document'));
 }
 function startReply(id) {
@@ -1553,6 +1728,8 @@ async function openChat(jid, name) {
   unseen = 0; showJump(false);
   document.body.classList.add('open');
   updateTitle(); setComposer();
+  cancelVoice(); closePlus();
+  if (!$('#info').hidden) openInfo();   // the panel follows you to the next chat, like WhatsApp
   if (status === 'connected') subscribePresence(jid);   // online / typing / last seen in the header
   $('#msgs').innerHTML = '<div class="empty">Loading…</div>';
   try {
@@ -1614,7 +1791,8 @@ async function loadOlder(btn) {
 // ---------------------------------------------------------------- send
 function setComposer() {
   const ok = status === 'connected' && !!current;
-  $('#text').disabled = $('#send').disabled = $('#attach').disabled = $('#emojiBtn').disabled = $('#vnBtn').disabled = !ok;
+  $('#text').disabled = $('#send').disabled = $('#attach').disabled = $('#emojiBtn').disabled = $('#vnBtn').disabled = $('#micBtn').disabled = !ok;
+  $('#tinfo').disabled = !current;
   syncSchedBtn();
 }
 async function send() {
@@ -1928,13 +2106,440 @@ let ncT;
 function openNew() { $('#menu').classList.remove('on'); $('#newchat').classList.add('on'); $('#ncq').value = ''; searchContacts(); $('#ncq').focus(); }
 function closeNew() { $('#newchat').classList.remove('on'); }
 
+
+// ---------------------------------------------------------------- the + menu
+// Like WhatsApp's: what you can send besides text. Photo or file, a round video message, a poll.
+function openPlus() {
+  const m = $('#plusMenu'), r = $('#attach').getBoundingClientRect();
+  m.hidden = false;
+  m.style.left = Math.max(8, r.left) + 'px';
+  m.style.top = Math.max(8, r.top - m.offsetHeight - 8) + 'px';
+  $('#attach').classList.add('on'); $('#attach').setAttribute('aria-expanded', 'true');
+  m.querySelector('button')?.focus({preventScroll: true});
+}
+function closePlus() { $('#plusMenu').hidden = true; $('#attach').classList.remove('on'); $('#attach').setAttribute('aria-expanded', 'false'); }
+$('#plusMenu').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-plus]'); if (!b) return;
+  closePlus();
+  if (b.dataset.plus === 'file') $('#file').click();
+  else if (b.dataset.plus === 'vn') openVideoNote();
+  else if (b.dataset.plus === 'poll') openPollDlg();
+});
+$('#plusMenu').addEventListener('keydown', (e) => {
+  const items = [...$('#plusMenu').querySelectorAll('button')], i = items.indexOf(document.activeElement);
+  if (e.key === 'ArrowDown') { e.preventDefault(); items[(i + 1) % items.length].focus(); }
+  if (e.key === 'ArrowUp') { e.preventDefault(); items[(i - 1 + items.length) % items.length].focus(); }
+});
+document.addEventListener('click', (e) => { if (!$('#plusMenu').hidden && !e.target.closest('#plusMenu, #attach')) closePlus(); });
+
+// ---------------------------------------------------------- voice messages (recording)
+// Tap the microphone: it records right away; the bin throws it away, the arrow sends it.
+// The server turns it into Ogg/Opus with a waveform, which is what phones expect.
+const VOICE_MAX = 15 * 60;
+const voice = {rec: null, stream: null, chunks: [], start: 0, paused: 0, pausedAt: 0, timer: null, ctx: null, an: null, bars: []};
+const voiceSecs = () => Math.max(0, ((voice.pausedAt || Date.now()) - voice.start - voice.paused) / 1000);
+function voiceMime() {
+  for (const t of ['audio/webm;codecs=opus', 'audio/ogg;codecs=opus', 'audio/mp4', 'audio/webm']) if (window.MediaRecorder?.isTypeSupported?.(t)) return t;
+  return '';
+}
+async function startVoice() {
+  if (!current || status !== 'connected' || voice.rec) return;
+  if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) return toast('This browser can’t record audio');
+  try { voice.stream = await navigator.mediaDevices.getUserMedia({audio: {echoCancellation: true, noiseSuppression: true}}); }
+  catch { return toast('Allow the microphone to record a voice message', 4000); }
+  const mime = voiceMime();
+  try { voice.rec = new MediaRecorder(voice.stream, mime ? {mimeType: mime, audioBitsPerSecond: 48000} : undefined); }
+  catch { voice.rec = new MediaRecorder(voice.stream); }
+  voice.chunks = []; voice.start = Date.now(); voice.paused = 0; voice.pausedAt = 0; voice.bars = [];
+  voice.rec.ondataavailable = (ev) => { if (ev.data.size) voice.chunks.push(ev.data); };
+  voice.rec.start(250);
+  // a live level meter, like the phone's
+  try {
+    voice.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    voice.an = voice.ctx.createAnalyser(); voice.an.fftSize = 256;
+    voice.ctx.createMediaStreamSource(voice.stream).connect(voice.an);
+  } catch {}
+  $('#composer').hidden = true; $('#recBar').hidden = false; $('#recBar').classList.remove('paused');
+  $('#recWave').innerHTML = '';
+  voice.timer = setInterval(voiceTick, 100);
+  voiceTick();
+  $('#recSend').focus({preventScroll: true});
+}
+function voiceTick() {
+  const s = voiceSecs();
+  $('#recTime').textContent = fmtDur(Math.floor(s));
+  if (s >= VOICE_MAX) { sendVoice(); return; }
+  if (!voice.an || voice.pausedAt) return;
+  const d = new Uint8Array(voice.an.fftSize); voice.an.getByteTimeDomainData(d);
+  let peak = 0; for (const v of d) peak = Math.max(peak, Math.abs(v - 128));
+  const box = $('#recWave'), bar = document.createElement('i');
+  bar.style.height = Math.max(3, Math.min(32, Math.round(peak / 128 * 64))) + 'px';
+  box.appendChild(bar);
+  while (box.children.length > 120) box.firstChild.remove();
+}
+function voiceStopStream() {
+  clearInterval(voice.timer); voice.timer = null;
+  voice.stream?.getTracks().forEach(t => t.stop()); voice.stream = null;
+  try { voice.ctx?.close(); } catch {}
+  voice.ctx = voice.an = null;
+  $('#recBar').hidden = true; $('#composer').hidden = false;
+}
+function cancelVoice() {
+  if (!voice.rec) return;
+  const r = voice.rec; voice.rec = null;
+  r.ondataavailable = null; try { r.stop(); } catch {}
+  voiceStopStream();
+}
+function pauseVoice() {
+  if (!voice.rec) return;
+  if (voice.rec.state === 'recording') { voice.rec.pause(); voice.pausedAt = Date.now(); $('#recBar').classList.add('paused'); $('#recPause').setAttribute('aria-label', 'Resume recording'); $('#recPause').title = 'Resume'; }
+  else if (voice.rec.state === 'paused') { voice.paused += Date.now() - voice.pausedAt; voice.pausedAt = 0; voice.rec.resume(); $('#recBar').classList.remove('paused'); $('#recPause').setAttribute('aria-label', 'Pause recording'); $('#recPause').title = 'Pause'; }
+}
+async function sendVoice() {
+  if (!voice.rec) return;
+  const r = voice.rec, secs = Math.max(1, Math.round(voiceSecs())), jid = current;
+  voice.rec = null;
+  const done = new Promise(res => { r.onstop = res; });
+  try { r.stop(); } catch {}
+  await done;
+  voiceStopStream();
+  const blob = new Blob(voice.chunks, {type: r.mimeType || voice.chunks[0]?.type || 'audio/webm'});
+  voice.chunks = [];
+  if (secs < 1 || blob.size < 200) return toast('Too short to send');
+  const tmp = {id: 'tmp' + (++tmpN), jid, fromMe: true, ts: Math.floor(Date.now() / 1000), pending: true, type: 'audio', ptt: true, dur: secs, text: '', local: URL.createObjectURL(blob)};
+  upsert(tmp); renderMsgs(true);
+  try {
+    const rr = replyTo; cancelReply();
+    const qs = `?jid=${encodeURIComponent(jid)}&ptt=1&seconds=${secs}` + (rr ? `&replyTo=${encodeURIComponent(rr.id)}` : '');
+    const real = await call('POST', '/send-media' + qs, blob, {'content-type': blob.type || 'audio/webm'});
+    if (current === jid) { msgs = msgs.filter(m => m.id !== tmp.id); if (real) upsert({...real, local: tmp.local}); renderMsgs(true); }
+    loadChats();
+  } catch (x) {
+    tmp.pending = false; tmp.failed = true; renderMsgs(false);
+    toast('Not sent: ' + x.message, 4000);
+  }
+}
+$('#micBtn').addEventListener('click', startVoice);
+$('#recX').addEventListener('click', cancelVoice);
+$('#recPause').addEventListener('click', pauseVoice);
+$('#recSend').addEventListener('click', sendVoice);
+
+// ---------------------------------------------------------- voice messages (playing)
+// One player for the whole page, so a new message arriving (which redraws the chat) doesn't cut it off.
+const vp = {audio: new Audio(), id: null, rate: 1};
+vp.audio.preload = 'auto';
+const waveBars = (wf, n = 40) => {
+  if (!Array.isArray(wf) || !wf.length) return Array.from({length: n}, (_, i) => 30 + 25 * Math.abs(Math.sin(i * 1.7)) + 15 * Math.abs(Math.sin(i * .6)));
+  return Array.from({length: n}, (_, i) => { const a = Math.floor(i * wf.length / n), z = Math.max(a + 1, Math.floor((i + 1) * wf.length / n)); let mx = 0; for (let j = a; j < z; j++) mx = Math.max(mx, wf[j] || 0); return mx; });
+};
+const PLAY = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15l12.5-7.5z"/></svg>';
+const PAUSE = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="4.5" width="4.2" height="15" rx="1.2"/><rect x="13.8" y="4.5" width="4.2" height="15" rx="1.2"/></svg>';
+function voiceBubble(m) {
+  const bars = waveBars(m.wf).map(h => `<i style="height:${Math.max(10, Math.round(h))}%"></i>`).join('');
+  return `<div class="vp" data-vp="${esc(m.id)}"><button class="vp-btn" data-vp-play aria-label="Play voice message${m.dur ? ', ' + fmtDur(m.dur) : ''}">${PLAY}</button>` +
+    `<div class="vp-mid"><div class="vp-wave" data-vp-seek role="slider" aria-label="Position" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">${bars}</div>` +
+    `<span class="vp-time">${m.dur ? fmtDur(m.dur) : '0:00'}</span></div>` +
+    `<button class="vp-rate" data-vp-rate title="Playback speed">${vp.rate}×</button></div>`;
+}
+function vpToggle(id) {
+  const m = msgs.find(x => x.id === id); if (!m) return;
+  const a = vp.audio;
+  document.querySelectorAll('#msgs .ptv.playing video').forEach(x => x.pause());   // one thing at a time
+  if (vp.id === id) { a.paused ? a.play().catch(() => toast("Couldn't play that voice message")) : a.pause(); return; }
+  vp.id = id;
+  a.src = m.local || mediaUrl(m);
+  a.playbackRate = vp.rate;
+  a.play().catch(() => toast("Couldn't play that voice message"));
+  paintVoice();
+}
+function vpSeek(id, f) {
+  f = Math.max(0, Math.min(1, f || 0));
+  if (vp.id !== id) { vpToggle(id); vp.audio.addEventListener('loadedmetadata', () => { if (isFinite(vp.audio.duration)) vp.audio.currentTime = f * vp.audio.duration; }, {once: true}); return; }
+  const m = msgs.find(x => x.id === id), d = isFinite(vp.audio.duration) && vp.audio.duration > 0 ? vp.audio.duration : m?.dur || 0;
+  if (d) vp.audio.currentTime = f * d;
+  paintVoice();
+}
+function vpRate() {
+  vp.rate = vp.rate === 1 ? 1.5 : vp.rate === 1.5 ? 2 : 1;
+  vp.audio.playbackRate = vp.rate;
+  document.querySelectorAll('#msgs [data-vp-rate]').forEach(x => { x.textContent = vp.rate + '×'; });
+}
+function paintVoice() {
+  const a = vp.audio;
+  for (const el of document.querySelectorAll('#msgs .vp')) {
+    const on = el.dataset.vp === vp.id;
+    const playing = on && !a.paused && !a.ended;
+    el.classList.toggle('playing', playing);
+    const btn = el.querySelector('.vp-btn');
+    if (btn.dataset.state !== String(playing)) { btn.innerHTML = playing ? PAUSE : PLAY; btn.dataset.state = String(playing); btn.setAttribute('aria-label', (playing ? 'Pause' : 'Play') + ' voice message'); }
+    const m0 = msgs.find(x => x.id === el.dataset.vp);
+    // Ogg/Opus often has no length in its header (Chrome says Infinity): the message knows it
+    const d = on ? (isFinite(a.duration) && a.duration > 0 ? a.duration : m0?.dur || 0) : 0;
+    const f = on && d ? Math.min(1, a.currentTime / d) : 0;
+    const bars = el.querySelectorAll('.vp-wave i'), lit = Math.round(f * bars.length);
+    bars.forEach((x, i) => x.classList.toggle('on', i < lit));
+    el.querySelector('.vp-wave').setAttribute('aria-valuenow', String(Math.round(f * 100)));
+    const m = msgs.find(x => x.id === el.dataset.vp);
+    el.querySelector('.vp-time').textContent = on && (a.currentTime > 0 || playing) ? fmtDur(a.currentTime) : fmtDur(m?.dur || d);
+  }
+}
+['play', 'pause', 'timeupdate', 'ended', 'loadedmetadata'].forEach(ev => vp.audio.addEventListener(ev, () => {
+  if (ev === 'ended') { vp.audio.currentTime = 0; }
+  paintVoice();
+}));
+
+// ------------------------------------------------------------------- polls
+function pollBubble(m) {
+  const p = m.poll;   // bars: the share of the people who voted, like WhatsApp
+  const opts = p.options.map((o, i) => `<button class="popt${o.mine ? ' mine' : ''}" data-vote="${i}" aria-pressed="${o.mine}"${p.canVote && !m.pending ? '' : ' disabled'}${o.who.length ? ` title="${esc(o.who.join(', '))}"` : ''}>` +
+    `<span class="pchk" aria-hidden="true"></span><span class="pname">${esc(o.name)}</span><span class="pn">${o.n}</span><span class="pbar" aria-hidden="true"><i style="width:${p.voters ? Math.round(o.n / p.voters * 100) : 0}%"></i></span></button>`).join('');
+  return `<div class="poll${p.multi ? ' multi' : ''}" data-poll="${esc(m.id)}"><b class="pq">${esc(m.text)}</b>` +
+    `<span class="pmode">${p.multi ? 'Select one or more' : 'Select one'}</span>${opts}` +
+    (p.canVote ? '' : '<span class="pnote">Arrived before this site could read polls: vote on your phone.</span>') +
+    `<div class="pfoot"><button type="button" data-votes${p.voters ? '' : ' disabled'}>${p.voters ? `View votes (${p.voters})` : 'No votes yet'}</button></div></div>`;
+}
+async function votePoll(id, i) {
+  const m = msgs.find(x => x.id === id); if (!m?.poll?.canVote || !current) return;
+  const was = m.poll.options.map(o => o.mine);
+  const picks = m.poll.multi ? was.map((on, k) => (k === i ? !on : on)).flatMap((on, k) => (on ? [k] : [])) : (was[i] ? [] : [i]);
+  // show it at once; the server's answer replaces it
+  const prev = m.poll;
+  m.poll = {...prev, options: prev.options.map((o, k) => { const mine = picks.includes(k); return {...o, mine, n: o.n + (mine && !o.mine ? 1 : !mine && o.mine ? -1 : 0)}; })};
+  renderMsgs(false);
+  try { const real = await call('POST', '/vote', {jid: m.jid, id, options: picks}); if (real) { upsert(real); renderMsgs(false); } }
+  catch (x) { m.poll = prev; renderMsgs(false); toast('Vote not sent: ' + x.message, 4000); }
+}
+function showVotes(id) {
+  const m = msgs.find(x => x.id === id); if (!m?.poll) return;
+  $('#votesTitle').textContent = m.text;
+  $('#votesList').innerHTML = m.poll.options.map(o => `<h4>${esc(o.name)}<span>${o.n} vote${o.n === 1 ? '' : 's'}</span></h4><p>${o.who.length ? esc(o.who.join(', ')) + (o.n > o.who.length ? ` and ${o.n - o.who.length} more` : '') : 'No votes'}</p>`).join('');
+  $('#votesDlg').classList.add('on');
+  $('#votesX').focus();
+}
+$('#votesX').addEventListener('click', () => $('#votesDlg').classList.remove('on'));
+$('#votesDlg').addEventListener('click', (e) => { if (e.target.id === 'votesDlg') $('#votesDlg').classList.remove('on'); });
+
+// creating one: a question and 2 to 12 answers (a new empty box appears as you fill the last)
+const POLL_MAX = 12;
+function pollRow(v = '') {
+  const d = document.createElement('div'); d.className = 'po';
+  d.innerHTML = `<input maxlength="100" placeholder="Add an option" aria-label="Option" value="${esc(v)}"><button type="button" class="ib" aria-label="Remove option" title="Remove"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>`;
+  return d;
+}
+function pollState() {
+  const q = $('#pollQ').value.trim();
+  const opts = [...$('#pollOpts').querySelectorAll('input')].map(i => i.value.trim()).filter(Boolean);
+  const dup = opts.length !== new Set(opts.map(o => o.toLowerCase())).size;
+  $('#pollNote').textContent = dup ? 'Each option needs to be different.' : '';
+  $('#pollSend').disabled = !q || opts.length < 2 || dup;
+  // keep one empty box at the end (up to 12), and remove buttons only when there are more than 2
+  const rows = [...$('#pollOpts').children];
+  if (rows.length < POLL_MAX && rows.at(-1)?.querySelector('input').value.trim()) $('#pollOpts').appendChild(pollRow());
+  [...$('#pollOpts').children].forEach(r => { r.querySelector('.ib').hidden = $('#pollOpts').children.length <= 2; });
+  return {q, opts};
+}
+function openPollDlg() {
+  if (!current) return;
+  $('#pollQ').value = ''; $('#pollMulti').checked = false; $('#pollOpts').innerHTML = '';
+  $('#pollOpts').append(pollRow(), pollRow());
+  pollState();
+  $('#pollDlg').classList.add('on');
+  $('#pollQ').focus();
+}
+const closePollDlg = () => $('#pollDlg').classList.remove('on');
+$('#pollDlg').addEventListener('input', pollState);
+$('#pollOpts').addEventListener('click', (e) => { const x = e.target.closest('.ib'); if (x) { x.closest('.po').remove(); pollState(); } });
+$('#pollOpts').addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter') return; e.preventDefault();
+  const rows = [...$('#pollOpts').querySelectorAll('input')], i = rows.indexOf(e.target);
+  (rows[i + 1] || $('#pollSend')).focus();
+});
+$('#pollQ').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('#pollOpts input')?.focus(); } });
+$('#pollCancel').addEventListener('click', closePollDlg);
+$('#pollDlg').addEventListener('click', (e) => { if (e.target.id === 'pollDlg') closePollDlg(); });
+$('#pollSend').addEventListener('click', async () => {
+  const {q, opts} = pollState(); if ($('#pollSend').disabled) return;
+  const jid = current, multi = $('#pollMulti').checked;
+  closePollDlg();
+  const tmp = {id: 'tmp' + (++tmpN), jid, fromMe: true, ts: Math.floor(Date.now() / 1000), pending: true, type: 'poll', text: q,
+    poll: {multi, voters: 0, canVote: false, options: opts.map(name => ({name, n: 0, mine: false, who: []}))}};
+  upsert(tmp); renderMsgs(true);
+  try {
+    const real = await call('POST', '/poll', {jid, name: q, options: opts, multi});
+    if (current === jid) { msgs = msgs.filter(m => m.id !== tmp.id); if (real) upsert(real); renderMsgs(true); }
+    loadChats();
+  } catch (x) { tmp.pending = false; tmp.failed = true; renderMsgs(false); toast('Poll not sent: ' + x.message, 4000); }
+});
+
+// ------------------------------------------------------------- contact info
+// Tap the name or picture at the top: who this is, their About, the chat's photos, documents
+// and links, and the chat's own settings. Kept light: no encryption details, privacy screens,
+// groups in common, blocking or reporting.
+let info = null, infoTab = null;
+const ICO = {
+  media: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><circle cx="9" cy="10" r="1.8"/><path d="m4 17 5-4.5 4 3.5 3-2.5 4 3.5"/></svg>',
+  mute: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.8 1.8H4.2zM10 20.5a2.2 2.2 0 0 0 4 0"/></svg>',
+  pin: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.5 3.5h7M9.8 3.5v6L6.8 13.8h10.4l-3-4.3v-6M12 13.8v6.7"/></svg>',
+  arch: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="4.5" rx="1.2"/><path d="M5 9v9.5a1.5 1.5 0 0 0 1.5 1.5h11a1.5 1.5 0 0 0 1.5-1.5V9M10 13h4"/></svg>',
+  nick: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15.8 4.2 19.8 8.2 8.6 19.4H4.6v-4z"/><path d="m13.3 6.7 4 4"/></svg>',
+  people: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8.5" r="3.3"/><path d="M3 19.5c.6-3.6 2.9-5.4 6-5.4s5.4 1.8 6 5.4M15.3 5.5a3.3 3.3 0 0 1 0 6.3M17.6 14.5c1.9.7 3.1 2.4 3.4 5"/></svg>',
+  chev: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>',
+};
+/** "+6591234567" → "+65 9123 4567", "+6287782168126" → "+62 877-8216-8126" (country code, then the number in groups). */
+const CC = ['1', '7', '20', '27', '30', '31', '32', '33', '34', '39', '41', '44', '49', '52', '55', '60', '61', '62', '63', '64', '65', '66', '81', '82', '84', '86', '90', '91', '92', '880', '852', '853', '886', '971', '966'];
+function fmtPhone(p) {
+  const d = String(p || '').replace(/\D/g, ''); if (!d) return '';
+  const cc = CC.filter(c => d.startsWith(c)).sort((a, b) => b.length - a.length)[0] || d.slice(0, 2);
+  const r = d.slice(cc.length);
+  const parts = r.length === 8 ? [r.slice(0, 4), r.slice(4)] : r.length === 10 ? [r.slice(0, 3), r.slice(3, 6), r.slice(6)] : [r.slice(0, 3), ...(r.slice(3).match(/.{1,4}/g) || [])];
+  return `+${cc} ` + parts.join(cc === '62' ? '-' : ' ');
+}
+async function openInfo() {
+  if (!current) return;
+  const jid = current;
+  infoTab = null;
+  $('#info').hidden = false;
+  document.body.classList.add('info-open');
+  const c = chats.find(x => x.jid === jid) || {};
+  const group = !!c.group || jid.endsWith('@g.us');
+  $('#infoTitle').textContent = group ? 'Group info' : 'Contact info';
+  info = {jid, group, name: c.name || currentName || jid.split('@')[0], loading: true};
+  renderInfo();
+  try {
+    const [d, g] = await Promise.all([call('GET', '/contact?jid=' + encodeURIComponent(jid)), group ? call('GET', '/group?jid=' + encodeURIComponent(jid)).catch(() => null) : null]);
+    if (current !== jid || !info || info.jid !== jid) return;
+    info = {...info, ...d, grp: g, loading: false};
+    renderInfo();
+  } catch (x) { if (info?.jid === jid) { info.loading = false; info.error = x.message; renderInfo(); } }
+}
+function closeInfo() { $('#info').hidden = true; info = null; document.body.classList.remove('info-open'); $('#tinfo').focus({preventScroll: true}); }
+function renderInfo() {
+  if (!info) return;
+  const c = chats.find(x => x.jid === info.jid) || {};
+  const sub = info.group ? (info.grp ? `Group · ${info.grp.members.length} member${info.grp.members.length === 1 ? '' : 's'}` : 'Group') : fmtPhone(info.phone) || '';
+  const counts = info.counts || {media: 0, docs: 0, links: 0};
+  const n = counts.media + counts.docs + counts.links;
+  let h = `<div class="ihero"><div class="av${info.group ? ' g' : ''}">${esc(info.group ? '👥' : initials(info.name))}<img src="${esc(api('/avatar?jid=' + encodeURIComponent(info.jid)))}" alt="" onerror="this.remove()"></div>` +
+    `<h2>${esc(c.name || info.name)}</h2>${sub ? `<p class="isub">${esc(sub)}</p>` : ''}${!info.group && info.notify && info.notify !== (c.name || info.name) ? `<p class="isub">~${esc(info.notify)}</p>` : ''}</div>`;
+  if (info.about) h += `<section class="isec"><h4>About</h4><p>${rich(info.about)}</p>${info.aboutAt ? `<small>${esc(new Date(info.aboutAt).toLocaleDateString([], {day: 'numeric', month: 'long', year: 'numeric'}))}</small>` : ''}</section>`;
+  if (info.group && info.grp?.desc) h += `<section class="isec"><h4>Description</h4><p>${rich(info.grp.desc)}</p></section>`;
+  h += `<section class="isec"><button class="irow" data-info="media">${ICO.media}<span>Media, links and docs</span><span class="iv">${info.loading ? '…' : n}${ICO.chev}</span></button>`;
+  if (info.recent?.length) h += `<div class="ithumbs">${info.recent.slice(0, 3).map(x => thumb(x)).join('')}</div>`;
+  h += `</section>`;
+  const muted = !!c.muted;
+  h += `<section class="isec">` +
+    `<button class="irow" data-info="mute">${ICO.mute}<span>Mute notifications</span><span class="iv">${muted ? 'On' : 'Off'}</span></button>` +
+    `<button class="irow" data-info="pin">${ICO.pin}<span>${c.pinned ? 'Unpin chat' : 'Pin chat'}</span></button>` +
+    `<button class="irow" data-info="arch">${ICO.arch}<span>${c.archived ? 'Unarchive chat' : 'Archive chat'}</span></button>` +
+    `<button class="irow" data-info="nick">${ICO.nick}<span>Nickname</span><span class="iv">only you see it</span></button></section>`;
+  if (info.group && info.grp) {
+    const ms = info.grp.members;
+    h += `<section class="isec"><h4>${ms.length} member${ms.length === 1 ? '' : 's'}</h4>` +
+      ms.slice(0, 40).map(m => `<div class="imember"><div class="av sm">${esc(initials(m.name))}${avImg(m.jid)}</div><div class="gi"><b>${esc(m.me ? 'You' : m.name)}</b><small>${esc(m.phone || '')}</small></div>${m.admin ? `<span class="gadm">${m.admin === 'superadmin' ? 'Owner' : 'Admin'}</span>` : ''}</div>`).join('') +
+      `<button class="irow" data-info="members">${ICO.people}<span>${ms.length > 40 ? `All ${ms.length} members` : info.grp.amAdmin ? 'Add or remove members' : 'Members'}</span><span class="iv">${ICO.chev}</span></button></section>`;
+  }
+  if (info.error) h += `<div class="iempty">${esc(info.error)}</div>`;
+  $('#infoBody').innerHTML = h;
+}
+function thumb(x) {
+  const m = {jid: info.jid, id: x.id};
+  return x.type === 'image'
+    ? `<button type="button" data-thumb="${esc(x.id)}" aria-label="Photo"><img loading="lazy" src="${esc(mediaUrl(m))}" data-full="${esc(mediaUrl(m))}" alt=""></button>`
+    : `<button type="button" data-thumb="${esc(x.id)}" aria-label="Video"><video src="${esc(mediaUrl(m))}#t=0.1" preload="metadata" muted playsinline></video></button>`;
+}
+async function openInfoMedia(tab = 'media') {
+  if (!info) return;
+  infoTab = tab;
+  const jid = info.jid;
+  if (!info.all) {
+    $('#infoBody').innerHTML = '<div class="iempty">Loading…</div>';
+    try { info.all = await call('GET', '/chat-media?jid=' + encodeURIComponent(jid)); } catch (x) { $('#infoBody').innerHTML = `<div class="iempty">${esc(x.message)}</div>`; return; }
+    if (!info || info.jid !== jid) return;
+  }
+  const a = info.all;
+  $('#infoTitle').textContent = 'Media, links and docs';
+  let h = `<div class="itabs" role="tablist">${[['media', 'Media', a.media.length], ['docs', 'Docs', a.docs.length], ['links', 'Links', a.links.length]].map(([k, l, n]) => `<button role="tab" aria-selected="${k === tab}" class="${k === tab ? 'on' : ''}" data-itab="${k}">${l} <small>${n}</small></button>`).join('')}</div>`;
+  if (tab === 'media') h += a.media.length ? `<div class="igrid">${a.media.map(x => thumb(x)).join('')}</div>` : '<div class="iempty">No photos or videos in this chat yet.</div>';
+  if (tab === 'docs') h += a.docs.length ? `<ul class="ilist">${a.docs.map(x => `<li><a href="${esc(mediaUrl({jid, id: x.id}))}" target="_blank" rel="noopener">📄 ${esc(x.fileName)}</a><small>${esc(fmtDay(x.ts))}</small></li>`).join('')}</ul>` : '<div class="iempty">No documents in this chat yet.</div>';
+  if (tab === 'links') h += a.links.length ? `<ul class="ilist">${a.links.map(x => `<li><a class="lnk" href="${esc(x.url)}" target="_blank" rel="noopener noreferrer">${esc(x.url)}</a><small>${esc(fmtDay(x.ts))}</small></li>`).join('')}</ul>` : '<div class="iempty">No links in this chat yet.</div>';
+  $('#infoBody').innerHTML = h;
+  $('#infoBody').scrollTop = 0;
+}
+$('#tinfo').addEventListener('click', () => { if (!current) return; $('#info').hidden ? openInfo() : closeInfo(); });
+$('#infoX').addEventListener('click', () => { if (infoTab) { infoTab = null; $('#infoTitle').textContent = info?.group ? 'Group info' : 'Contact info'; renderInfo(); } else closeInfo(); });
+$('#infoBody').addEventListener('click', (e) => {
+  const tab = e.target.closest('[data-itab]'); if (tab) return openInfoMedia(tab.dataset.itab);
+  const t = e.target.closest('[data-thumb]');
+  if (t) {
+    const img = t.querySelector('img[data-full]');
+    if (img) return openViewer(img, [...$('#infoBody').querySelectorAll('img[data-full]')]);
+    const el = [...document.querySelectorAll('#msgs .m[data-id]')].find(x => x.dataset.id === t.dataset.thumb);
+    if (el) { el.scrollIntoView({block: 'center', behavior: 'smooth'}); el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); }
+    return;
+  }
+  const r = e.target.closest('[data-info]'); if (!r) return;
+  const k = r.dataset.info;
+  if (k === 'media') return openInfoMedia('media');
+  if (k === 'mute') { e.stopPropagation(); return openMuteMenu(r); }
+  if (k === 'pin') return $('#pinBtn').click();
+  if (k === 'arch') return $('#archBtn').click();
+  if (k === 'nick') return setNickname();
+  if (k === 'members') return openGroup();
+});
+
+// ------------------------------------------------- the chat list's width
+// Drag its edge: from the width it always had up to about WhatsApp's own (a third of a big screen).
+const SIDE_MIN = 384;
+const sideMax = () => Math.max(SIDE_MIN, Math.min(620, Math.round(innerWidth * 0.4)));
+function setSideW(w, save) {
+  const v = Math.round(Math.max(SIDE_MIN, Math.min(sideMax(), w)));
+  if (v <= SIDE_MIN) document.documentElement.style.removeProperty('--side-w');
+  else document.documentElement.style.setProperty('--side-w', v + 'px');
+  $('#sideGrip').setAttribute('aria-valuenow', String(v));
+  if (save) { try { v <= SIDE_MIN ? localStorage.removeItem('wu-side-w') : localStorage.setItem('wu-side-w', String(v)); } catch {} }
+  return v;
+}
+$('#sideGrip').setAttribute('aria-valuemin', String(SIDE_MIN));
+$('#sideGrip').setAttribute('aria-valuemax', String(sideMax()));
+try { const w = Number(localStorage.getItem('wu-side-w')); if (w) setSideW(w, false); } catch {}
+$('#sideGrip').addEventListener('pointerdown', (e) => {
+  if (e.button !== 0) return;
+  e.preventDefault();
+  const g = e.currentTarget, x0 = e.clientX, w0 = $('#side').getBoundingClientRect().width;
+  g.setPointerCapture(e.pointerId);
+  document.body.classList.add('side-resizing');
+  const move = (ev) => setSideW(w0 + ev.clientX - x0, false);
+  const up = (ev) => { g.removeEventListener('pointermove', move); g.removeEventListener('pointerup', up); g.removeEventListener('pointercancel', up); document.body.classList.remove('side-resizing'); setSideW(w0 + ev.clientX - x0, true); };
+  g.addEventListener('pointermove', move); g.addEventListener('pointerup', up); g.addEventListener('pointercancel', up);
+});
+$('#sideGrip').addEventListener('dblclick', () => setSideW(SIDE_MIN, true));
+$('#sideGrip').addEventListener('keydown', (e) => {
+  const w = $('#side').getBoundingClientRect().width;
+  if (e.key === 'ArrowRight') { e.preventDefault(); setSideW(w + 24, true); }
+  else if (e.key === 'ArrowLeft') { e.preventDefault(); setSideW(w - 24, true); }
+  else if (e.key === 'Home') { e.preventDefault(); setSideW(SIDE_MIN, true); }
+  else if (e.key === 'End') { e.preventDefault(); setSideW(sideMax(), true); }
+});
+addEventListener('resize', () => { $('#sideGrip').setAttribute('aria-valuemax', String(sideMax())); const w = $('#side').getBoundingClientRect().width; if (innerWidth > 760 && w > sideMax()) setSideW(sideMax(), false); });
+
+// Escape closes the newest thing first: the + menu, a recording, the poll dialogs, the info panel
+addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  const stop = () => { e.preventDefault(); e.stopImmediatePropagation(); };
+  if (document.getElementById('muteMenu')) { stop(); document.getElementById('muteMenu').remove(); }
+  else if (!$('#plusMenu').hidden) { stop(); closePlus(); $('#attach').focus(); }
+  else if ($('#votesDlg').classList.contains('on')) { stop(); $('#votesDlg').classList.remove('on'); }
+  else if ($('#pollDlg').classList.contains('on')) { stop(); closePollDlg(); }
+  else if (voice.rec) { stop(); cancelVoice(); }
+  else if (!$('#info').hidden && !document.querySelector('.overlay.on') && !document.getElementById('muteMenu')) { stop(); closeInfo(); }
+}, true);
 // ----------------------------------------------------------------- wire
 $('#chats').addEventListener('click', e => { const r = e.target.closest('.row'); if (r) openChat(r.dataset.jid, r.dataset.name); });
 
 $('#back').addEventListener('click', () => document.body.classList.remove('open'));
 $('#send').addEventListener('click', send);
 $('#text').addEventListener('keydown', e => { if (suggestKey(e)) return; if (e.key === 'Enter' && !e.shiftKey && enterSends()) { e.preventDefault(); send(); } });
-$('#text').addEventListener('input', () => { if (current && !editing) drafts.set(current, $('#text').value); noteComposerActivity(); });
+$('#text').addEventListener('input', () => { if (current && !editing) drafts.set(current, $('#text').value); noteComposerActivity(); syncComposer(); });
 $('#text').addEventListener('blur', stopTyping);
 // ChromeOS's keyboard autocorrects any box that has spellcheck on (autocorrect="off" alone isn't
 // always enough there), which rewrites messages as you type. Chromebooks only; elsewhere spellcheck stays.
@@ -2436,7 +3041,9 @@ $('#schedList').addEventListener('click', async e => {
   try { await call('POST', '/scheduled/cancel', {id: b.dataset.id}); toast('Cancelled'); } catch (x) { toast(x.message); }
   loadScheduled();
 });
-function syncSchedBtn() { $('#schedBtn').hidden = !current || !!editing || !!attach || !!replyTo || !$('#text').value.trim(); }
+function syncSchedBtn() { $('#schedBtn').hidden = !current || !!editing || !!attach || !!replyTo || !$('#text').value.trim(); syncComposer(); }
+/** Like WhatsApp: a microphone while there's nothing to send, the send button once there is. */
+function syncComposer() { $('#composer').classList.toggle('empty', !$('#text').value.trim() && !attach && !editing); }
 $('#text').addEventListener('input', syncSchedBtn);
 const localInput = (ms) => { const d = new Date(ms - new Date(ms).getTimezoneOffset() * 60000); return d.toISOString().slice(0, 16); };
 function schedPresets() {
@@ -3059,7 +3666,8 @@ function openMuteMenu(btn) {
   document.body.appendChild(el);
   const r = btn.getBoundingClientRect();
   el.style.left = Math.max(8, Math.min(innerWidth - 220, r.right - 210)) + 'px';
-  el.style.top = (r.bottom + 6) + 'px';
+  // below the button, or above it when there isn't room (the info panel's row can be low down)
+  el.style.top = (r.bottom + 6 + el.offsetHeight > innerHeight - 8 ? Math.max(8, r.top - el.offsetHeight - 6) : r.bottom + 6) + 'px';
 }
 $('#muteBtn').addEventListener('click', (e) => { e.stopPropagation(); openMuteMenu(e.currentTarget); });
 document.addEventListener('click', async (e) => {
@@ -3089,7 +3697,7 @@ syncRail();
 const EMPTY_CHAT = document.getElementById('msgs').innerHTML;
 let lastArrowAt = 0;
 function somethingOpen() {
-  return !!(document.querySelector('.overlay.on') || $('#menu').classList.contains('on') || $('#chatActs').classList.contains('on') ||
+  return !!(document.querySelector('.overlay.on') || !$('#plusMenu').hidden || !$('#info').hidden || voice.rec || $('#menu').classList.contains('on') || $('#chatActs').classList.contains('on') ||
     document.getElementById('msgMenu') || !$('#emojiPanel').hidden || !$('#suggest').hidden || $('#newchat').classList.contains('on') ||
     replyTo || editing || selMode || tourStep >= 0 || document.getElementById('egg') || document.querySelector('.rxpick.on'));
 }
@@ -3175,8 +3783,8 @@ function nameHue(key) { let h = 0; for (const c of String(key)) h = (h * 31 + c.
 
 // ---------------------------------------------------------- photo viewer
 let vList = [], vIdx = 0;
-function openViewer(img) {
-  vList = [...document.querySelectorAll('#msgs img[data-full]')];
+function openViewer(img, list) {
+  vList = list || [...document.querySelectorAll('#msgs img[data-full]')];
   vIdx = Math.max(0, vList.indexOf(img));
   showViewer();
   $('#viewer').classList.add('on');
@@ -3231,7 +3839,7 @@ $('#text').addEventListener('paste', e => {
   const f = [...(e.clipboardData?.files || [])][0];
   if (f && current && status === 'connected') { e.preventDefault(); setAttach(f); }
 });
-$('#attach').addEventListener('click', () => $('#file').click());
+$('#attach').addEventListener('click', (e) => { e.stopPropagation(); $('#plusMenu').hidden ? openPlus() : closePlus(); });
 $('#file').addEventListener('change', e => setAttach(e.target.files[0]));
 $('#attX').addEventListener('click', clearAttach);
 $('#replyX').addEventListener('click', cancelReply);
@@ -3264,6 +3872,12 @@ $('#text').addEventListener('keydown', e => { if (e.key === 'Escape' && replyTo)
 $('#msgs').addEventListener('click', async e => {
   if (e.target.id === 'more') return loadOlder(e.target);
   const pv = e.target.closest('.ptv'); if (pv) return togglePtv(pv);
+  const vpp = e.target.closest('[data-vp-play]'); if (vpp) return vpToggle(vpp.closest('.m')?.dataset.id);
+  const vps = e.target.closest('[data-vp-seek]');
+  if (vps) { const r = vps.getBoundingClientRect(); return vpSeek(vps.closest('.m')?.dataset.id, (e.clientX - r.left) / r.width); }
+  const vpr = e.target.closest('[data-vp-rate]'); if (vpr) return vpRate();
+  const pvote = e.target.closest('[data-vote]'); if (pvote) return votePoll(pvote.closest('.m')?.dataset.id, Number(pvote.dataset.vote));
+  const pvs = e.target.closest('[data-votes]'); if (pvs) return showVotes(pvs.closest('.m')?.dataset.id);
   const add = e.target.closest('[data-rx-add]');
   if (add) {
     const pick = add.parentElement.querySelector('.rxpick');

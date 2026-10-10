@@ -6,6 +6,7 @@ import os from 'node:os'
 import { execFile } from 'node:child_process'
 import QRCode from 'qrcode'
 import { Store, historyCutoff, bare, isGroup, isLid, isPn, phoneOf, toPn } from './store.js'
+import { POLL_KEYS, MAX_OPTIONS, toBuf, encryptVote, openVote, pickedOptions } from './poll.js'
 
 // Ask the phone for the full backlog at pairing time. Set FULL_HISTORY=0 to
 // only take the recent slice (lighter pairing spike on huge accounts).
@@ -94,6 +95,57 @@ export async function makeVideoNote(buffer, mime = '') {
     fs.rmSync(dir, { recursive: true, force: true })
   }
 }
+
+/** WhatsApp's own voice-note limit is far longer; this keeps uploads sensible. */
+export const VOICE_NOTE_MAX_S = 15 * 60
+/**
+ * A voice message recorded in the browser (webm/opus or mp4/aac) → what WhatsApp's apps send:
+ * Ogg/Opus, mono, 48 kHz, plus its length and a 64-bar waveform (0–100) for the bubble.
+ */
+export async function makeVoiceNote(buffer, mime = '') {
+  if (!(await hasFfmpeg())) {
+    if (/ogg/.test(mime)) return { audio: buffer, seconds: null, waveform: null }
+    throw Object.assign(new Error('Voice messages from this browser need ffmpeg on the server (it’s in the Docker image).'), { status: 415 })
+  }
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ptt-'))
+  try {
+    const src = path.join(dir, 'in'), out = path.join(dir, 'out.ogg'), pcm = path.join(dir, 'wave.raw')
+    fs.writeFileSync(src, buffer)
+    const ff = process.env.FFMPEG || 'ffmpeg'
+    await exec(ff, ['-y', '-v', 'error', '-i', src, '-t', String(VOICE_NOTE_MAX_S), '-vn', '-c:a', 'libopus', '-b:a', '32k', '-ac', '1', '-ar', '48000', '-application', 'voip', out])
+    let seconds = null
+    try {
+      const d = await exec(process.env.FFPROBE || 'ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', out])
+      seconds = Math.max(1, Math.round(Number(String(d).trim()) || 0)) || null
+    } catch {}
+    let waveform = null
+    try {
+      await exec(ff, ['-y', '-v', 'error', '-i', out, '-ac', '1', '-ar', '8000', '-f', 's16le', pcm])
+      waveform = waveOf(fs.readFileSync(pcm))
+    } catch {}
+    return { audio: fs.readFileSync(out), seconds, waveform }
+  } catch (e) {
+    if (e.status) throw e
+    throw Object.assign(new Error('Couldn’t process that recording'), { status: 400, detail: String(e.stderr || e.message).slice(0, 300) })
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
+}
+/** 64 bars, 0–100: the loudness (RMS) of each slice of 16-bit mono PCM, scaled to the loudest. */
+export function waveOf(pcm, bars = 64) {
+  const n = Math.floor(pcm.length / 2)
+  if (!n) return null
+  const out = new Array(bars).fill(0)
+  const per = Math.max(1, Math.floor(n / bars))
+  for (let b = 0; b < bars; b++) {
+    let sum = 0, c = 0
+    for (let i = b * per; i < Math.min(n, (b + 1) * per); i++) { const v = pcm.readInt16LE(i * 2) / 32768; sum += v * v; c++ }
+    out[b] = c ? Math.sqrt(sum / c) : 0
+  }
+  const max = Math.max(...out) || 1
+  return Buffer.from(out.map((v) => Math.round((v / max) * 100)))
+}
+const waveList = (w) => { const x = toBuf(w); return x?.length ? [...x].slice(0, 64).map((v) => Math.min(100, v)) : undefined }
 
 let cached = null
 async function loadBaileys() {
@@ -442,6 +494,7 @@ export class Session extends EventEmitter {
       getMessage: async (key) => {
         const m = this.store.findMessage(key.remoteJid, key.id)
         if (m?.rm) return fromJsonSafe(m.rm).message
+        if (m?.prm) return fromJsonSafe(m.prm).message // a poll, with its secret
         return m?.text && m.type === 'text' ? { conversation: m.text } : undefined
       },
       cachedGroupMetadata: async (jid) => this.groupCache.get(jid),
@@ -480,6 +533,7 @@ export class Session extends EventEmitter {
         if (sock.user?.lid && pn) this.store.link(sock.user.lid, pn)
         this.me = {
           jid: pn,
+          lid: sock.user?.lid ? bare(sock.user.lid) : null,
           phone: phoneOf(pn),
           name: sock.user?.name || sock.user?.verifiedName || sock.user?.notify || '',
         }
@@ -666,6 +720,10 @@ export class Session extends EventEmitter {
           const up = entry?.update || {}
           if (entry?.key?.id && (up.messageStubType === 1 || up.messageStubType === 'REVOKE')) {
             this.applyRemoteDelete(entry.key, entry.key)
+            continue
+          }
+          if (entry?.key?.id && Array.isArray(up.pollUpdates) && up.pollUpdates.length) {
+            for (const pu of up.pollUpdates) this.applyOpenedVote(entry.key, pu)
             continue
           }
           const um = up.message
@@ -921,17 +979,29 @@ export class Session extends EventEmitter {
     if (c.protocolMessage || c.senderKeyDistributionMessage) {
       if (!c.conversation && !c.extendedTextMessage) return null
     }
+    if (c.pollUpdateMessage) { this.applyPollVote(k, c.pollUpdateMessage); return null }
 
     let type = 'text'
     let text = ''
     let mediaKey = null
     let fileName
+    let poll, prm, ptt, wf
+    const pollKey = POLL_KEYS.find((x) => c[x])
     if (c.conversation) text = c.conversation
     else if (c.extendedTextMessage?.text) text = c.extendedTextMessage.text
     else if (c.imageMessage) { type = 'image'; text = c.imageMessage.caption || ''; mediaKey = 'imageMessage' }
     else if (c.ptvMessage) { type = 'ptv'; mediaKey = 'ptvMessage' } // a video note (the round one)
     else if (c.videoMessage) { type = 'video'; text = c.videoMessage.caption || ''; mediaKey = 'videoMessage' }
-    else if (c.audioMessage) { type = 'audio'; mediaKey = 'audioMessage' }
+    else if (c.audioMessage) { type = 'audio'; mediaKey = 'audioMessage'; ptt = !!c.audioMessage.ptt || undefined; wf = waveList(c.audioMessage.waveform) }
+    else if (pollKey) {
+      const pc = c[pollKey]
+      const secret = toBuf(m.message?.messageContextInfo?.messageSecret || c.messageContextInfo?.messageSecret)
+      type = 'poll'
+      text = String(pc.name || 'Poll').slice(0, 300)
+      poll = { options: (pc.options || []).map((o) => String(o?.optionName || '')).slice(0, MAX_OPTIONS), multi: Number(pc.selectableOptionsCount || 0) !== 1, secret: secret ? secret.toString('base64') : undefined }
+      // kept so Baileys can open votes (getMessage) and so can we
+      prm = toJsonSafe({ key: { remoteJid: rj, id: k.id, fromMe: !!k.fromMe, participant: part }, message: { [pollKey]: { ...pc, contextInfo: undefined }, ...(secret ? { messageContextInfo: { messageSecret: secret } } : {}) } })
+    }
     else if (c.stickerMessage) { type = 'sticker'; mediaKey = 'stickerMessage' }
     else if (c.documentMessage) {
       type = 'document'
@@ -1018,6 +1088,10 @@ export class Session extends EventEmitter {
       text,
       fileName,
       dur: mediaKey && num(c[mediaKey]?.seconds) ? num(c[mediaKey].seconds) : undefined, // video / voice length (s)
+      ptt, // a voice message (recorded, not a sent audio file)
+      wf, // its waveform: 64 bars, 0–100
+      poll, // { options, multi, secret }; the votes arrive separately (votes: { who: [option indexes] })
+      prm,
       sender,
       rj: rj !== jid ? rj : undefined, // original address, needed for receipts
       rp: part || undefined,
@@ -1166,6 +1240,9 @@ export class Session extends EventEmitter {
       media: !!m.rm,
       fileName: m.fileName,
       dur: m.dur || undefined,
+      ptt: m.ptt || undefined,
+      wf: m.wf,
+      poll: this.store.pollView(m, this.me?.jid),
       quote: this.store.quoteView(m.quote),
       deleted: !!m.deleted,
       edited: !!m.edited,
@@ -1655,6 +1732,158 @@ export class Session extends EventEmitter {
     if (msg) this.emit('event', { type: 'message', message: this.publicMsg(msg) })
     this.emit('event', { type: 'chats' })
     return msg ? this.publicMsg(msg) : null
+  }
+
+  // ------------------------------------------------------------------ polls
+  /** Every way a person might be written in a vote's signature: as given, by number, by hidden id. */
+  idsOf(j) {
+    if (!j) return []
+    const c = this.store.canon(j)
+    const lids = [...this.store.alias].filter(([, pn]) => pn === c).map(([lid]) => lid)
+    return [j, bare(j), c, ...lids]
+  }
+  myIds() { return [this.me?.jid, this.me?.lid, ...this.idsOf(this.me?.jid)].filter(Boolean) }
+  /** Does this chat sign with hidden ids (LIDs) rather than phone numbers? */
+  lidChat(poll) {
+    const raw = poll.rj || poll.jid
+    if (isLid(raw) || isLid(poll.rp || '')) return true
+    return isGroup(poll.jid) && this.groupCache?.get?.(poll.jid)?.addressingMode === 'lid'
+  }
+  /** Who made the poll and who's voting, as WhatsApp signs them. */
+  pollIds(poll) {
+    const lid = this.lidChat(poll) && this.me?.lid
+    const me = lid ? this.me.lid : this.me?.jid
+    return { creator: poll.fromMe ? me : poll.rp || poll.rj || poll.jid, voter: me }
+  }
+  setVotes(poll, who, picks) {
+    poll.votes = { ...(poll.votes || {}) }
+    if (picks.length) poll.votes[who] = picks
+    else delete poll.votes[who]
+    this.store.dirty = true
+    this.emit('event', { type: 'message', message: this.publicMsg(poll) })
+  }
+  /** A vote (encrypted) arriving as a message: open it with the poll's secret. */
+  applyPollVote(k, pu) {
+    const ck = pu?.pollCreationMessageKey
+    if (!ck?.id || !pu.vote) return
+    const poll = this.store.findMessage(ck.remoteJid || k.remoteJid, ck.id)
+    if (!poll?.poll) return
+    if (!poll.poll.secret) { this.log(`a vote on a poll without its secret (${poll.id}): can't count it`); return }
+    const creators = poll.fromMe ? this.myIds() : [poll.rp, poll.rj, poll.sender, ...this.idsOf(poll.rp || poll.rj || poll.jid)]
+    const voterRaw = k.fromMe ? null : (k.participant || k.remoteJid)
+    const voters = k.fromMe ? this.myIds() : [k.participant, k.participantAlt, k.remoteJid, k.remoteJidAlt, ...this.idsOf(voterRaw)]
+    const o = openVote(pu.vote, { secret: poll.poll.secret, pollId: poll.id, creators, voters })
+    if (!o) { this.log(`a poll vote (${poll.id}) didn't open`); return }
+    const who = this.store.canon(k.fromMe ? this.me.jid : voterRaw)
+    this.setVotes(poll, who, pickedOptions(o.hashes, poll.poll.options))
+  }
+  /** A vote Baileys already opened (messages.update → pollUpdates). */
+  applyOpenedVote(pollKey, pu) {
+    const poll = this.store.findMessage(pollKey.remoteJid, pollKey.id)
+    const vk = pu?.pollUpdateMessageKey
+    if (!poll?.poll || !vk) return
+    const who = this.store.canon(vk.fromMe ? this.me?.jid : vk.participant || vk.remoteJid)
+    if (!who) return
+    this.setVotes(poll, who, pickedOptions((pu.vote?.selectedOptions || []).map(toBuf).filter(Boolean), poll.poll.options))
+  }
+  /** Send a poll: a question and 2–12 answers; one answer each, or as many as people like. */
+  async sendPoll(jid, { name, options, multi = false } = {}) {
+    this.ensureConnected()
+    const q = String(name || '').trim().slice(0, 255)
+    const opts = [...new Set((Array.isArray(options) ? options : []).map((o) => String(o || '').trim().slice(0, 100)).filter(Boolean))]
+    if (!q) throw Object.assign(new Error('Ask a question'), { status: 400 })
+    if (opts.length < 2) throw Object.assign(new Error('A poll needs at least 2 different answers'), { status: 400 })
+    if (opts.length > MAX_OPTIONS) throw Object.assign(new Error(`At most ${MAX_OPTIONS} answers`), { status: 400 })
+    const target = await this.sendJid(jid)
+    const secret = crypto.randomBytes(32)
+    const sent = await this.sock.sendMessage(target, { poll: { name: q, values: opts, selectableCount: multi ? 0 : 1, messageSecret: secret } })
+    const msg = this.ingest(sent, { bumpUnread: false })
+    if (msg?.poll && !msg.poll.secret) { msg.poll.secret = secret.toString('base64'); this.store.dirty = true }
+    this.metrics.messagesOut++
+    this.metrics.lastOutboundAt = Date.now()
+    if (msg) this.emit('event', { type: 'message', message: this.publicMsg(msg) })
+    this.emit('event', { type: 'chats' })
+    return msg ? this.publicMsg(msg) : null
+  }
+  /** Vote on a poll (picks are option numbers; none takes your vote back). */
+  async votePoll(jid, id, picks = []) {
+    this.ensureConnected()
+    const poll = this.store.findMessage(jid, id)
+    if (!poll?.poll) throw Object.assign(new Error('That poll isn’t here any more'), { status: 404 })
+    if (!poll.poll.secret) throw Object.assign(new Error('Can’t vote on this poll from here (it arrived before this site could read polls). Vote on your phone.'), { status: 409 })
+    const n = poll.poll.options.length
+    const chosen = [...new Set((Array.isArray(picks) ? picks : []).map(Number).filter((i) => Number.isInteger(i) && i >= 0 && i < n))].sort((a, b) => a - b)
+    if (!poll.poll.multi && chosen.length > 1) throw Object.assign(new Error('This poll takes one answer'), { status: 400 })
+    const { creator, voter } = this.pollIds(poll)
+    const target = await this.sendJid(poll.jid)
+    const vote = encryptVote(chosen.map((i) => poll.poll.options[i]), { secret: poll.poll.secret, pollId: poll.id, creator, voter })
+    const key = { remoteJid: poll.rj || poll.jid, fromMe: !!poll.fromMe, id: poll.id }
+    if (!poll.fromMe && poll.rp) key.participant = poll.rp
+    const message = { pollUpdateMessage: { pollCreationMessageKey: key, vote, senderTimestampMs: Date.now() } }
+    await this.sock.relayMessage(target, message, { messageId: '3EB0' + crypto.randomBytes(9).toString('hex').toUpperCase() })
+    this.setVotes(poll, this.store.canon(this.me.jid), chosen)
+    return this.publicMsg(poll)
+  }
+
+  // -------------------------------------------------------- voice messages
+  async sendVoiceNote(jid, buffer, { mime, seconds, replyTo } = {}) {
+    this.ensureConnected()
+    const note = await makeVoiceNote(buffer, mime)
+    const target = await this.sendJid(jid)
+    const content = { audio: note.audio, mimetype: 'audio/ogg; codecs=opus', ptt: true }
+    const secs = note.seconds || Math.round(Number(seconds) || 0)
+    if (secs > 0) content.seconds = Math.min(VOICE_NOTE_MAX_S, secs)
+    if (note.waveform) content.waveform = new Uint8Array(note.waveform)
+    const quoted = this.quotedFor(jid, replyTo)
+    const sent = await this.sock.sendMessage(target, content, quoted ? { quoted } : undefined)
+    const msg = this.ingest(sent, { bumpUnread: false })
+    this.metrics.messagesOut++
+    this.metrics.lastOutboundAt = Date.now()
+    this.metrics.lastEventAt = Date.now()
+    if (msg) this.emit('event', { type: 'message', message: this.publicMsg(msg) })
+    this.emit('event', { type: 'chats' })
+    return msg ? this.publicMsg(msg) : null
+  }
+
+  // ---------------------------------------------------------- contact info
+  /** What the contact panel shows: name, number, their "About", and how much media the chat has. */
+  async contactInfo(jid) {
+    const c = this.store.canon(jid)
+    const group = isGroup(c)
+    const out = { jid: c, group, name: this.store.displayName(c), phone: phoneOf(c) || null, notify: this.store.profileName?.(c) || null }
+    if (!group && this.sock && this.status === 'connected') {
+      this.aboutCache ??= new Map()
+      const hit = this.aboutCache.get(c)
+      if (hit && Date.now() - hit.at < 3600e3) Object.assign(out, hit.v)
+      else {
+        try {
+          const r = await Promise.race([this.sock.fetchStatus(c), new Promise((_, no) => setTimeout(() => no(new Error('timeout')), 6000))])
+          const x = Array.isArray(r) ? r[0] : r
+          const st = x?.status && typeof x.status === 'object' ? x.status : x
+          const text = typeof st?.status === 'string' ? st.status : typeof st === 'string' ? st : null
+          const at = st?.setAt ? new Date(st.setAt).getTime() : null
+          const v = { about: text || null, aboutAt: Number.isFinite(at) ? at : null }
+          this.aboutCache.set(c, { at: Date.now(), v })
+          Object.assign(out, v)
+        } catch {}
+      }
+    }
+    const media = this.chatMedia(c)
+    out.counts = { media: media.media.length, docs: media.docs.length, links: media.links.length }
+    out.recent = media.media.slice(0, 6)
+    return out
+  }
+  /** The chat's photos and videos, documents and links, newest first. */
+  chatMedia(jid) {
+    const list = (this.store.messages.get(this.store.canon(jid)) || []).filter((m) => !m.deleted)
+    const media = [], docs = [], links = []
+    for (let i = list.length - 1; i >= 0; i--) {
+      const m = list[i]
+      if ((m.type === 'image' || m.type === 'video' || m.type === 'ptv') && m.rm) media.push({ id: m.id, type: m.type, ts: m.ts })
+      else if (m.type === 'document' && m.rm) docs.push({ id: m.id, fileName: m.fileName || 'Document', ts: m.ts })
+      for (const u of String(m.text || '').match(/\bhttps?:\/\/[^\s<]+[^\s<.,;:!?)\]'"]/g) || []) links.push({ id: m.id, url: u.slice(0, 500), ts: m.ts })
+    }
+    return { media: media.slice(0, 300), docs: docs.slice(0, 300), links: links.slice(0, 300) }
   }
 
   /** Validate a phone number against WhatsApp and return its chat JID. */
