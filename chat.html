@@ -351,7 +351,7 @@ html[data-locked] #lock{display:flex}
 #suggest div.on,#suggest div:hover{background:color-mix(in srgb,var(--accent) 14%,var(--panel))}
 #suggest div small{color:var(--muted);margin-left:auto;font-size:11px}
 #composer{display:flex;gap:6px;padding:8px 10px;background:var(--panel);border-top:1px solid var(--line);align-items:flex-end}
-#text{flex:1;resize:none;max-height:140px;padding:9px 14px;border-radius:20px;border:1px solid transparent;background:var(--field);color:inherit;font:inherit;outline:none}
+#text{flex:1;resize:none;max-height:none;overflow-y:hidden;padding:9px 14px;border-radius:20px;border:1px solid transparent;background:var(--field);color:inherit;font:inherit;outline:none}
 #text:focus{border-color:var(--accent)}
 #send{border:0;background:var(--accent);color:#fff;border-radius:50%;width:42px;height:42px;flex:0 0 42px;font-size:17px}
 #send:disabled,#attach:disabled,#vnBtn:disabled{opacity:.4;cursor:default}
@@ -1727,7 +1727,7 @@ async function openChat(jid, name) {
   stopTyping();
   current = jid; currentName = name || '';
   scheduled = []; renderScheduled(); loadScheduled();
-  $('#text').value = drafts.get(jid) || ''; $('#text').style.height = 'auto';
+  $('#text').value = drafts.get(jid) || ''; fitText();
   unseen = 0; showJump(false);
   document.body.classList.add('open');
   updateTitle(); setComposer();
@@ -1804,7 +1804,7 @@ async function send() {
   const text = $('#text').value.trim();
   if (!text && !attach) return;
   const jid = current;
-  $('#text').value = ''; $('#text').style.height = 'auto';
+  $('#text').value = ''; fitText();
   drafts.delete(jid); syncSchedBtn();
   if (attach) {
     const a = attach; clearAttach();
@@ -3079,7 +3079,7 @@ $('#schedF').addEventListener('submit', async e => {
   try {
     await call('POST', '/scheduled', {jid, text, at});
     closeSched();
-    $('#text').value = ''; $('#text').style.height = 'auto'; drafts.delete(jid); syncSchedBtn();
+    $('#text').value = ''; fitText(); drafts.delete(jid); syncSchedBtn();
     toast('Will send ' + fmtAt(at).replace(/^Tomorrow/, 'tomorrow'));
     loadScheduled();
   } catch (x) { $('#schedErr').textContent = x.message; }
@@ -3710,7 +3710,7 @@ function closeChat() {
   const t = $('#text').value; if (t.trim()) drafts.set(current, t); else drafts.delete(current);
   current = null; currentName = ''; msgs = []; unseen = 0;
   scheduled = []; renderScheduled();
-  $('#text').value = ''; $('#text').style.height = 'auto';
+  $('#text').value = ''; fitText();
   $('#msgs').innerHTML = EMPTY_CHAT;
   $('#title').innerHTML = '<b>Select a chat</b><small></small>';
   for (const id of ['tav', 'grpBtn', 'nickBtn', 'pinBtn', 'archBtn', 'muteBtn', 'chatMore']) $('#' + id).hidden = true;
@@ -3837,7 +3837,18 @@ if ('__IS_ADMIN__' === '1') { $('#adminItem').hidden = false; $('#gateAdmin').hi
 $('#gateAdmin').addEventListener('click', () => { location.href = '/admin'; });
 
 applyPrefs();
-$('#text').addEventListener('input', function () { this.style.height = 'auto'; this.style.height = Math.min(this.scrollHeight, 140) + 'px'; });
+// The message box grows with what's typed, like WhatsApp: no scrollbar until it's taller
+// than the most it may grow (about ten lines), then it stops growing and scrolls.
+function fitText() {
+  const t = $('#text'); if (!t) return;
+  const max = Math.max(120, Math.min(264, Math.round(innerHeight * 0.4)));
+  t.style.overflowY = 'hidden'; t.style.height = 'auto';
+  const h = t.scrollHeight + (t.offsetHeight - t.clientHeight);   // border-box: add the border
+  t.style.height = Math.min(h, max) + 'px';
+  t.style.overflowY = h > max + 1 ? 'auto' : 'hidden';
+}
+$('#text').addEventListener('input', fitText);
+addEventListener('resize', () => requestAnimationFrame(fitText));
 $('#text').addEventListener('paste', e => {
   const f = [...(e.clipboardData?.files || [])][0];
   if (f && current && status === 'connected') { e.preventDefault(); setAttach(f); }
