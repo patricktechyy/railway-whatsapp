@@ -700,6 +700,8 @@ body.todo #rail,body.todo #railHot{display:none!important}
 #composer>#send{margin-bottom:1px}
 #emojiPanel{left:auto;right:74px}
 @media (min-width:761px){#archChip{display:none}}
+/* the account name for password managers: there (so they pair the password with it, not with the chat search), never seen */
+.pm-user{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;border:0!important;opacity:0!important;pointer-events:none!important;clip-path:inset(50%)}
 /* chat lock */
 .lockrow .av.lk{background:var(--field);color:var(--muted)}
 .lockrow .nm{font-weight:600}
@@ -1132,9 +1134,9 @@ html:root[data-theme="dark"][data-accent]{--out:color-mix(in srgb,var(--accent) 
 <div class="overlay" id="pinDlg" style="background:rgba(0,0,0,.45)">
   <form class="dlg" id="pinForm">
     <h3 id="pinTitle">Set a PIN</h3>
-    <div id="pinCurRow"><label>Current PIN</label><input type="password" id="pinCur" autocomplete="off" maxlength="64"></div>
-    <div id="pinNewRows"><label>New PIN (at least 4 characters)</label><input type="password" id="pinNew" autocomplete="off" maxlength="64">
-    <label>Repeat new PIN</label><input type="password" id="pinRep" autocomplete="off" maxlength="64"></div>
+    <div id="pinCurRow"><label>Current PIN</label><input type="password" id="pinCur" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" maxlength="64"></div>
+    <div id="pinNewRows"><label>New PIN (at least 4 characters)</label><input type="password" id="pinNew" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" maxlength="64">
+    <label>Repeat new PIN</label><input type="password" id="pinRep" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" maxlength="64"></div>
     <div class="err" id="pinErr"></div>
     <div class="acts"><button type="button" class="btn ghost" id="pinX">Cancel</button><button class="btn" id="pinOk">Save</button></div>
   </form>
@@ -1143,7 +1145,7 @@ html:root[data-theme="dark"][data-accent]{--out:color-mix(in srgb,var(--accent) 
   <form class="dlg" id="clkForm" role="dialog" aria-modal="true" aria-labelledby="clkTitle">
     <h3 id="clkTitle">Locked chats</h3>
     <p class="clk-sub" id="clkSub">Enter your Whats Up password to open them.</p>
-    <input type="text" name="username" autocomplete="username" hidden>
+    <input type="text" class="pm-user" name="username" autocomplete="username" value="__USER__" readonly tabindex="-1" aria-hidden="true">
     <input type="password" id="clkPass" autocomplete="current-password" maxlength="200" aria-label="Password" placeholder="Password">
     <div class="err" id="clkErr"></div>
     <div class="acts"><button type="button" class="btn ghost" id="clkX">Cancel</button><button class="btn" id="clkOk">Open</button></div>
@@ -1152,7 +1154,7 @@ html:root[data-theme="dark"][data-accent]{--out:color-mix(in srgb,var(--accent) 
 <div id="lock">
   <div class="box">
     <h2>Enter PIN to continue</h2>
-    <input type="password" id="lockPin" autocomplete="off" maxlength="64" aria-label="PIN" placeholder="PIN">
+    <input type="password" id="lockPin" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" maxlength="64" aria-label="PIN" placeholder="PIN">
     <div class="err" id="lockErr"></div>
     <button type="button" class="lnk" id="lockForgot">Forgot PIN? Sign out</button>
   </div>
@@ -1209,6 +1211,7 @@ html:root[data-theme="dark"][data-accent]{--out:color-mix(in srgb,var(--accent) 
 <div class="overlay" id="pw">
   <form class="dlg" id="pwf">
     <h3>Change password</h3>
+    <input type="text" class="pm-user" name="username" autocomplete="username" value="__USER__" readonly tabindex="-1" aria-hidden="true">
 
     <label>Current password</label><input type="password" id="pwc" autocomplete="current-password" required>
     <label>New password</label><input type="password" id="pwn" autocomplete="new-password" minlength="8" required>
