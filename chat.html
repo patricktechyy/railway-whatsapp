@@ -625,6 +625,8 @@ body.side-resizing{cursor:col-resize;user-select:none}
 #todoPane .tp-wait{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:14px}
 #todoPane .tp-wait.gone{display:none}
 body.todo #side,body.todo #main{display:none}
+/* the todolist gets the whole window; its own button takes you back */
+body.todo #rail,body.todo #railHot{display:none!important}
 .rcount.due{background:var(--danger,#e5484d);color:#fff}
 .todo-ib{position:relative}
 .todo-ib .rcount{top:-4px;right:-4px}
@@ -689,9 +691,13 @@ body.todo #side,body.todo #main{display:none}
 #attach svg{width:24px;height:24px}
 .cwrap{flex:1;position:relative;display:flex;min-width:0}
 .cwrap #text{flex:1;padding-right:48px}
-.cwrap #emojiBtn{position:absolute;right:3px;bottom:3px;width:38px;height:38px;flex-basis:38px;border-radius:50%}
+.cwrap #emojiBtn{position:absolute;right:3px;bottom:4px;width:38px;height:38px;flex-basis:38px;border-radius:50%}
 #send{display:flex;align-items:center;justify-content:center}
 #send svg{width:21px;height:21px;margin-left:-2px}
+/* the buttons sit on the line the message box's last line sits on (its middle, while it's one line) */
+#composer>.ib{margin-bottom:4px}
+#composer>#attach{margin-bottom:2px}
+#composer>#send{margin-bottom:1px}
 #emojiPanel{left:auto;right:74px}
 @media (min-width:761px){#archChip{display:none}}
 @media (max-width:760px){
@@ -719,7 +725,7 @@ body.todo #side,body.todo #main{display:none}
 /* ---- left bar auto-hide: slides in from the edge on hover */
 #railHot{display:none}
 :root[data-rail="auto"] #railHot{display:block;position:fixed;left:0;top:0;bottom:0;width:8px;z-index:31}
-:root[data-rail="auto"] #rail{position:fixed;left:0;top:0;bottom:0;z-index:32;transform:translateX(-100%);transition:transform .18s ease,box-shadow .18s ease}
+:root[data-rail="auto"] #rail{position:fixed;left:0;top:0;bottom:0;width:64px;z-index:32;transform:translateX(-100%);transition:transform .18s ease,box-shadow .18s ease}
 :root[data-rail="auto"] #rail.peek,:root[data-rail="auto"] #rail:has(:focus-visible){transform:none;box-shadow:var(--shadow)}
 @media (prefers-reduced-motion:reduce){:root[data-rail="auto"] #rail{transition:none}}
 @media (max-width:760px){#railHot{display:none!important}}
