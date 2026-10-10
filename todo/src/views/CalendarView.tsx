@@ -46,6 +46,8 @@ export function CalendarView({ tasks, lists, weekStartsMonday, selected, onSelec
   const today = todayKey()
   const byList = new Map(lists.map((l) => [l.id, l]))
   const first = weekStartsMonday ? 1 : 0
+  /** A day reads top to bottom in time order (finished ones too, struck through); tasks with no time come last. */
+  const byTime = (a: Task, b: Task) => (a.time || '99').localeCompare(b.time || '99') || b.priority - a.priority || Number(a.done) - Number(b.done)
 
   const byDay = useMemo(() => {
     const m = new Map<string, Task[]>()
@@ -54,7 +56,7 @@ export function CalendarView({ tasks, lists, weekStartsMonday, selected, onSelec
       if (!m.has(t.due)) m.set(t.due, [])
       m.get(t.due)!.push(t)
     }
-    for (const list of m.values()) list.sort((a, b) => Number(a.done) - Number(b.done) || (a.time || '99').localeCompare(b.time || '99') || b.priority - a.priority)
+    for (const list of m.values()) list.sort(byTime)
     return m
   }, [tasks])
 
@@ -194,6 +196,7 @@ export function CalendarView({ tasks, lists, weekStartsMonday, selected, onSelec
         {days.map((d) => {
           const list = byDay.get(d) || []
           const ghostList = ghosts.get(d) || []
+          const chips = [...list.map((t) => ({ t, ghost: false })), ...ghostList.map((t) => ({ t, ghost: true }))].sort((x, y) => byTime(x.t, y.t))
           const date = fromKey(d)
           if (!inRange(d)) return <div key={d} className="cal-day out-range" aria-hidden="true"><span className="num">{date.getDate()}</span></div>
           const outside = mode === 'month' && date.getMonth() !== a.getMonth()
@@ -228,8 +231,19 @@ export function CalendarView({ tasks, lists, weekStartsMonday, selected, onSelec
               </div>
               {hol && <span className="cal-holiday" title={hol.join(' · ')}>{hol.join(' · ')}</span>}
               <div className="cal-chips">
-                {list.slice(0, maxChips).map((t) => {
+                {chips.slice(0, maxChips).map(({ t, ghost }) => {
                   const l = t.listId ? byList.get(t.listId) : undefined
+                  if (ghost) return (
+                    <button
+                      key={`g-${t.id}`}
+                      className={`cal-chip ghost ${colorClass(l?.color)}`}
+                      onClick={(e) => { e.stopPropagation(); onOpen(t) }}
+                      title={`${t.title} (repeats)`}
+                    >
+                      {t.time && <span className="t">{formatTime(t.time)}</span>}
+                      <span className="n">↻ {t.title}</span>
+                    </button>
+                  )
                   return (
                     <button
                       key={t.id}
@@ -244,26 +258,11 @@ export function CalendarView({ tasks, lists, weekStartsMonday, selected, onSelec
                     </button>
                   )
                 })}
-                {ghostList.slice(0, Math.max(0, maxChips - list.length)).map((t) => {
-                  const l = t.listId ? byList.get(t.listId) : undefined
-                  return (
-                    <button
-                      key={`g-${t.id}`}
-                      className={`cal-chip ghost ${colorClass(l?.color)}`}
-                      onClick={(e) => { e.stopPropagation(); onOpen(t) }}
-                      title={`${t.title} (repeats)`}
-                    >
-                      {t.time && <span className="t">{formatTime(t.time)}</span>}
-                      <span className="n">↻ {t.title}</span>
-                    </button>
-                  )
-                })}
                 {list.length + ghostList.length > maxChips && <span className="more">+{list.length + ghostList.length - maxChips} more</span>}
                 {/* phones: a dot per task instead of chips */}
                 {list.length + ghostList.length > 0 && (
                   <span className="cal-dots" aria-hidden="true">
-                    {list.slice(0, 4).map((t) => <i key={t.id} className={`${colorClass((t.listId && byList.get(t.listId)?.color))}${t.done ? ' done' : ''}`} />)}
-                    {ghostList.slice(0, Math.max(0, 4 - list.length)).map((t) => <i key={`g-${t.id}`} className={`ghost ${colorClass((t.listId && byList.get(t.listId)?.color))}`} />)}
+                    {chips.slice(0, 4).map(({ t, ghost }) => <i key={ghost ? `g-${t.id}` : t.id} className={`${ghost ? 'ghost ' : ''}${colorClass((t.listId && byList.get(t.listId)?.color))}${t.done ? ' done' : ''}`} />)}
                   </span>
                 )}
               </div>

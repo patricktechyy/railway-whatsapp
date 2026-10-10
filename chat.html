@@ -49,7 +49,8 @@ button{font:inherit;color:inherit;cursor:pointer}
 .bar .me{flex:1;min-width:0;line-height:1.25}
 .bar .me b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .bar .me small{color:var(--muted);font-size:12px}
-.ib{background:none;border:0;width:36px;height:36px;border-radius:50%;font-size:18px;color:var(--muted);flex:0 0 36px}
+.ib{background:none;border:0;width:36px;height:36px;border-radius:50%;font-size:18px;color:var(--muted);flex:0 0 36px;display:inline-flex;align-items:center;justify-content:center;padding:0;line-height:1}
+.ib[hidden]{display:none}
 .ib:hover{background:var(--hover)}
 .dot{width:9px;height:9px;border-radius:50%;background:#f0b232;flex:0 0 9px}
 .dot.ok{background:#25d366}.dot.bad{background:var(--danger)}
@@ -440,14 +441,14 @@ body.side-resizing{cursor:col-resize;user-select:none}
 #plusMenu button:hover,#plusMenu button:focus-visible{background:var(--hover);outline:none}
 #plusMenu .pi{display:flex;width:22px;height:22px;flex:none}
 #plusMenu .pi svg{width:22px;height:22px}
-#plusMenu .pi.doc{color:#7f66ff}
-#plusMenu .pi.vid{color:#e8467a}
-#plusMenu .pi.poll{color:#d89a00}
+#plusMenu .pi-doc{color:#7f66ff}
+#plusMenu .pi-vid{color:#e8467a}
+#plusMenu .pi-poll{color:#d89a00}
 #attach.on{background:var(--hover);color:var(--fg)}
 
 /* the composer: a microphone while the box is empty, the send button once there's something to send */
-#composer.empty #send{display:none}
-#composer:not(.empty) #micBtn{display:none}
+#composer.nothing #send{display:none}
+#composer:not(.nothing) #micBtn{display:none}
 #micBtn:disabled{opacity:.4;cursor:default}
 #recBar{display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--panel);border-top:1px solid var(--line)}
 #recBar[hidden]{display:none}
@@ -1190,9 +1191,9 @@ html:root[data-theme="dark"][data-accent]{--out:color-mix(in srgb,var(--accent) 
   </form>
 </div>
 <div id="plusMenu" role="menu" hidden>
-  <button type="button" role="menuitem" data-plus="file"><span class="pi doc"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 3.5h7l4 4v13h-11z"/><path d="M13.5 3.5v4h4M9 12.5h6M9 16h6"/></svg></span>Photo or file</button>
-  <button type="button" role="menuitem" data-plus="vn"><span class="pi vid"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.6"/><path d="M9.6 9.3h3.6a1.1 1.1 0 0 1 1.1 1.1v3.2a1.1 1.1 0 0 1-1.1 1.1H9.6a1.1 1.1 0 0 1-1.1-1.1v-3.2a1.1 1.1 0 0 1 1.1-1.1z"/><path d="m14.3 11.3 2.2-1.3v4l-2.2-1.3"/></svg></span>Video message</button>
-  <button type="button" role="menuitem" data-plus="poll"><span class="pi poll"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 20V10M10 20V4M15 20v-7M20 20v-4"/></svg></span>Poll</button>
+  <button type="button" role="menuitem" data-plus="file"><span class="pi pi-doc"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 3.5h7l4 4v13h-11z"/><path d="M13.5 3.5v4h4M9 12.5h6M9 16h6"/></svg></span>Photo or file</button>
+  <button type="button" role="menuitem" data-plus="vn"><span class="pi pi-vid"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.6"/><path d="M9.6 9.3h3.6a1.1 1.1 0 0 1 1.1 1.1v3.2a1.1 1.1 0 0 1-1.1 1.1H9.6a1.1 1.1 0 0 1-1.1-1.1v-3.2a1.1 1.1 0 0 1 1.1-1.1z"/><path d="m14.3 11.3 2.2-1.3v4l-2.2-1.3"/></svg></span>Video message</button>
+  <button type="button" role="menuitem" data-plus="poll"><span class="pi pi-poll"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 20V10M10 20V4M15 20v-7M20 20v-4"/></svg></span>Poll</button>
 </div>
 <div class="overlay" id="pollDlg">
   <div class="dlg" role="dialog" aria-modal="true" aria-labelledby="pollTitle">
@@ -1533,7 +1534,7 @@ function renderChats() {
   const n = chats.filter(c => c.unread > 0 && !c.archived).length;
   if (!panicOn && !locked) document.title = (n ? `(${n}) ` : '') + BASE_TITLE;
   const na = chats.filter(c => c.archived).length;
-  $('#archChip').textContent = na ? `📦 Archived (${na})` : '📦 Archived';
+  $('#archChip').textContent = '📦 Archived';   // no count, like the rail button
   if (typeof syncRail === 'function') syncRail();
 }
 // /u/you/#chat=<id> (from a todolist task) opens that chat once the list is in
@@ -3043,7 +3044,7 @@ $('#schedList').addEventListener('click', async e => {
 });
 function syncSchedBtn() { $('#schedBtn').hidden = !current || !!editing || !!attach || !!replyTo || !$('#text').value.trim(); syncComposer(); }
 /** Like WhatsApp: a microphone while there's nothing to send, the send button once there is. */
-function syncComposer() { $('#composer').classList.toggle('empty', !$('#text').value.trim() && !attach && !editing); }
+function syncComposer() { $('#composer').classList.toggle('nothing', !$('#text').value.trim() && !attach && !editing); }
 $('#text').addEventListener('input', syncSchedBtn);
 const localInput = (ms) => { const d = new Date(ms - new Date(ms).getTimezoneOffset() * 60000); return d.toISOString().slice(0, 16); };
 function schedPresets() {
@@ -3409,8 +3410,8 @@ function syncRail() {
   const todo = document.body.classList.contains('todo');
   $('#rChats').classList.toggle('on', !arch && !todo);
   $('#rArch').classList.toggle('on', arch && !todo);
-  const n = (typeof chats !== 'undefined' ? chats : []).filter(c => c.archived).length;
-  $('#rArchN').hidden = !n; $('#rArchN').textContent = n > 99 ? '99+' : n;
+
+  $('#rArchN').hidden = true;   // no count on Archived: archiving is meant to put chats out of mind
   const bl = document.documentElement.dataset.blur === 'on';
   $('#rBlur').classList.toggle('on', bl);
   $('#rBlur').title = bl ? 'Unblur chat list (B)' : 'Blur chat list (B)';
