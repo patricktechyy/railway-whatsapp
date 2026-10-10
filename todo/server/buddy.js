@@ -4,6 +4,7 @@ import { zonedTime, todayIn } from './tz.js'
 import { parseQuickAdd } from './quickadd.js'
 import { dayLabel, time12 } from './whatsapp.js'
 import { describeRepeat } from './repeat.js'
+import { model as intentModel, listNumber, snoozePhrase, findTask, nameWords, onlyWhen } from './intent.js'
 
 /**
  * WhatsApp Buddy 🤖: a little reminder bot that lives in your WhatsApp.
@@ -372,6 +373,7 @@ export class Buddy {
       '• *td study* today’s study plan · *td tick 2* tick a topic off',
       '• *td exams* your next exams', '',
       'Numbers refer to my last list. Dates: today, tomorrow, Mon, or a date. Times: 5pm or 17:00. Also *!3* priority, *#tag*, *@List*, and repeats like daily or every 2 weeks.', '',
+      'Or just say it your way: *td finished the bio homework* · *td push maths to friday* · *td what’s on tomorrow?*', '',
       '⏰ *Quick reminders* (start with *-*, they don’t go on your list)',
       '• *-reminder 30m* buy milk · *-reminder 5pm* call mum',
       '• *-reminders* see them · *-cancel 2*', '',
@@ -622,6 +624,10 @@ export class Buddy {
       return { reply: '🧹 Deleting my recent messages.' }
     }
 
+    // "remind me later" / "remind me again in 2 hours": that's a snooze of the one we're on, not a new task
+    if ((m = text.match(/^remind(?:\s+me)?\s+(.+)$/i)) && onlyWhen(m[1]) && this.st(u).last) {
+      return this.command(u, `snooze ${snoozePhrase(m[1])}`, now)
+    }
     // remind me (to) … : a task and a WhatsApp reminder
     if ((m = text.match(/^remind(?:\s+me)?(?:\s+to)?\s+(.+)$/i))) {
       const doc = this.store.snapshot(u)
@@ -642,6 +648,76 @@ export class Buddy {
       return { reply: `👌 I’ll remind you ${when}:\n*${task.title}*`, task }
     }
     return null
+  }
+
+  /**
+   * A message the exact commands didn't catch ("finished the bio thing", "push maths to
+   * friday", "what do I have tomorrow?"). Buddy's little model (intent.js) guesses what it
+   * means. Returns { reply } when it acted or needs to ask, { add: true } when it reads like
+   * a new task, { chat: true } for "thanks" / "ok", or null when it isn't sure.
+   */
+  understand(u, body, now = Date.now()) {
+    const text = String(body || '').trim()
+    if (!text || text.length > 300) return null
+    const { intent, p, ranked } = intentModel().classify(text)
+    const run = (cmd) => this.command(u, cmd, now)
+    // "buy eggs tomorrow" must not read as "what's on tomorrow": a list wants a question (or just a word or two)
+    const LISTS = ['help', 'today', 'tomorrow', 'upcoming', 'overdue', 'exams', 'study']
+    const asks = /\?|^(what|whats|wat|any|anything|show|list|when|whens|which|how|apa|got|my|tasks?|todo)\b/i.test(text) || text.split(/\s+/).length <= 2
+    const pAdd = ranked.find(([l]) => l === 'add')?.[1] || 0
+    if (!asks && (intent === 'add' || LISTS.includes(intent)) && pAdd >= 0.3) return { add: true, intent: 'add' }
+    if (p < 0.55) return null
+    if (LISTS.includes(intent) && !asks && p < 0.9) return null
+    switch (intent) {
+      case 'chat': return { chat: true, intent }
+      case 'add': return { add: true, intent }
+      case 'help': return run('help')
+      case 'today': return run('today')
+      case 'tomorrow': return run('tomorrow')
+      case 'upcoming': return run('upcoming')
+      case 'overdue': return run('overdue')
+      case 'exams': return run('exams')
+      case 'study': return run(/\b(tomorrow|tmr|tmrw|besok)\b/i.test(text) ? 'study tomorrow' : 'study')
+    }
+    const { doc, today } = this.ctx(u, now)
+    const n = listNumber(text)
+    if (intent === 'move' && !n && /\b(all|everything|semua)\b/i.test(text)) return run('move')
+    const pick = this.pickTask(u, text, n, doc, intent)
+    if (pick.reply) return pick
+    const task = pick.task
+    // removing is the one that can't be taken back: unless they gave its number, say which task and let them confirm
+    if (intent === 'delete' && pick.how !== 'number') {
+      this.st(u).last = task.id; this.saveState()
+      return { reply: `Remove *${task.title}*? Reply *td delete* to confirm.` }
+    }
+    this.st(u).last = task.id
+    this.saveState()
+    if (intent === 'snooze') return run(`snooze ${snoozePhrase(text)}`)
+    if (intent === 'move') {
+      const due = parseQuickAdd(` ${text.replace(/\bbesok\b/gi, 'tomorrow')} `, doc.lists, today).due || addDaysKey(today, 1)
+      if (due === task.due) return { reply: `*${task.title}* is already on ${dayLabel(due, today).toLowerCase()}.` }
+      this.changed(u, this.store.updateTask(u, task.id, { due }))
+      return { reply: `➡️ Moved *${task.title}* to ${dayLabel(due, today).toLowerCase()}.` }
+    }
+    return run(intent) // done / start / step / delete, on the task we just picked
+  }
+  /** The task a loose message is about: its number on my last list, its name, or the one we were just talking about. */
+  pickTask(u, text, n, doc, intent) {
+    if (n) {
+      const { task, error } = this.target(u, n)
+      return error ? { reply: error } : { task, how: 'number' }
+    }
+    const f = findTask(text, doc.tasks.filter((t) => !t.done))
+    if (f.task) return { task: f.task, how: 'name', score: f.score }
+    const verb = intent === 'snooze' ? 'snooze' : intent
+    if (f.many) {
+      this.remember(u, f.many.map((t) => t.id))
+      return { reply: ['Which one?', ...f.many.map((t, i) => `${i + 1}. ${t.title}`), '', `_Reply *td ${verb} 1* (or the number you mean)_`].join('\n') }
+    }
+    // a snooze rarely names its task ("give me an hour after dinner"): it's the one we're on
+    if (f.none && intent !== 'snooze') return { reply: `I couldn’t find a task like “${nameWords(text).join(' ')}”. Send *td?* for your list.` }
+    const { task, error } = this.target(u, null) // "just finished it": the last one I mentioned
+    return error ? { reply: error } : { task, how: 'last' }
   }
 
   /** Exam and study reminders: the evening before an exam, the day's study plan, and each timed study block. */

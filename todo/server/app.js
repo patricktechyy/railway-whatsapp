@@ -681,6 +681,14 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
     if (!buddy.available) return null
     const r = buddy.command(u, body)
     if (r) return r.reply
+    // not an exact command: Buddy's little model has a go at what it means
+    const g = buddy.understand(u, body)
+    if (g?.reply) return g.reply
+    if (g?.chat) return null
+    if (g?.add && !prefixed) {
+      if (!link.enabled('inbox')) return 'Adding tasks from WhatsApp is turned off.'
+      return handleInbox(store, u, `todo: ${body}`, { tz, brand }).reply
+    }
     if (prefixed) {
       if (!link.enabled('inbox')) return 'Adding tasks from WhatsApp is turned off.'
       return handleInbox(store, u, raw, { tz, brand }).reply
@@ -743,6 +751,11 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
         reply = handleInbox(store, username, `todo: ${quick[1]}`, { tz: tzOf(username), brand }).reply
       } else {
         reply = (buddy.available ? buddy.command(username, selfBody) : null)?.reply
+        if (!reply && buddy.available) {
+          const g = buddy.understand(username, selfBody)
+          if (g?.reply) reply = g.reply
+          else if (g?.chat) reply = '👍'
+        }
       }
       if (!reply) {
         if (!link.enabled('inbox')) return
@@ -792,6 +805,10 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
     if (Date.now() - (lastPush.get(key) || 0) < 2500) return // a burst: one buzz
     lastPush.set(key, Date.now())
     const n = s.store.chats.get(jid)?.unread || 1
+    // a locked chat: say something came in, never who or what
+    if (s.store.isLocked?.(jid)) {
+      return push.send(username, { kind: 'wa', title: 'Whats Up', body: 'New message', tag: 'wa-locked', user: username, url: `/u/${encodeURIComponent(username)}/` }, { filter: (d) => d.wa, ttl: 3600 })
+    }
     const body = st.preview ? previewOf(m, s.store) : n > 1 ? `${n} new messages` : 'New message'
     await push.send(username, {
       kind: 'wa',

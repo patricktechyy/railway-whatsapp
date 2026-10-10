@@ -7,6 +7,7 @@ const scrypt = promisify(crypto.scrypt)
 
 const SETUP_TTL = 7 * 24 * 3600 * 1000 // setup links live for 7 days
 const COOKIE_TTL = 30 * 24 * 3600 * 1000
+const CHATLOCK_TTL = 15 * 60 * 1000 // how long locked chats stay open after the password
 export const COOKIE = 'wah'
 
 const RESERVED = new Set(['admin', 'api', 'login', 'logout', 'setup', 'healthz', 'u', 'static', 'root'])
@@ -419,6 +420,42 @@ export class Auth {
   ok(key, claims) {
     this.failures.delete(key)
     return claims
+  }
+
+  // ------------------------------------------------------------ chat lock
+  /**
+   * Locked chats open with the account password. That gives a short-lived pass the page
+   * keeps in memory only (never a cookie), so a reload, the app lock, or 15 minutes
+   * closes them again. Changing the password ends every pass.
+   */
+  async unlockChats(ip, username, password) {
+    this.refresh()
+    const key = `chatlock|${username}` // per account: a made-up address header can't buy more guesses
+    this.throttle(ip, key)
+    const u = this.get(username)
+    if (!u || !(await this.checkPassword(u, password))) {
+      this.fail(ip, key)
+      throw new HttpError(403, 'Wrong password')
+    }
+    this.ok(key)
+    return this.chatLockPass(username)
+  }
+  chatLockPass(username) {
+    const u = this.get(username)
+    const exp = Date.now() + CHATLOCK_TTL
+    return { token: this.sign({ k: 'chatlock', u: username, pv: u?.pv, exp }), exp }
+  }
+  /** Is this a current pass for this person's locked chats? */
+  chatLockOpen(token, username) {
+    if (!token || typeof token !== 'string' || !token.includes('.')) return false
+    const [body, mac] = token.split('.')
+    const want = crypto.createHmac('sha256', this.secret).update(body).digest('base64url')
+    if (!eq(mac, want)) return false
+    let c
+    try { c = JSON.parse(Buffer.from(body, 'base64url').toString()) } catch { return false }
+    if (!c || c.k !== 'chatlock' || c.u !== username || !(c.exp > Date.now())) return false
+    const u = this.get(username)
+    return !!u && u.pv === c.pv
   }
 
   // ---------------------------------------------------------------- cookies

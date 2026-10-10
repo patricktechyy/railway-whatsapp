@@ -125,6 +125,7 @@ function send(res, code, body, headers = {}) {
     'x-content-type-options': 'nosniff',
     'referrer-policy': 'same-origin',
     ...headers,
+    ...(res.noStore ? { 'cache-control': 'no-store' } : {}),
   })
   res.end(body)
 }
@@ -215,6 +216,10 @@ function sse(req, res, s) {
   })
   res.write('retry: 3000\n\n')
   const push = (e) => {
+    // anything about a locked chat goes out as a bare "something changed in Locked chats":
+    // no name, no text; a page that has them open fetches the details with its pass
+    const js = [e?.jid, e?.message?.jid, e?.from, e?.to].filter((x) => typeof x === 'string')
+    if (js.some((j) => s.store.isLocked(j))) e = { type: 'locked', kind: e.type }
     try {
       res.write(`data: ${JSON.stringify(e)}\n\n`)
     } catch {}
@@ -466,6 +471,20 @@ async function route(req, res) {
   const api = rest.replace(/^\/api/, '')
   const jid = url.searchParams.get('jid')
 
+  // ---- chat lock: a locked chat needs the pass (from your password) for anything about it
+  const pass = String(req.headers['x-chatlock'] || url.searchParams.get('ck') || '')
+  // a picture or file opened with the pass isn't kept in the browser's cache after it locks again
+  if (url.searchParams.get('ck')) res.noStore = true
+  const lockOpen = () => auth.chatLockOpen(pass, username)
+  const guard = (...js) => {
+    for (const j of js) if (j && s.store.isLocked(String(j)) && !lockOpen()) throw new HttpError(423, 'This chat is locked')
+  }
+  guard(jid)
+  if (api === '/chatlock' && M === 'GET') {
+    const open = lockOpen()
+    return json(res, { count: s.store.locked.size, open, chats: open ? s.store.chatList({ lockedOnly: true }) : undefined })
+  }
+
   if (api === '/group') {
     if (!jid) throw new HttpError(400, 'jid required')
     return json(res, await s.groupMembers(jid))
@@ -476,13 +495,16 @@ async function route(req, res) {
     const cur = history.find((h) => h.version === APP_VERSION)
     return json(res, { version: APP_VERSION, notes: cur?.notes || '', seen: u?.seenVersion === APP_VERSION, history: history.slice(0, 10) })
   }
-  if (api === '/scheduled' && M === 'GET') return json(res, scheduler.list(username, jid))
+  if (api === '/scheduled' && M === 'GET') {
+    const open = lockOpen()
+    return json(res, scheduler.list(username, jid).filter((x) => open || !s.store.isLocked(x.jid)))
+  }
   if (api === '/state') {
     s.wake()
     return json(res, { ...s.info(), historyDays: getHistoryDays() })
   }
   if (api === '/chats') return json(res, s.store.chatList())
-  if (api === '/contacts') return json(res, s.store.contactList(url.searchParams.get('q') || ''))
+  if (api === '/contacts') return json(res, s.store.contactList(url.searchParams.get('q') || '', 60, { withLocked: lockOpen() }))
   if (api === '/events') return sse(req, res, s)
   if (api === '/health') return json(res, s.health())
   if (api === '/presence') {
@@ -552,15 +574,34 @@ async function route(req, res) {
 
   requireJson(req)
   const body = await readJson(req)
+  if (api === '/chatlock/unlock') return json(res, await auth.unlockChats(clientIp(req), username, body.password))
+  guard(body.jid, ...(Array.isArray(body.to) ? body.to : []))
+  if (api === '/chatlock/refresh' || api === '/chatlock/set') {
+    if (!lockOpen()) throw new HttpError(423, 'Enter your password first')
+    // only the page's own header renews a pass, not one copied out of a picture's address
+    if (api === '/chatlock/refresh' && !auth.chatLockOpen(String(req.headers['x-chatlock'] || ''), username)) throw new HttpError(423, 'Enter your password first')
+    if (api === '/chatlock/refresh') return json(res, auth.chatLockPass(username))
+    if (!body.jid || !CHAT_JID.test(String(body.jid))) throw new HttpError(400, 'jid required')
+    const locked = s.store.setLocked(String(body.jid), !!body.locked)
+    s.emit('event', { type: 'chats' })
+    return json(res, { locked })
+  }
   if (api === '/scheduled') return json(res, scheduler.add(username, body), 201)
-  if (api === '/scheduled/cancel') return json(res, scheduler.cancel(username, String(body.id || '')))
+  if (api === '/scheduled/cancel') {
+    guard(scheduler.list(username).find((x) => x.id === String(body.id || ''))?.jid)
+    return json(res, scheduler.cancel(username, String(body.id || '')))
+  }
   if (api === '/send') {
     const text = String(body.text || '').trim()
     if (!body.jid || !text) throw new HttpError(400, 'jid and text required')
     if (text.length > 65000) throw new HttpError(400, 'Message too long')
     return json(res, await s.send(body.jid, text, body.replyTo, body.mentions))
   }
-  if (api === '/resolve') return json(res, await s.resolveNumber(body.phone))
+  if (api === '/resolve') {
+    const found = await s.resolveNumber(body.phone)
+    guard(found?.jid) // a locked chat isn't found by its number either
+    return json(res, found)
+  }
   if (api === '/poll') {
     if (!body.jid) throw new HttpError(400, 'jid required')
     return json(res, await s.sendPoll(body.jid, { name: body.name, options: body.options, multi: !!body.multi }))

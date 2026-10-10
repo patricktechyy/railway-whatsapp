@@ -54,6 +54,7 @@ export class Store {
     this.contacts = new Map() // jid -> { name?, notify?, verified? }
     this.alias = new Map() //    lid -> phone jid
     this.gone = new Set() //     message ids deleted "for me" (never re-added)
+    this.locked = new Set() //   chats behind the chat lock (canonical jids)
     this.dirty = false
     this.load()
     this.timer = setInterval(() => this.flush(), 5000)
@@ -73,6 +74,7 @@ export class Store {
       }
       for (const [lid, pn] of raw.alias || []) this.alias.set(lid, pn)
       for (const id of raw.gone || []) this.gone.add(id)
+      for (const j of raw.locked || []) this.locked.add(j)
       for (const [jid, list] of Object.entries(raw.messages || {})) this.messages.set(jid, list)
       for (const [jid, list] of this.messages) if (isGroup(jid)) this.fillSenders(list)
     } catch {
@@ -100,7 +102,7 @@ export class Store {
       const tmp = this.file + '.tmp'
       fs.writeFileSync(
         tmp,
-        JSON.stringify({ chats, contacts: [...this.contacts], alias: [...this.alias], messages, gone: [...this.gone].slice(-3000) })
+        JSON.stringify({ chats, contacts: [...this.contacts], alias: [...this.alias], messages, gone: [...this.gone].slice(-3000), locked: [...this.locked] })
       )
       fs.renameSync(tmp, this.file)
     } catch (e) {
@@ -140,6 +142,7 @@ export class Store {
   }
 
   merge(from, to) {
+    this.moveLock(from, to)
     const fc = this.contacts.get(from)
     if (fc) {
       this.contacts.set(to, { ...fc, ...pickDefined(this.contacts.get(to)) })
@@ -225,6 +228,20 @@ export class Store {
     this.contacts.set(jid, c)
     this.dirty = true
     return this.displayName(jid)
+  }
+
+  // ------------------------------------------------------------ chat lock
+  isLocked(jid) { return !!jid && this.locked.size > 0 && this.locked.has(this.canon(jid)) }
+  setLocked(jid, on) {
+    const j = this.canon(jid)
+    if (on) this.locked.add(j)
+    else this.locked.delete(j)
+    this.dirty = true
+    return this.locked.has(j)
+  }
+  /** Keep locks on the right chat when a hidden id turns out to be a known number. */
+  moveLock(from, to) {
+    if (this.locked.delete(from)) { this.locked.add(to); this.dirty = true }
   }
 
   // ------------------------------------------------------------ chats/msgs
@@ -416,9 +433,10 @@ export class Store {
   }
 
   // ------------------------------------------------------------- views
-  chatList() {
+  /** The chat list: the unlocked chats, or (lockedOnly) just the locked ones. */
+  chatList({ lockedOnly = false } = {}) {
     return [...this.chats.values()]
-      .filter((c) => c.t)
+      .filter((c) => c.t && this.locked.has(c.jid) === lockedOnly)
       .sort((a, b) => (b.t || 0) - (a.t || 0))
       .slice(0, MAX_CHATS)
       .map((c) => ({
@@ -433,6 +451,7 @@ export class Store {
         archived: !!c.localArchived,
         pinned: !!c.localPinned,
         muted: this.mutedUntil(c.jid) || undefined, // ms, or -1 for always
+        locked: lockedOnly || undefined,
       }))
   }
 
@@ -506,7 +525,8 @@ export class Store {
   }
 
   /** People you can start a chat with: contacts + existing chats. */
-  contactList(q = '', limit = 60) {
+  contactList(q = '', limit = 60, { withLocked = false } = {}) {
+    this.showLocked = withLocked
     const needle = q.trim().toLowerCase()
     const digits = needle.replace(/\D/g, '')
     const seen = new Set()
@@ -514,6 +534,7 @@ export class Store {
     const consider = (jid) => {
       jid = this.canon(jid)
       if (seen.has(jid) || jid.endsWith('@broadcast') || jid.endsWith('@newsletter')) return
+      if (this.locked.has(jid) && !this.showLocked) return // locked chats stay out of "new chat" search
       seen.add(jid)
       const name = this.displayName(jid)
       const phone = phoneOf(jid)

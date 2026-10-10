@@ -700,6 +700,14 @@ body.todo #rail,body.todo #railHot{display:none!important}
 #composer>#send{margin-bottom:1px}
 #emojiPanel{left:auto;right:74px}
 @media (min-width:761px){#archChip{display:none}}
+/* chat lock */
+.lockrow .av.lk{background:var(--field);color:var(--muted)}
+.lockrow .nm{font-weight:600}
+.lockhead{display:flex;align-items:center;gap:8px;padding:4px 6px 8px;border-bottom:1px solid var(--line);margin-bottom:6px}
+.lockhead .lh-t{font-weight:700;font-size:15px}
+.lockhead .lh-s{margin-left:auto;color:var(--muted);font-size:12px;padding-right:6px}
+.clk-sub{margin:4px 0 14px;color:var(--muted);font-size:14px;line-height:1.45}
+#clkForm.shake{animation:shake .3s}
 @media (max-width:760px){
   #rail{display:none}
   .mob{display:inline-flex;align-items:center;justify-content:center}
@@ -954,6 +962,7 @@ html:root[data-theme="dark"][data-accent]{--out:color-mix(in srgb,var(--accent) 
       <button class="pill" id="pinBtn" title="Pin to top (this site only)" hidden>📌 Pin</button>
       <button class="pill" id="archBtn" title="Archive (this site only)" hidden>📦 Archive</button>
       <button class="pill" id="muteBtn" title="Notifications for this chat" hidden>🔕 Mute</button>
+      <button class="pill" id="lockChatBtn" title="Lock this chat behind your password" hidden>🔒 Lock</button>
       </div>
       <button class="ib" id="chatMore" title="Chat options" aria-haspopup="true" hidden><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="8" cy="12" r=".9" fill="currentColor"/><circle cx="12" cy="12" r=".9" fill="currentColor"/><circle cx="16" cy="12" r=".9" fill="currentColor"/></svg></button>
     </div>
@@ -1130,6 +1139,16 @@ html:root[data-theme="dark"][data-accent]{--out:color-mix(in srgb,var(--accent) 
     <div class="acts"><button type="button" class="btn ghost" id="pinX">Cancel</button><button class="btn" id="pinOk">Save</button></div>
   </form>
 </div>
+<div class="overlay" id="clkDlg" style="background:rgba(0,0,0,.45)">
+  <form class="dlg" id="clkForm" role="dialog" aria-modal="true" aria-labelledby="clkTitle">
+    <h3 id="clkTitle">Locked chats</h3>
+    <p class="clk-sub" id="clkSub">Enter your Whats Up password to open them.</p>
+    <input type="text" name="username" autocomplete="username" hidden>
+    <input type="password" id="clkPass" autocomplete="current-password" maxlength="200" aria-label="Password" placeholder="Password">
+    <div class="err" id="clkErr"></div>
+    <div class="acts"><button type="button" class="btn ghost" id="clkX">Cancel</button><button class="btn" id="clkOk">Open</button></div>
+  </form>
+</div>
 <div id="lock">
   <div class="box">
     <h2>Enter PIN to continue</h2>
@@ -1289,6 +1308,10 @@ function setPref(k, v) {
 const enterSends = () => prefs.enter === 'send' || (prefs.enter === 'auto' && innerWidth > 760);
 let BASE_TITLE = document.title;
 let filter = 'all', unseen = 0;
+// chat lock: the pass from your password lives only in this variable (gone on reload)
+const clk = {token: null, exp: 0, count: 0, hiddenAt: 0};
+let lockedJids = new Set();
+const ckq = (jid) => clk.token && lockedJids.has(jid) ? '&ck=' + encodeURIComponent(clk.token) : '';
 const drafts = new Map();
 // URLs in messages become links (runs on already-escaped text)
 const linkify = (html) => html.replace(/\bhttps?:\/\/[^\s<]+[^\s<.,;:!?)\]'"]/g, u => `<a class="lnk" href="${u}" target="_blank" rel="noopener noreferrer">${u}</a>`);
@@ -1311,6 +1334,7 @@ function toast(t, ms = 2800) {
 }
 async function call(method, path, body, headers) {
   const opts = {method, headers: headers || {}};
+  if (clk.token) opts.headers['x-chatlock'] = clk.token;
   if (body !== undefined) {
     if (body instanceof Blob) opts.body = body;
     else { opts.body = JSON.stringify(body); opts.headers['content-type'] = 'application/json'; }
@@ -1318,6 +1342,7 @@ async function call(method, path, body, headers) {
   const r = await fetch(api(path), opts);
   if (r.status === 401) { location.href = '/'; throw new Error('Signed out'); }
   const d = await r.json().catch(() => ({}));
+  if (r.status === 423 && clk.token && Date.now() > clk.exp) relockChats();   // the pass ran out
   if (!r.ok) throw new Error(d.error || `Request failed (${r.status})`);
   return d;
 }
@@ -1344,14 +1369,14 @@ function avatarFor(jid) {
   if (avatarEls.has(jid)) return avatarEls.get(jid);
   const img = new Image(); img.alt = ''; img.loading = 'lazy'; img.decoding = 'async';
   img.onerror = () => { img.remove(); avatarEls.set(jid, null); };
-  img.src = api('/avatar?jid=' + encodeURIComponent(jid || ''));
-  avatarEls.set(jid, img);
+  img.src = api('/avatar?jid=' + encodeURIComponent(jid || '') + ckq(jid));
+  if (!lockedJids.has(jid)) avatarEls.set(jid, img);   // locked chats' pictures aren't kept around
   return img;
 }
-const avImg = (jid) => `<img src="${esc(api('/avatar?jid=' + encodeURIComponent(jid || '')))}" loading="lazy" alt="" onerror="this.remove()">`;
+const avImg = (jid) => `<img src="${esc(api('/avatar?jid=' + encodeURIComponent(jid || '') + ckq(jid)))}" loading="lazy" alt="" onerror="this.remove()">`;
 const initials = (n) => (n || '?').replace(/[^\p{L}\p{N} ]/gu, '').trim().split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase() || '#';
 const fmtSize = (b) => b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB';
-const mediaUrl = (m) => api(`/media?jid=${encodeURIComponent(m.jid)}&id=${encodeURIComponent(m.id)}`);
+const mediaUrl = (m) => api(`/media?jid=${encodeURIComponent(m.jid)}&id=${encodeURIComponent(m.id)}` + ckq(m.jid));
 const fmtDur = (s) => { s = Math.max(0, Math.round(Number(s) || 0)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
 // ---------------------------------------------------------------- video notes (playing)
 function togglePtv(box) {
@@ -1513,11 +1538,13 @@ function row(c, extra = '', img = true) {
 function renderChats() {
   const q = $('#search').value.trim().toLowerCase();
   const list = chats
-    .filter(c => filter === 'archived' ? c.archived : !c.archived && (filter === 'all' || (filter === 'unread' ? c.unread > 0 : c.group)))
+    .filter(c => filter === 'locked' ? c.locked : !c.locked && (filter === 'archived' ? c.archived : !c.archived && (filter === 'all' || (filter === 'unread' ? c.unread > 0 : c.group))))
     .filter(c => !q || c.name.toLowerCase().includes(q) || (c.phone || '').includes(q.replace(/\D/g, '') || '§'))
     .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
   const box = $('#chats');
-  if (list.length) {
+  // "Locked chats" sits above the chats; inside, a bar takes you back out (and locks them)
+  const lead = filter === 'locked' ? [lockHeadEl()] : filter === 'all' && !q && clk.count > 0 ? [lockRowEl()] : [];
+  if (list.length || lead.length) {
     // Rows are kept and only rebuilt when what they show changed; photos are never rebuilt.
     // (This used to redo the whole list, reloading every picture, on every new message.)
     const els = list.map(c => {
@@ -1532,14 +1559,16 @@ function renderChats() {
       }
       return r.el;
     });
+    els.unshift(...lead);
+    if (!list.length) els.push(lockEmptyEl());
     const keep = new Set(els);
     for (const ch of [...box.children]) if (!keep.has(ch)) ch.remove();
     els.forEach((el, i) => { if (box.children[i] !== el) box.insertBefore(el, box.children[i] || null); });
     if (rowEls.size > list.length * 2 + 50) { const on = new Set(list.map(c => c.jid)); for (const j of rowEls.keys()) if (!on.has(j)) rowEls.delete(j); }
     for (const j of typers.keys()) paintRowTyping(j);   // a rebuilt row keeps showing "typing…"
   } else box.innerHTML =
-    `<div class="empty">${q ? 'No chats match.' : filter === 'unread' ? 'No unread chats 🎉' : filter === 'groups' ? 'No groups yet.' : filter === 'archived' ? 'No archived chats.' : status === 'connected' ? 'No chats yet. They show up as history syncs, or start one with <svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align:-3px" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4.5H6.5a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V13"/><path d="M17.8 3.7a1.9 1.9 0 0 1 2.7 2.7L12 14.9l-3.5.8.8-3.5z"/></svg>.' : 'Waiting for WhatsApp…'}</div>`;
-  const n = chats.filter(c => c.unread > 0 && !c.archived).length;
+    `<div class="empty">${q ? 'No chats match.' : filter === 'locked' ? 'No locked chats.' : filter === 'unread' ? 'No unread chats 🎉' : filter === 'groups' ? 'No groups yet.' : filter === 'archived' ? 'No archived chats.' : status === 'connected' ? 'No chats yet. They show up as history syncs, or start one with <svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align:-3px" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4.5H6.5a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V13"/><path d="M17.8 3.7a1.9 1.9 0 0 1 2.7 2.7L12 14.9l-3.5.8.8-3.5z"/></svg>.' : 'Waiting for WhatsApp…'}</div>`;
+  const n = chats.filter(c => c.unread > 0 && !c.archived && !c.locked).length;
   if (!panicOn && !locked) document.title = (n ? `(${n}) ` : '') + BASE_TITLE;
   const na = chats.filter(c => c.archived).length;
   $('#archChip').textContent = '📦 Archived';   // no count, like the rail button
@@ -1548,7 +1577,14 @@ function renderChats() {
 // /u/you/#chat=<id> (from a todolist task) opens that chat once the list is in
 let wantChat = location.hash.startsWith('#chat=') ? decodeURIComponent(location.hash.slice(6)) : null;
 const loadChats = throttle(async () => {
-  try { chats = await call('GET', '/chats'); renderChats(); updateTitle(); } catch {}
+  try {
+    const [list, lk] = await Promise.all([call('GET', '/chats'), call('GET', '/chatlock').catch(() => null)]);
+    clk.count = lk?.count || 0;
+    if (clk.token && lk && !lk.open) relockChats(true);
+    lockedJids = new Set(clk.token && lk?.open ? lk.chats.map(c => c.jid) : []);
+    chats = clk.token && lk?.open ? list.concat(lk.chats) : list;
+    renderChats(); updateTitle();
+  } catch {}
   if (wantChat && chats.length) {
     const jid = wantChat, c = chats.find(x => x.jid === jid); wantChat = null;
     history.replaceState(null, '', location.pathname + location.search);
@@ -1584,6 +1620,9 @@ function updateTitle() {
   $('#archBtn').textContent = c?.archived ? '📤 Unarchive' : '📦 Archive';
   $('#muteBtn').hidden = false;
   $('#muteBtn').textContent = c?.muted ? '🔔 Unmute' : '🔕 Mute';
+  $('#lockChatBtn').hidden = false;
+  $('#lockChatBtn').textContent = c?.locked ? '🔓 Unlock' : '🔒 Lock';
+  $('#lockChatBtn').title = c?.locked ? 'Take this chat out of Locked chats' : 'Lock this chat behind your password';
 }
 async function setNickname() {
   if (!current) return;
@@ -2063,6 +2102,7 @@ function stream() {
     if (d.type === 'message' && d.message && !d.message.fromMe) maybeRing(d.message);
     if (d.type === 'status') setStatus(d);
     else if (d.type === 'chats') loadChats();
+    else if (d.type === 'locked') { if (clk.token) { loadChats(); if (current && lockedJids.has(current)) reloadThread(); } }
     else if (d.type === 'scheduled') { if (!d.jid || d.jid === current) loadScheduled(); }
     else if (d.type === 'history') { syncing(d); loadChats(); if (current) reloadThread(); }
     else if (d.type === 'merged') { if (current === d.from) { current = d.to; reloadThread(); } loadChats(); }
@@ -2428,7 +2468,7 @@ function renderInfo() {
   const sub = info.group ? (info.grp ? `Group · ${info.grp.members.length} member${info.grp.members.length === 1 ? '' : 's'}` : 'Group') : fmtPhone(info.phone) || '';
   const counts = info.counts || {media: 0, docs: 0, links: 0};
   const n = counts.media + counts.docs + counts.links;
-  let h = `<div class="ihero"><div class="av${info.group ? ' g' : ''}">${esc(info.group ? '👥' : initials(info.name))}<img src="${esc(api('/avatar?jid=' + encodeURIComponent(info.jid)))}" alt="" onerror="this.remove()"></div>` +
+  let h = `<div class="ihero"><div class="av${info.group ? ' g' : ''}">${esc(info.group ? '👥' : initials(info.name))}<img src="${esc(api('/avatar?jid=' + encodeURIComponent(info.jid) + ckq(info.jid)))}" alt="" onerror="this.remove()"></div>` +
     `<h2>${esc(c.name || info.name)}</h2>${sub ? `<p class="isub">${esc(sub)}</p>` : ''}${!info.group && info.notify && info.notify !== (c.name || info.name) ? `<p class="isub">~${esc(info.notify)}</p>` : ''}</div>`;
   if (info.about) h += `<section class="isec"><h4>About</h4><p>${rich(info.about)}</p>${info.aboutAt ? `<small>${esc(new Date(info.aboutAt).toLocaleDateString([], {day: 'numeric', month: 'long', year: 'numeric'}))}</small>` : ''}</section>`;
   if (info.group && info.grp?.desc) h += `<section class="isec"><h4>Description</h4><p>${rich(info.grp.desc)}</p></section>`;
@@ -2543,7 +2583,11 @@ addEventListener('keydown', (e) => {
   else if (!$('#info').hidden && !document.querySelector('.overlay.on') && !document.getElementById('muteMenu')) { stop(); closeInfo(); }
 }, true);
 // ----------------------------------------------------------------- wire
-$('#chats').addEventListener('click', e => { const r = e.target.closest('.row'); if (r) openChat(r.dataset.jid, r.dataset.name); });
+$('#chats').addEventListener('click', e => {
+  if (e.target.closest('#lockRow')) return openLocked();
+  if (e.target.closest('#lockOut')) return leaveLocked();
+  const r = e.target.closest('.row[data-jid]'); if (r) openChat(r.dataset.jid, r.dataset.name);
+});
 
 $('#back').addEventListener('click', () => document.body.classList.remove('open'));
 $('#send').addEventListener('click', send);
@@ -2562,6 +2606,7 @@ $('#msgs').addEventListener('scroll', () => {
 }, {passive: true});
 $('#chips').addEventListener('click', e => {
   const b = e.target.closest('button[data-f]'); if (!b) return;
+  if (filter === 'locked' && b.dataset.f !== 'locked') relockChats();   // leaving Locked chats locks them again
   filter = b.dataset.f;
   $('#chips').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
   renderChats();
@@ -3144,6 +3189,7 @@ function refreshLockUi() {
 }
 function lockApp() {
   if (!lockData()) return;
+  relockChats();
   locked = true;
   document.documentElement.dataset.locked = '1';
   closeMsgMenu(); closeEmoji?.(); $('#menu').classList.remove('on');
@@ -3719,7 +3765,7 @@ function closeChat() {
   $('#text').value = ''; fitText();
   $('#msgs').innerHTML = EMPTY_CHAT;
   $('#title').innerHTML = '<b>Select a chat</b><small></small>';
-  for (const id of ['tav', 'grpBtn', 'nickBtn', 'pinBtn', 'archBtn', 'muteBtn', 'chatMore']) $('#' + id).hidden = true;
+  for (const id of ['tav', 'grpBtn', 'nickBtn', 'pinBtn', 'archBtn', 'muteBtn', 'lockChatBtn', 'chatMore']) $('#' + id).hidden = true;
   $('#chatActs').classList.remove('on');
   document.body.classList.remove('open');
   showJump(false); setComposer(); renderChats();
@@ -3887,6 +3933,123 @@ $('#pinBtn').addEventListener('click', async () => {
   } catch (x) { toast(x.message); }
 });
 $('#aboutX').addEventListener('click', () => $('#about').classList.remove('on'));
+
+// ------------------------------------------------------------ chat lock
+// Locked chats leave the list (and search, and notifications) and open only with your
+// Whats Up password. The server holds the line: without the short pass the password
+// gives, it won't hand over anything about them. Leaving Locked chats, the app lock,
+// reloading, 15 minutes, or a minute away from the tab all lock them again.
+let lockRow = null, lockHead = null;
+function lockRowEl() {
+  if (!lockRow) {
+    const t = document.createElement('template');
+    t.innerHTML = `<div class="row lockrow" id="lockRow" role="button" tabindex="0" aria-label="Locked chats"><div class="av lk"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="10.5" width="15" height="10" rx="2.2"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/></svg></div><div class="ct"><div class="top"><span class="nm">Locked chats</span></div><div class="pv"><span class="pvt">Opens with your password</span></div></div></div>`;
+    lockRow = t.content.firstElementChild;
+    lockRow.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openLocked(); } });
+  }
+  return lockRow;
+}
+function lockHeadEl() {
+  if (!lockHead) {
+    const t = document.createElement('template');
+    t.innerHTML = `<div class="lockhead" id="lockHead"><button type="button" class="ib" id="lockOut" title="Leave and lock" aria-label="Leave Locked chats and lock them"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button><span class="lh-t">Locked chats</span><span class="lh-s">Locks again when you leave</span></div>`;
+    lockHead = t.content.firstElementChild;
+  }
+  return lockHead;
+}
+function lockEmptyEl() {
+  const d = document.createElement('div'); d.className = 'empty';
+  d.textContent = filter === 'locked' ? 'No locked chats. Lock one from its 🔒 Lock button.' : 'No other chats.';
+  return d;
+}
+let clkResolve = null, clkMode = 'open';
+function askChatLock(mode) {
+  clkMode = mode;
+  const t = {open: ['Locked chats', 'Enter your Whats Up password to open them.', 'Open'],
+             lock: ['Lock this chat', 'It moves to Locked chats, which only open with your Whats Up password.', 'Lock']}[mode] || [];
+  $('#clkTitle').textContent = t[0]; $('#clkSub').textContent = t[1]; $('#clkOk').textContent = t[2];
+  $('#clkPass').value = ''; $('#clkErr').textContent = '';
+  $('#clkDlg').classList.add('on');
+  setTimeout(() => $('#clkPass').focus(), 30);
+  return new Promise(res => { clkResolve = res; });
+}
+function closeClk(ok) {
+  $('#clkDlg').classList.remove('on'); $('#clkPass').value = '';
+  const r = clkResolve; clkResolve = null; r?.(ok);
+}
+$('#clkForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const pw = $('#clkPass').value; if (!pw) return;
+  $('#clkOk').disabled = true;
+  try {
+    const r = await call('POST', '/chatlock/unlock', {password: pw});
+    clk.token = r.token; clk.exp = r.exp;
+    closeClk(true);
+  } catch (x) {
+    $('#clkErr').textContent = x.message; $('#clkPass').value = ''; $('#clkPass').focus();
+    $('#clkForm').classList.remove('shake'); void $('#clkForm').offsetWidth; $('#clkForm').classList.add('shake');
+  } finally { $('#clkOk').disabled = false; }
+});
+$('#clkX').addEventListener('click', () => closeClk(false));
+$('#clkDlg').addEventListener('click', e => { if (e.target.id === 'clkDlg') closeClk(false); });
+$('#clkDlg').addEventListener('keydown', e => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeClk(false); } });
+
+async function openLocked() {
+  if (!clk.token && !(await askChatLock('open'))) return;
+  filter = 'locked';
+  $('#chips').querySelectorAll('button').forEach(x => x.classList.remove('on'));
+  $('#search').value = '';
+  renderChats(); loadChats(); syncRail?.();
+}
+function leaveLocked() { relockChats(); }
+/** Lock them all again: the pass is dropped and everything about them leaves the page. */
+function relockChats(quiet) {
+  const had = !!clk.token || filter === 'locked' || lockedJids.size > 0;
+  clk.token = null; clk.exp = 0;
+  const gone = lockedJids; lockedJids = new Set();
+  chats = chats.filter(c => !c.locked && !gone.has(c.jid));
+  if (current && gone.has(current)) closeChat();
+  for (const j of gone) { avatarEls.delete(j); rowEls.delete(j); drafts.delete(j); typers.delete(j); pres.delete(j); }
+  if (filter === 'locked') {
+    filter = 'all';
+    $('#chips').querySelectorAll('button').forEach(x => x.classList.toggle('on', x.dataset.f === 'all'));
+  }
+  if (had && !quiet) renderChats();
+}
+async function toggleChatLock() {
+  if (!current) return;
+  const jid = current, c = chats.find(x => x.jid === jid), want = !c?.locked, had = !!clk.token;
+  if (!clk.token && !(await askChatLock(want ? 'lock' : 'open'))) return;
+  try {
+    await call('POST', '/chatlock/set', {jid, locked: want});
+    if (want && !had) {
+      // locked from the everyday list: it goes behind the lock straight away
+      chats = chats.filter(x => x.jid !== jid); rowEls.delete(jid); avatarEls.delete(jid);
+      clk.count++;
+      $('#text').value = ''; closeChat(); drafts.delete(jid); relockChats();
+      toast('Chat locked. Find it in Locked chats, at the top of your chats.', 4000);
+    } else {
+      if (c) c.locked = want;
+      if (want) lockedJids.add(jid); else lockedJids.delete(jid);
+      updateTitle(); renderChats();
+      toast(want ? 'Chat locked' : 'Chat unlocked. It’s back in your chats.');
+    }
+    loadChats();
+  } catch (x) { toast(x.message); }
+}
+$('#lockChatBtn').addEventListener('click', toggleChatLock);
+// keep the pass fresh while you're using Locked chats; let it lapse when you're not
+setInterval(async () => {
+  if (!clk.token) return;
+  if (Date.now() > clk.exp) return relockChats();
+  if (clk.exp - Date.now() < 5 * 60e3 && Date.now() - lastActive < 2 * 60e3) {
+    try { const r = await call('POST', '/chatlock/refresh', {}); clk.token = r.token; clk.exp = r.exp; } catch {}
+  }
+}, 30000);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') clk.hiddenAt = Date.now();
+  else if (clk.token && clk.hiddenAt && Date.now() - clk.hiddenAt > 60e3) relockChats();
+});
 $('#about').addEventListener('click', e => { if (e.target.id === 'about') $('#about').classList.remove('on'); });
 $('#text').addEventListener('keydown', e => { if (e.key === 'Escape' && replyTo) cancelReply(); });
 $('#msgs').addEventListener('click', async e => {

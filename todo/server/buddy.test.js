@@ -191,3 +191,53 @@ test('the study plan on WhatsApp: bullets with tick numbers, a blank line betwee
   assert.match(buddy.tickTopic('gavin', 2), /All applicable units/)
   assert.equal(plan.blocks[1].topics[0].done, true)
 })
+
+test('loose messages: Buddy’s model works out what you mean', () => {
+  const { store, buddy } = setup()
+  const today = todayIn(TZ)
+  const tomorrow = new Date(Date.parse(`${today}T12:00:00Z`) + 864e5).toISOString().slice(0, 10)
+  const bio = store.addTask('gavin', { title: 'Biology homework', due: today })
+  const chem = store.addTask('gavin', { title: 'Chemistry worksheet', due: today })
+  const e1 = store.addTask('gavin', { title: 'English essay draft', due: today })
+  const e2 = store.addTask('gavin', { title: 'History essay outline', due: today })
+  const get = (id) => store.snapshot('gavin').tasks.find((t) => t.id === id)
+  const say = (t) => buddy.understand('gavin', t)
+
+  // done, by name and short forms
+  assert.match(say('finished the bio hw').reply, /Biology homework/)
+  assert.ok(get(bio.id).done)
+  // start by name
+  assert.match(say('starting chem now').reply, /Chemistry worksheet/)
+  assert.equal(get(chem.id).status, 'doing')
+  // "just did it": the one we were just talking about
+  assert.match(say('just finished it').reply, /Chemistry worksheet/)
+  assert.ok(get(chem.id).done)
+  // two essays: asks which, then a number works
+  const which = say('done with the essay').reply
+  assert.match(which, /Which one\?[\s\S]*English essay draft[\s\S]*History essay outline/)
+  assert.ok(!get(e1.id).done && !get(e2.id).done, 'asking, not guessing')
+  // move by name, to the day it names
+  assert.match(say('push the history essay to tomorrow').reply, /Moved \*History essay outline\* to tomorrow/)
+  assert.equal(get(e2.id).due, tomorrow)
+  // snooze the last one, with the time from the words
+  const before = Date.now()
+  assert.match(say('give me an hour').reply, /History essay outline/)
+  assert.ok(get(e2.id).wa.at >= before + 3590e3 && get(e2.id).wa.at <= Date.now() + 3610e3)
+  // "remind me later" is a snooze of the current one, not a task called "later"
+  const n = store.snapshot('gavin').tasks.length
+  assert.match(buddy.command('gavin', 'remind me again in 2 hours').reply, /History essay outline/)
+  assert.equal(store.snapshot('gavin').tasks.length, n, 'no new task')
+  // a name that matches nothing: says so instead of guessing
+  assert.match(say('finished the piano practice').reply, /couldn’t find a task like “piano practice”/)
+  // delete by a so-so name guess: asks first
+  assert.match(say('remove the english one').reply, /Remove \*English essay draft\*\? Reply \*td delete\*/)
+  assert.ok(get(e1.id))
+  // questions → lists; thanks → nothing; a new thing → add
+  assert.match(say('what do i have today?').reply, /Today/)
+  assert.match(say('anything tomorrow?').reply, /Tomorrow/)
+  assert.deepEqual(say('thanks!'), { chat: true, intent: 'chat' })
+  assert.equal(say('buy eggs tomorrow')?.add, true)
+  assert.equal(say('need to email the teacher')?.add, true)
+  // gibberish: not sure, so it doesn't act
+  assert.equal(say('qwzx plorb'), null)
+})
