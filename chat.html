@@ -321,6 +321,11 @@ html[data-locked] #lock{display:flex}
 .m.flash{animation:flash 1.2s}
 #msgs .m{touch-action:manipulation} /* double-tap replies; no double-tap zoom */
 @keyframes flash{0%,40%{box-shadow:0 0 0 3px var(--accent)}}
+/* replying by double-click: the whole line lights up behind the bubble, like WhatsApp Web
+   (a huge shadow behind the bubble, cut down to the bubble's own height) */
+.m.lineflash{clip-path:inset(-4px -100vmax);animation:lineflash 1.6s ease-out}
+@keyframes lineflash{0%,45%{box-shadow:0 0 0 100vmax color-mix(in srgb,var(--leaf,var(--accent)) 24%,transparent)}100%{box-shadow:0 0 0 100vmax transparent}}
+@media (prefers-reduced-motion:reduce){.m.lineflash{animation-duration:1.6s;animation-timing-function:steps(1,end)}}
 #reply{display:none;align-items:center;gap:10px;padding:8px 12px;background:var(--panel);border-top:1px solid var(--line)}
 #reply.on{display:flex}
 #reply .q{flex:1;min-width:0;border-left:3px solid var(--accent);padding:2px 10px;font-size:13px}
@@ -726,9 +731,10 @@ body.todo #rail,body.todo #railHot{display:none!important}
 .m.tail{margin-top:8px}
 .m.tail:not(.me):not(.sticker){border-top-left-radius:0}
 .m.tail.me:not(.sticker){border-top-right-radius:0}
-.m.tail:not(.sticker)::after{content:"";position:absolute;top:0;width:8px;height:13px;pointer-events:none}
-.m.tail:not(.me):not(.sticker)::after{left:-8px;background:var(--in);clip-path:polygon(0 0,100% 0,100% 100%)}
-.m.tail.me:not(.sticker)::after{right:-8px;background:var(--out);clip-path:polygon(0 0,100% 0,0 100%)}
+/* the tail reaches 1px under the bubble, so no hairline gap shows between them at in-between zoom levels */
+.m.tail:not(.sticker)::after{content:"";position:absolute;top:0;width:9px;height:13px;pointer-events:none}
+.m.tail:not(.me):not(.sticker)::after{left:-8px;background:var(--in);clip-path:polygon(0 0,100% 0,100% 100%,8px 100%)}
+.m.tail.me:not(.sticker)::after{right:-8px;background:var(--out);clip-path:polygon(0 0,100% 0,1px 100%,0 100%)}
 .m .q{border-radius:6px}
 /* ---- PIN field takes letters now */
 #lockPin{letter-spacing:4px;font-size:22px}
@@ -4399,7 +4405,8 @@ function replyToBubble(el) {
   dblAt = Date.now();
   try { const s = getSelection(); if (s && $('#msgs').contains(s.anchorNode)) s.removeAllRanges(); } catch {}   // a double-click also selects a word
   startReply(m.id);
-  el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+  el.classList.remove('lineflash'); void el.offsetWidth; el.classList.add('lineflash');
+  el.addEventListener('animationend', () => el.classList.remove('lineflash'), {once: true});
   // phones finish the tap after us (and may select a word): tidy up once they have
   setTimeout(() => { if (replyTo?.id === m.id) caretToComposer(); }, 120);
   return true;
