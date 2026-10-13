@@ -4374,13 +4374,26 @@ for (const ev of ['play', 'pause', 'ended', 'timeupdate', 'loadedmetadata', 'err
 }
 $('#msgs').addEventListener('keydown', e => { const pv = e.target.closest?.('.ptv'); if (pv && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); togglePtv(pv); } });
 
-// double-click (or double-tap on a phone) a message to reply to it
+// Reply by double-click, like WhatsApp Web: on the empty space beside a message (same line), so a
+// double-click inside the bubble still just selects a word to copy. On a phone: double-tap the bubble.
 let dblAt = 0, lastTap = null;
 const DBL_SKIP = 'button, a, input, textarea, img, video, audio, .ptv, .rxpick, .rxs, .q, .hov';
 function replyByDouble(target) {
   if (selMode || Date.now() - dblAt < 400) return false;
   const el = target.closest('#msgs .m[data-id]');
   if (!el || target.closest(DBL_SKIP)) return false;
+  return replyToBubble(el);
+}
+/** The message bubble on the same line as this height on screen (for a double-click beside it). */
+function bubbleOnLine(y) {
+  for (const el of $('#msgs').querySelectorAll('.m[data-id]')) {
+    const r = el.getBoundingClientRect();
+    if (y >= r.top && y <= r.bottom) return el;
+  }
+  return null;
+}
+function replyToBubble(el) {
+  if (selMode || Date.now() - dblAt < 400) return false;
   const m = msgs.find(x => x.id === el.dataset.id);
   if (!m || m.deleted || m.pending || m.failed) return false;
   dblAt = Date.now();
@@ -4411,11 +4424,14 @@ $('#msgs').addEventListener('dblclick', e => {
     setTimeout(() => { if (replyTo) caretToComposer(); }, 0);
     return;
   }
-  if (replyByDouble(e.target)) e.preventDefault();
+  // inside a bubble: an ordinary double-click (selects the word, to copy); beside it on the same line: reply
+  if (e.target.closest('.m[data-id]') || e.target.closest(DBL_SKIP)) return;
+  const el = bubbleOnLine(e.clientY);
+  if (el && replyToBubble(el)) e.preventDefault();
 });
-// the second click of a double-click would select a word: not on message bubbles (it means reply here)
+// beside a message, the second click mustn't select stray text nearby (it means reply there)
 $('#msgs').addEventListener('mousedown', e => {
-  if (e.detail > 1 && !selMode && e.target.closest('.m[data-id]') && !e.target.closest(DBL_SKIP)) e.preventDefault();
+  if (e.detail > 1 && !selMode && !e.target.closest('.m[data-id]') && !e.target.closest(DBL_SKIP) && bubbleOnLine(e.clientY)) e.preventDefault();
 });
 $('#msgs').addEventListener('pointerup', e => {
   if (e.pointerType !== 'touch' || selMode || lpFired) return;
