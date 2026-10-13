@@ -4384,17 +4384,31 @@ function replyByDouble(target) {
   const m = msgs.find(x => x.id === el.dataset.id);
   if (!m || m.deleted || m.pending || m.failed) return false;
   dblAt = Date.now();
-  try { getSelection()?.removeAllRanges(); } catch {}   // a double-click also selects a word
+  try { const s = getSelection(); if (s && $('#msgs').contains(s.anchorNode)) s.removeAllRanges(); } catch {}   // a double-click also selects a word
   startReply(m.id);
   el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
   // phones finish the tap after us (and may select a word): tidy up once they have
-  setTimeout(() => { try { getSelection()?.removeAllRanges(); } catch {} if (replyTo?.id === m.id) $('#text').focus(); }, 120);
+  setTimeout(() => { if (replyTo?.id === m.id) caretToComposer(); }, 120);
   return true;
+}
+/** After a double-click/tap to reply: drop the word it selected in the bubble (only there — clearing the
+ *  page's selection while the message box has the caret can leave the box looking focused but deaf to
+ *  typing in some browsers), then give the box a fresh, real caret at the end. */
+function caretToComposer() {
+  try {
+    const s = getSelection();
+    if (s && s.rangeCount && $('#msgs').contains(s.anchorNode)) s.removeAllRanges();
+  } catch {}
+  const t = $('#text');
+  if (!t || t.disabled) return;
+  if (document.activeElement === t) t.blur();
+  t.focus({preventScroll: true});
+  const n = t.value.length; try { t.setSelectionRange(n, n); } catch {}
 }
 $('#msgs').addEventListener('dblclick', e => {
   if (Date.now() - dblAt < 400) { // a double-tap already did it: undo what the browser does with the second tap
     e.preventDefault();
-    setTimeout(() => { try { getSelection()?.removeAllRanges(); } catch {} if (replyTo) $('#text').focus(); }, 0);
+    setTimeout(() => { if (replyTo) caretToComposer(); }, 0);
     return;
   }
   if (replyByDouble(e.target)) e.preventDefault();
