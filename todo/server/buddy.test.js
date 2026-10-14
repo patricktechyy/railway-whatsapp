@@ -241,3 +241,38 @@ test('loose messages: Buddy’s model works out what you mean', () => {
   // gibberish: not sure, so it doesn't act
   assert.equal(say('qwzx plorb'), null)
 })
+
+test('repeats keep messaging: done → the next one goes off; a snooze doesn’t stick; old broken copies get fixed', async () => {
+  const { store, buddy, sent } = setup()
+  const today = todayIn(TZ)
+  const t = store.addTask('gavin', { title: 'Makan Pome', due: today, time: '18:00', repeat: { freq: 'day', interval: 1 }, wa: { before: 0 } })
+  // snooze it (Buddy stores what it was), then finish it
+  buddy.remember('gavin', [t.id])
+  buddy.command('gavin', 'snooze 1h')
+  assert.deepEqual(store.snapshot('gavin').tasks.find((x) => x.id === t.id).wa.base, { before: 0 })
+  store.updateTask('gavin', t.id, { status: 'done' })
+  const next = store.snapshot('gavin').tasks.find((x) => !x.done && x.title === 'Makan Pome')
+  assert.deepEqual(next.wa, { before: 0 }, 'the next one is back to “at due time”, not sent')
+  // its time comes: Buddy sends it
+  const tomorrow6 = zonedTime(next.due, '18:00', TZ)
+  await buddy.tick(tomorrow6 + 60e3)
+  assert.ok(sent.some((x) => /Makan Pome/.test(x.text)), 'tomorrow’s one goes out')
+  // a copy made by an older version: fixed time from yesterday, marked sent
+  const y = zonedTime(today, '18:00', TZ) - 864e5
+  const old = store.addTask('gavin', { title: 'Old copy', due: today, time: '18:00', repeat: { freq: 'day', interval: 1 } })
+  store.change('gavin', (doc) => { const o = doc.tasks.find((x) => x.id === old.id); o.wa = { at: y, sent: `at:${y}` }; o.createdAt = y + 3600e3; return o })
+  await buddy.tick(Date.now())
+  const fixed = store.snapshot('gavin').tasks.find((x) => x.id === old.id).wa
+  assert.equal(fixed.at, zonedTime(today, '18:00', TZ), 'moved to its own day')
+  assert.ok(!fixed.sent)
+})
+
+test('a task added after its reminder time has passed doesn’t message straight away', async () => {
+  const { store, buddy, sent } = setup()
+  const today = todayIn(TZ)
+  const now = zonedTime(today, '20:00', TZ)
+  const t = store.addTask('gavin', { title: 'Read a book', due: today, wa: { before: 0 } }) // "on the day" = 9 AM, long gone
+  store.change('gavin', (doc) => { doc.tasks.find((x) => x.id === t.id).createdAt = now - 60e3; return null })
+  await buddy.tick(now)
+  assert.ok(!sent.some((x) => /Read a book/.test(x.text || '')))
+})

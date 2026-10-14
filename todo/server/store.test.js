@@ -133,3 +133,19 @@ test('Personalize It gradient is validated', () => {
   assert.throws(() => s.setProfile('zef', { appearance: { preset: 'discord', personalize: { from: 'red', to: '#000000' } } }), /gradient/)
   assert.equal(s.setProfile('zef', { appearance: { preset: 'discord' } }).appearance.personalize, null)
 })
+
+test('a repeat’s WhatsApp message comes with it to the next date, unsent', async () => {
+  const { waForNext } = await import('./store.js')
+  const { zonedTime } = await import('./tz.js')
+  const tz = 'Asia/Singapore'
+  // "at due time" and "1 hour before": carried over as they are, not "sent"
+  assert.deepEqual(waForNext({ before: 0, sent: 'b:2026-10-13|18:00|0' }, '2026-10-13', '2026-10-14', tz), { before: 0 })
+  assert.deepEqual(waForNext({ before: 60 }, '2026-10-13', '2026-10-20', tz), { before: 60 })
+  // a fixed moment moves with the task: same time of day, same days before the due date
+  const at = zonedTime('2026-10-13', '19:00', tz)
+  assert.deepEqual(waForNext({ at, sent: `at:${at}` }, '2026-10-13', '2026-10-14', tz), { at: zonedTime('2026-10-14', '19:00', tz) })
+  const eveBefore = zonedTime('2026-10-12', '21:00', tz)
+  assert.deepEqual(waForNext({ at: eveBefore }, '2026-10-13', '2026-10-20', tz), { at: zonedTime('2026-10-19', '21:00', tz) })
+  // snoozed: back to what it was before the snooze
+  assert.deepEqual(waForNext({ at: at + 7200e3, base: { before: 0 }, sent: 'x' }, '2026-10-13', '2026-10-14', tz), { before: 0 })
+})

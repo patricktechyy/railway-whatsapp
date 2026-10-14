@@ -109,7 +109,8 @@ function Form({ lists, defaults, weekStartsMonday, onAdd, onNewList, onAdded, on
   // like Reminders: a task with a time alerts at that time unless you say otherwise
   const remind = due ? (pick('remind', time_ ? defaultRemind() : null) ?? null) : null
   const status = pick('status', 'todo') ?? 'todo'
-  const wa = pick('wa', null) ?? null
+  // WhatsApp me is on for a new task with a date (at its time, or 9 AM on the day), unless you turn it off
+  const wa = pick('wa', waOn && due ? { before: 0 } : null) ?? null
 
   const error = validate({ title: parsed.title, due, time: time_, repeat: rep })
   const set = (patch: Manual) => setManual((m) => ({ ...m, ...patch }))

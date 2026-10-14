@@ -80,6 +80,7 @@ export function waInstant(t, tz) {
 /** Which version of the reminder this is: changing the time (or the due date) makes a new one. */
 export const waSig = (t) => (typeof t.wa?.at === 'number' ? `at:${t.wa.at}` : `b:${t.due}|${t.time}|${t.wa?.before}`)
 
+const hmOfTz = (ms, tz) => hmIn(tz, ms)
 function hmIn(tz, ms) {
   const p = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(ms)).map((x) => [x.type, x.value]))
   return `${p.hour}:${p.minute}`
@@ -581,7 +582,8 @@ export class Buddy {
       if (error) return { reply: error }
       const at = snoozeUntil(m[2], tz, now)
       if (!at) return { reply: 'I didn’t get when. Try *td snooze 30m*, *2h*, *tonight*, *tomorrow* or *3pm*.' }
-      this.changed(u, this.store.updateTask(u, task.id, { wa: { at } }))
+      const base = typeof task.wa?.before === 'number' ? { before: task.wa.before } : task.wa?.base
+      this.changed(u, this.store.updateTask(u, task.id, { wa: base ? { at, base } : { at } }))
       return { reply: say(style, 'snooze', { when: whenText(at, tz, now) }) + `\n_${task.title}_` }
     }
 
@@ -767,11 +769,22 @@ export class Buddy {
       // tasks you asked Buddy to remind you about
       for (const t of doc.tasks) {
         if (t.done || !t.wa) continue
+        // a repeat made before its reminder moved with it: its fixed time is from an earlier date
+        // (older than the task itself), so it showed "Sent" and never went off again. Put it right.
+        if (t.repeat && t.due && typeof t.wa.at === 'number' && t.createdAt > t.wa.at + 60e3 && t.wa.at < zonedTime(t.due, '00:00', tz)) {
+          const fixed = t.wa.base ? { ...t.wa.base } : { at: zonedTime(t.due, hmOfTz(t.wa.at, tz), tz) }
+          if (fixed.before !== undefined || fixed.at > now - 864e5) {
+            try { this.store.updateTask(u, t.id, { wa: fixed }); console.log(`[buddy] ${u}: "${t.title}" repeat's WhatsApp time moved to its own day`) } catch {}
+            continue // picked up on the next tick with the new time
+          }
+        }
         const at = waInstant(t, tz)
         const sig = waSig(t)
         if (at === null || at > now || t.wa.sent === sig) continue
         this.store.setWaSent(u, t.id, sig) // first, so it never goes out twice
         if (now - at > LATE) continue
+        // a time that had already passed when the task was made (added at 8 PM, "on the day" = 9 AM): nothing to remind
+        if (at < (t.createdAt || 0) - 60e3) continue
         try {
           await this.send(u, this.taskMessage(u, t, { now }), { kind: 'reminder' })
           this.remember(u, [t.id])

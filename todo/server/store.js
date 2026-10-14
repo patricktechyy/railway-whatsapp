@@ -5,7 +5,7 @@ import { EventEmitter } from 'node:events'
 import { HttpError } from './auth.js'
 import { cleanRepeat, nextOccurrence } from './repeat.js'
 import { cleanUrl } from './quickadd.js'
-import { validTz } from './tz.js'
+import { validTz, zonedTime, todayIn } from './tz.js'
 import { COUNTRIES } from './holidays.js'
 
 /**
@@ -154,7 +154,27 @@ function cleanWa(v) {
   const at = Number(v.at)
   const now = Date.now()
   if (!Number.isFinite(at) || at < now - 2 * 864e5 || at > now + 400 * 864e5) throw new HttpError(400, 'Pick a WhatsApp reminder time within the next year')
-  return { at: Math.round(at) }
+  // a snoozed reminder remembers what it was before ("at due time", "1 hour before"), so a repeat goes back to that
+  const base = v.base && Number.isInteger(Number(v.base.before)) && Number(v.base.before) >= 0 && Number(v.base.before) <= 7 * 24 * 60 ? { before: Number(v.base.before) } : null
+  return base ? { at: Math.round(at), base } : { at: Math.round(at) }
+}
+
+const hmOf = (ms, tz) => new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(ms))
+const dayGap = (a, b) => Math.round((Date.parse(`${b}T12:00:00Z`) - Date.parse(`${a}T12:00:00Z`)) / 864e5)
+const plusDays = (k, n) => { const d = new Date(`${k}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10) }
+/**
+ * A repeat's WhatsApp message for its next date. "At due time" / "1 hour before" just carry
+ * over; a fixed moment ("this evening, 7 PM") moves with the task, same time of day, the same
+ * number of days from the due date; a snoozed one goes back to what it was before the snooze.
+ * Never carries over "sent": the new one hasn't been sent yet.
+ */
+export function waForNext(wa, fromDue, toDue, tz = 'UTC') {
+  if (!wa) return null
+  if (typeof wa.before === 'number') return { before: wa.before }
+  if (wa.base) return { ...wa.base }
+  if (typeof wa.at !== 'number' || !fromDue || !toDue) return null
+  const day = todayIn(tz, wa.at)
+  return { at: zonedTime(plusDays(toDue, dayGap(fromDue, day)), hmOf(wa.at, tz), tz) }
 }
 
 /** The WhatsApp chat a task came from ("Add to todolist" on a message): which chat, and its name then. */
@@ -436,8 +456,10 @@ export class Store {
       ...task,
       id: id(), done: false, status: 'todo', doneAt: null, due: next, repeat,
       subtasks: task.subtasks.map((s) => ({ ...s, id: id(), done: false })),
+      wa: waForNext(task.wa, task.due, next, doc.profile?.tz || 'UTC'), // its own WhatsApp message, not yet sent
       createdAt: now, updatedAt: now,
     }
+    if (!copy.wa) delete copy.wa
     delete copy.spawnedId
     task.spawnedId = copy.id
     doc.tasks.push(copy)

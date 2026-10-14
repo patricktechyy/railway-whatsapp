@@ -37,8 +37,8 @@ export interface Task {
   updatedAt: number
 }
 
-/** An exact moment (ms) or minutes before the due time; `sent` is set by the server once it went out. */
-export interface WaRemind { at?: number; before?: number; sent?: string }
+/** An exact moment (ms) or minutes before the due time; `sent` is set by the server once it went out; `base`: what a snoozed one was before the snooze. */
+export interface WaRemind { at?: number; before?: number; sent?: string; base?: { before: number } }
 export type BuddyStyle = 'friendly' | 'short' // shown as Long / Short
 export interface BuddySettings {
   on: boolean; style: BuddyStyle; morning: string | null; evening: string | null
