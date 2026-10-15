@@ -132,6 +132,9 @@ html[data-locked] #lock{display:flex}
 #msgMenu button{display:block;width:100%;text-align:left;background:none;border:0;padding:10px 14px;font-size:14px;color:var(--fg)}
 #msgMenu button:hover{background:var(--hover)}
 #msgMenu .danger{color:var(--danger)}
+#msgMenu button{display:flex;align-items:center;gap:12px}
+#msgMenu button svg{width:20px;height:20px;flex:none;color:var(--muted)}
+#msgMenu .danger svg{color:inherit}
 #delDlg .dlg,#pinDlg .dlg{max-width:340px}
 #pinDlg.overlay{z-index:15}
 #grpDlg .dlg{max-width:440px;max-height:88vh;display:flex;flex-direction:column}
@@ -2974,6 +2977,18 @@ if (document.documentElement.dataset.panic === '1') panic(true);   // refreshed 
 
 
 // -------------------------------------------------------- edit & delete
+// the message menu's icons: line drawings in the same style as the rest of the page
+const MI = (() => {
+  const svg = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+  return {
+    edit: svg('<path d="M15.8 4.2 19.8 8.2 8.6 19.4H4.6v-4z"/><path d="m13.3 6.7 4 4"/>'),
+    forward: svg('<path d="m14 5 6 6-6 6"/><path d="M20 11h-9.5A6.5 6.5 0 0 0 4 17.5V19"/>'),
+    task: svg('<g transform="translate(12 12) scale(1.18) translate(-12 -12)" stroke-width="1.55"><path d="M16.8 7.4A6.9 6.9 0 1 0 18.5 12.6" stroke-opacity=".7"/><path d="m8.4 12.2 2.8 2.8 7.6-7.6" stroke-width="1.75"/></g>'),
+    copy: svg('<rect x="8.5" y="8.5" width="11.5" height="12" rx="2.4"/><path d="M15.5 8.5V6a2.4 2.4 0 0 0-2.4-2.4H6.4A2.4 2.4 0 0 0 4 6v7.2a2.4 2.4 0 0 0 2.4 2.4h2.1"/>'),
+    select: svg('<rect x="4" y="4" width="16" height="16" rx="4.5"/><path d="m8.4 12.2 2.5 2.5 4.8-5"/>'),
+    delete: svg('<path d="M4.5 7h15M9.5 7V5.2c0-.4.3-.7.7-.7h3.6c.4 0 .7.3.7.7V7M6.5 7l.9 11.4a1.7 1.7 0 0 0 1.7 1.6h5.8a1.7 1.7 0 0 0 1.7-1.6L17.5 7M10.2 11v5.2M13.8 11v5.2"/>'),
+  };
+})();
 const EDIT_WINDOW = 15 * 60, DELETE_ALL_WINDOW = 60 * 3600;
 let menuFor = null, delFor = null;
 function closeMsgMenu() { document.getElementById('msgMenu')?.remove(); menuFor = null; }
@@ -2982,15 +2997,15 @@ function openMsgMenu(id, btn) {
   const m = msgs.find(x => x.id === id); if (!m) return;
   const age = Date.now() / 1000 - m.ts;
   const items = [];
-  if (!m.deleted && m.fromMe && m.type === 'text' && age < EDIT_WINDOW) items.push(['edit', '✏️ Edit']);
-  if (canForward(m)) items.push(['forward', '↪️ Forward']);
-  if (!m.deleted && m.text) items.push(['task', '✅ Add to todolist']);
-  if (!m.deleted && m.text) items.push(['copy', '📋 Copy text']);
-  items.push(['select', '☑️ Select']);
-  items.push(['delete', '🗑️ Delete', 'danger']);
+  if (!m.deleted && m.fromMe && m.type === 'text' && age < EDIT_WINDOW) items.push(['edit', 'Edit']);
+  if (canForward(m)) items.push(['forward', 'Forward']);
+  if (!m.deleted && m.text) items.push(['task', 'Add to todolist']);
+  if (!m.deleted && m.text) items.push(['copy', 'Copy text']);
+  items.push(['select', 'Select']);
+  items.push(['delete', 'Delete', 'danger']);
   const el = document.createElement('div');
   el.id = 'msgMenu';
-  el.innerHTML = items.map(([a, t, c]) => `<button data-ma="${a}" class="${c || ''}">${t}</button>`).join('');
+  el.innerHTML = items.map(([a, t, c]) => `<button data-ma="${a}" class="${c || ''}">${MI[a] || ''}${esc(t)}</button>`).join('');
   document.body.appendChild(el);
   const r = btn.getBoundingClientRect(), w = 210, h = items.length * 42;
   el.style.left = Math.max(8, Math.min(innerWidth - w - 8, m.fromMe ? r.left - w + r.width : r.left)) + 'px';
