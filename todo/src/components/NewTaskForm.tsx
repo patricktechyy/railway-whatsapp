@@ -8,6 +8,7 @@ import type { List, Priority, Repeat, TaskInput } from '../types'
 import { PRIORITY_LABEL } from './TaskItem'
 import { MenuItem, Popover, usePopover } from './Popover'
 import { ClockIcon, TimePicker } from './TimePicker'
+import { DurationPicker, HourglassIcon, describeDuration } from './DurationPicker'
 import { CalendarIcon, DatePicker } from './DatePicker'
 import { RepeatIcon, RepeatPicker } from './RepeatPicker'
 import { BellIcon, Chip, FlagIcon, ListIcon } from './Chip'
@@ -32,7 +33,7 @@ interface Props {
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/
 
 /** The fields a new task can have, with `undefined` meaning "not chosen by hand". */
-type Manual = { due?: string | null; time?: string | null; repeat?: Repeat | null; priority?: Priority; listId?: string | null; remind?: number | null; status?: Status; wa?: WaRemind | null }
+type Manual = { due?: string | null; time?: string | null; duration?: number | null; repeat?: Repeat | null; priority?: Priority; listId?: string | null; remind?: number | null; status?: Status; wa?: WaRemind | null }
 
 /** Why the task can't be added yet, or '' if it can. */
 export function validate(t: { title: string; due: string | null; time: string | null; repeat: Repeat | null }) {
@@ -84,6 +85,7 @@ function Form({ lists, defaults, weekStartsMonday, onAdd, onNewList, onAdded, on
   const [tried, setTried] = useState(false)
   const date = usePopover()
   const time = usePopover()
+  const dur = usePopover()
   const repeat = usePopover()
   const prio = usePopover()
   const list = usePopover()
@@ -109,6 +111,7 @@ function Form({ lists, defaults, weekStartsMonday, onAdd, onNewList, onAdded, on
   // like Reminders: a task with a time alerts at that time unless you say otherwise
   const remind = due ? (pick('remind', time_ ? defaultRemind() : null) ?? null) : null
   const status = pick('status', 'todo') ?? 'todo'
+  const duration = pick('duration', parsed.duration ?? null) ?? null
   // WhatsApp me is on for a new task with a date (at its time, or 9 AM on the day), unless you turn it off
   const wa = pick('wa', waOn && due ? { before: 0 } : null) ?? null
 
@@ -133,7 +136,7 @@ function Form({ lists, defaults, weekStartsMonday, onAdd, onNewList, onAdded, on
     onAdd({
       title: parsed.title.trim(),
       notes: notes.trim(),
-      due, time: due ? time_ : null, repeat: rep,
+      due, time: due ? time_ : null, repeat: rep, duration,
       remind, priority, listId, tags: allTags, status, links: allLinks,
       ...(wa ? { wa } : {}),
     })
@@ -203,6 +206,7 @@ function Form({ lists, defaults, weekStartsMonday, onAdd, onNewList, onAdded, on
             <Chip icon={<span className={`status-dot st-${status}`} />} label={STATUS_LABEL[status]} title="Status" active={status !== 'todo'} onClick={stat.toggle} anchorRef={stat.ref} />
             <Chip icon={<CalendarIcon />} label={due ? formatDay(due) : undefined} title="Date" active={!!due} onClick={date.toggle} onClear={() => set({ due: null, time: null, repeat: null })} anchorRef={date.ref} />
             <Chip icon={<ClockIcon />} label={time_ ? formatTime(time_, true) : undefined} title="Time" active={!!time_} onClick={time.toggle} onClear={() => set({ time: null })} anchorRef={time.ref} />
+            <Chip icon={<HourglassIcon />} label={duration ? describeDuration(duration) : undefined} title="How long it takes" active={!!duration} onClick={dur.toggle} onClear={() => set({ duration: null })} anchorRef={dur.ref} />
             {due && (
               <Chip icon={<BellIcon />} label={remind !== null ? describeRemind(remind, { short: true }) : undefined} title="Reminder" active={remind !== null} onClick={bell.toggle} onClear={() => set({ remind: null })} anchorRef={bell.ref} />
             )}
@@ -235,6 +239,7 @@ function Form({ lists, defaults, weekStartsMonday, onAdd, onNewList, onAdded, on
 
       {date.open && <Popover anchor={date.anchor} onClose={date.close} label="Date"><DatePicker value={due} onPick={(d) => { set(d ? { due: d } : { due: null, time: null, repeat: null }); date.close() }} /></Popover>}
       {time.open && <Popover anchor={time.anchor} onClose={time.close} label="Time"><TimePicker value={time_} onPick={(t) => { set(t && !due ? { time: t, due: todayKey() } : { time: t }); time.close() }} /></Popover>}
+      {dur.open && <Popover anchor={dur.anchor} onClose={dur.close} label="How long it takes" width={260}><DurationPicker value={duration} time={time_} onPick={(d) => { set({ duration: d }); dur.close() }} /></Popover>}
       {repeat.open && (
         <Popover anchor={repeat.anchor} onClose={repeat.close} label="Repeat" width={300}>
           <RepeatPicker value={rep} due={due} weekStartsMonday={weekStartsMonday} onPick={(r) => { set(r && !due ? { repeat: r, due: todayKey() } : { repeat: r }); repeat.close() }} />

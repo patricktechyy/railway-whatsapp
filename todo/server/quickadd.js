@@ -103,6 +103,21 @@ export function parseQuickAdd(input, lists, today = localToday()) {
   })
   if (out.repeat) out.hints.push(`↻ ${describeRepeat(out.repeat)}`)
 
+  // how long: "for 1h", "for 30 min", "for 1.5 hours", "for 1h30" (only after "for", so "buy 2 eggs" stays a title)
+  take(/\sfor\s(\d{1,2})\s?h(?:rs?|ours?)?\s?(\d{1,2})\s?m?(?:ins?|inutes?)?(?=\s)/i, (m) => {
+    const d = Number(m[1]) * 60 + Number(m[2])
+    if (d < 5 || d > 1440 || Number(m[2]) > 59) return false
+    out.duration = d
+  })
+  if (!out.duration) take(/\sfor\s(\d{1,3}(?:[.,]\d{1,2})?)\s?(h|hrs?|hours?|m|mins?|minutes?)(?=\s)/i, (m) => {
+    const n = Number(m[1].replace(',', '.')), hours = /^h/i.test(m[2])
+    const d = Math.round(hours ? n * 60 : n)
+    if (d < 5 || d > 1440) return false
+    out.duration = d
+  })
+  if (!out.duration) take(/\sfor\s(?:an?|one)\s(hour|half\shour)(?=\s)/i, (m) => { out.duration = /half/i.test(m[1]) ? 30 : 60 })
+  if (out.duration) out.hints.push(`Takes ${out.duration % 60 ? (out.duration >= 60 ? `${Math.floor(out.duration / 60)} h ${out.duration % 60} min` : `${out.duration} min`) : `${out.duration / 60} h`}`)
+
   // time first, so "tonight" can default it
   take(/\s(?:at\s)?(\d{1,2})(?::(\d{2}))?\s?(am|pm)(?=\s)/i, (m) => {
     let h = Number(m[1]) % 12

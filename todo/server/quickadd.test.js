@@ -30,3 +30,16 @@ test('links', () => {
   assert.equal(cleanUrl('example.com/x'), 'https://example.com/x')
   assert.equal(cleanUrl('https://nohost'), null)
 })
+
+test('how long: "for 1h", "for 30 min", "for 1.5 hours", "for 1h30", "for an hour"; not "for mum"', () => {
+  const p = (s) => parseQuickAdd(s, [], '2026-10-15')
+  assert.equal(p('Gym for 1h tomorrow 6pm').duration, 60)
+  assert.equal(p('Gym for 1h tomorrow 6pm').title, 'Gym')
+  assert.equal(p('Read for 30 min').duration, 30)
+  assert.equal(p('Essay for 1.5 hours').duration, 90)
+  assert.equal(p('Study for 1h30 tonight').duration, 90)
+  assert.equal(p('Call grandma for an hour').duration, 60)
+  assert.equal(p('Buy a gift for mum').duration, undefined)
+  assert.equal(p('Buy a gift for mum').title, 'Buy a gift for mum')
+  assert.equal(p('Nap for 2 min').duration, undefined, 'too short: stays in the title')
+})

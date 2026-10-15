@@ -9,6 +9,7 @@ import { STATUSES, STATUS_LABEL, statusOf, type Status } from '../status'
 import { MenuItem, Popover, usePopover } from './Popover'
 import { RemindPicker } from './RemindPicker'
 import { ClockIcon, TimePicker } from './TimePicker'
+import { DurationPicker, HourglassIcon, describeDuration } from './DurationPicker'
 import { CalendarIcon, DatePicker } from './DatePicker'
 import { RepeatIcon, RepeatPicker } from './RepeatPicker'
 import { Switch } from './Switch'
@@ -92,6 +93,7 @@ export function TaskEditor({ task, lists, weekStartsMonday, onChange, onToggle, 
   const [sub, setSub] = useState('')
   const date = usePopover()
   const time = usePopover()
+  const dur = usePopover()
   const repeat = usePopover()
   const remind = usePopover()
   const wa = usePopover()
@@ -208,6 +210,11 @@ export function TaskEditor({ task, lists, weekStartsMonday, onChange, onToggle, 
         </div>
         {date.open && <Popover anchor={date.anchor} onClose={date.close} label="Date"><DatePicker value={task.due} onPick={(d) => { onChange({ due: d }); date.close() }} /></Popover>}
         {time.open && <Popover anchor={time.anchor} onClose={time.close} label="Time"><TimePicker value={task.time} onPick={(t) => { onChange(t && task.remind === null && !task.time ? { time: t, remind: defaultRemind() } : { time: t }); time.close() }} /></Popover>}
+
+        <div className="group-card">
+          <SelectRow icon={<HourglassIcon />} label="How long it takes" value={task.duration ? describeDuration(task.duration, { long: true }) : 'Not set'} onClick={dur.toggle} anchorRef={dur.ref} />
+        </div>
+        {dur.open && <Popover anchor={dur.anchor} onClose={dur.close} label="How long it takes" width={260}><DurationPicker value={task.duration ?? null} time={task.time} onPick={(d) => { onChange({ duration: d }); dur.close() }} /></Popover>}
 
         <div className="group-card">
           <SelectRow icon={<RepeatIcon />} label="Repeat" value={describeRepeat(rep)} onClick={repeat.toggle} anchorRef={repeat.ref} />

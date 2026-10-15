@@ -3,6 +3,7 @@ import { useMemo, useState, type CSSProperties, type DragEvent } from 'react'
 import { MONTHS, WEEKDAYS, addDays, daysBetween, formatDay, formatTime, fromKey, todayKey, toKey } from '../dates'
 import type { DayNote, List, Task } from '../types'
 import { occurrencesBetween } from '../repeat'
+import { endTime } from '../components/DurationPicker'
 
 interface Props {
   tasks: Task[]
@@ -240,7 +241,7 @@ export function CalendarView({ tasks, lists, weekStartsMonday, selected, onSelec
                       onClick={(e) => { e.stopPropagation(); onOpen(t) }}
                       title={`${t.title} (repeats)`}
                     >
-                      {t.time && <span className="t">{formatTime(t.time)}</span>}
+                      {t.time && <span className="t">{formatTime(t.time)}{endTime(t.time, t.duration) ? `–${endTime(t.time, t.duration)}` : ''}</span>}
                       <span className="n">↻ {t.title}</span>
                     </button>
                   )
@@ -251,9 +252,9 @@ export function CalendarView({ tasks, lists, weekStartsMonday, selected, onSelec
                       draggable
                       onDragStart={(e) => e.dataTransfer.setData('text/task-id', t.id)}
                       onClick={(e) => { e.stopPropagation(); onOpen(t) }}
-                      title={`${t.title}${t.time ? ` · ${formatTime(t.time)}` : ''}${l ? ` · ${l.name}` : ''}`}
+                      title={`${t.title}${t.time ? ` · ${formatTime(t.time)}${endTime(t.time, t.duration) ? `–${endTime(t.time, t.duration)}` : ''}` : ''}${l ? ` · ${l.name}` : ''}`}
                     >
-                      {t.time && <span className="t">{formatTime(t.time)}</span>}
+                      {t.time && <span className="t">{formatTime(t.time)}{endTime(t.time, t.duration) ? `–${endTime(t.time, t.duration)}` : ''}</span>}
                       <span className="n">{t.title}</span>
                     </button>
                   )

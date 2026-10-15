@@ -147,3 +147,26 @@ test('a repeat’s WhatsApp message comes with it to the next date, unsent', asy
   // snoozed: back to what it was before the snooze
   assert.deepEqual(waForNext({ at: at + 7200e3, base: { before: 0 }, sent: 'x' }, '2026-10-13', '2026-10-14', tz), { before: 0 })
 })
+
+test('how long a task takes: optional, checked, and the calendar event is that long', async () => {
+  const { CalendarFeeds } = await import('./calendar.js')
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dur-'))
+  const store = new Store(dir)
+  const a = store.addTask('gavin', { title: 'Gym', due: '2026-10-16', time: '18:00', duration: 90 })
+  const b = store.addTask('gavin', { title: 'Call', due: '2026-10-16', time: '09:00' })
+  const c = store.addTask('gavin', { title: 'Essay', due: '2026-10-16', duration: 120 })
+  assert.equal(a.duration, 90)
+  assert.equal(b.duration, null, 'not set by default')
+  assert.throws(() => store.addTask('gavin', { title: 'x', duration: 2 }), /5 minutes and 24 hours/)
+  assert.equal(store.updateTask('gavin', b.id, { duration: 45 }).duration, 45)
+  assert.equal(store.updateTask('gavin', b.id, { duration: null }).duration, null)
+  const ics = new CalendarFeeds(dir).ics({ name: 'T', tz: 'Asia/Singapore', host: 'x', items: [a, b, c].map((task) => ({ task })) })
+  const ev = (title) => ics.split('BEGIN:VEVENT').find((e) => e.includes(`SUMMARY:${title}`))
+  assert.match(ev('Gym'), /DTSTART:20261016T100000Z[\s\S]*DTEND:20261016T113000Z/, 'Gym: 6 PM to 7:30 PM (SGT)')
+  assert.match(ev('Call'), /DTSTART:20261016T010000Z[\s\S]*DTEND:20261016T013000Z/, 'no length set: 30 minutes')
+  assert.match(ev('Essay'), /VALUE=DATE[\s\S]*DESCRIPTION:Takes about 2 h/, 'no time: all day, says how long')
+  // a repeat keeps its length
+  const r = store.addTask('gavin', { title: 'Run', due: '2026-10-16', time: '07:00', duration: 30, repeat: { freq: 'day', interval: 1 } })
+  store.updateTask('gavin', r.id, { status: 'done' })
+  assert.equal(store.snapshot('gavin').tasks.find((t) => t.title === 'Run' && !t.done).duration, 30)
+})

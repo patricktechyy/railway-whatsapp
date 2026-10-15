@@ -234,6 +234,12 @@ export function applyTask(task, body, doc) {
     if (body.time && !TIME_RE.test(body.time)) throw new HttpError(400, 'Time must look like 14:30')
     task.time = task.due && body.time ? body.time : null
   }
+  // how long it takes, in minutes (optional): makes its calendar event that long
+  if ('duration' in body) {
+    const d = body.duration === null || body.duration === '' ? null : Number(body.duration)
+    if (d !== null && !(Number.isInteger(d) && d >= 5 && d <= 24 * 60)) throw new HttpError(400, 'How long it takes: between 5 minutes and 24 hours')
+    task.duration = d
+  }
   if ('remind' in body) {
     const n = body.remind === null || body.remind === '' ? null : Number(body.remind)
     if (n !== null && !(Number.isInteger(n) && n >= 0 && n <= 7 * 24 * 60)) throw new HttpError(400, 'Invalid reminder')
@@ -384,7 +390,7 @@ export class Store {
       const now = Date.now()
       const task = {
         id: id(), title: '', notes: '', listId: null, done: false, doneAt: null,
-        status: 'todo', due: null, time: null, remind: null, repeat: null, priority: 0, tags: [], subtasks: [], links: [],
+        status: 'todo', due: null, time: null, duration: null, remind: null, repeat: null, priority: 0, tags: [], subtasks: [], links: [],
         order: Math.min(0, ...doc.tasks.map((t) => t.order)) - 1, // new tasks go on top
         createdAt: now, updatedAt: now,
       }

@@ -5,6 +5,7 @@ export interface Parsed {
   hints: string[]
   due?: string
   time?: string
+  duration?: number // minutes
   priority?: 0 | 1 | 2 | 3
   tags?: string[]
   listId?: string

@@ -7,6 +7,7 @@ import type { List, Priority, Task, TaskInput } from '../types'
 import { PRIORITY_LABEL } from './TaskItem'
 import { MenuItem, Popover, usePopover } from './Popover'
 import { ClockIcon, TimePicker } from './TimePicker'
+import { DurationPicker, HourglassIcon, describeDuration } from './DurationPicker'
 import { CalendarIcon, DatePicker } from './DatePicker'
 import { RepeatIcon, RepeatPicker } from './RepeatPicker'
 import { BellIcon, Chip, FlagIcon, ListIcon } from './Chip'
@@ -38,6 +39,7 @@ export function InlineEditor({ task, lists, weekStartsMonday, onChange, onStatus
   const [tag, setTag] = useState('')
   const date = usePopover()
   const time = usePopover()
+  const dur = usePopover()
   const repeat = usePopover()
   const prio = usePopover()
   const list = usePopover()
@@ -110,6 +112,7 @@ export function InlineEditor({ task, lists, weekStartsMonday, onChange, onStatus
         {task.due && (
           <Chip icon={<ClockIcon />} label={task.time ? formatTime(task.time, true) : undefined} title="Time" active={!!task.time} onClick={time.toggle} onClear={() => onChange({ time: null })} anchorRef={time.ref} />
         )}
+        <Chip icon={<HourglassIcon />} label={task.duration ? describeDuration(task.duration) : undefined} title="How long it takes" active={!!task.duration} onClick={dur.toggle} onClear={() => onChange({ duration: null })} anchorRef={dur.ref} />
         {task.due && (
           <Chip icon={<BellIcon />} label={task.remind !== null ? describeRemind(task.remind, { short: true }) : undefined} title="Reminder" active={task.remind !== null} onClick={bell.toggle} onClear={() => onChange({ remind: null })} anchorRef={bell.ref} />
         )}
@@ -131,6 +134,7 @@ export function InlineEditor({ task, lists, weekStartsMonday, onChange, onStatus
 
       {date.open && <Popover anchor={date.anchor} onClose={date.close} label="Date"><DatePicker value={task.due} onPick={(d) => { onChange({ due: d }); date.close() }} /></Popover>}
       {time.open && <Popover anchor={time.anchor} onClose={time.close} label="Time"><TimePicker value={task.time} onPick={(t) => { onChange(t && task.remind === null && !task.time ? { time: t, remind: defaultRemind() } : { time: t }); time.close() }} /></Popover>}
+      {dur.open && <Popover anchor={dur.anchor} onClose={dur.close} label="How long it takes" width={260}><DurationPicker value={task.duration ?? null} time={task.time} onPick={(d) => { onChange({ duration: d }); dur.close() }} /></Popover>}
       {linkPop.open && (
         <Popover anchor={linkPop.anchor} onClose={linkPop.close} label="Add a link" width={300}>
           <AddLinkForm onAdd={(l) => { if (!(task.links || []).some((x) => x.url === l.url)) onChange({ links: [...(task.links || []), l] }); linkPop.close() }} />

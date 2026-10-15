@@ -8,7 +8,7 @@ import { zonedTime } from './tz.js'
  * Google Calendar, Apple Calendar or Outlook subscribe to. They fetch it every so
  * often, so changes show up there after a while (Google can take hours).
  *
- * Tasks with a date become events: all-day without a time, a 30-minute event with
+ * Tasks with a date become events: all-day without a time, an event as long as the task takes (30 minutes if not set) with
  * one (with an alert at its reminder time). Group tasks given to you, or to nobody,
  * are in it too. Finished tasks drop off.
  */
@@ -66,12 +66,14 @@ export class CalendarFeeds {
       lines.push('BEGIN:VEVENT', `UID:${t.id}${group ? `-${group.id}` : ''}@${host}`, `DTSTAMP:${now}`, `LAST-MODIFIED:${utc(t.updatedAt || Date.now())}`)
       if (t.time) {
         const start = zonedTime(t.due, t.time, tz)
-        lines.push(`DTSTART:${utc(start)}`, `DTEND:${utc(start + (minutes || 30) * 60e3)}`)
+        lines.push(`DTSTART:${utc(start)}`, `DTEND:${utc(start + (minutes || t.duration || 30) * 60e3)}`)
       } else {
         lines.push(`DTSTART;VALUE=DATE:${dateOnly(t.due)}`, `DTEND;VALUE=DATE:${nextDay(t.due)}`, 'TRANSP:TRANSPARENT')
       }
       lines.push(`SUMMARY:${ESC(group ? `${t.title} (${group.emoji} ${group.name})` : t.title)}`)
-      const desc = [t.notes, ...(t.subtasks || []).map((s) => `${s.done ? '☑' : '☐'} ${s.title}`)].filter(Boolean).join('\n')
+      // no time to put it at: an all-day event that says how long it takes
+      const takes = !t.time && t.duration ? `Takes about ${t.duration % 60 ? `${t.duration} min` : `${t.duration / 60} h`}` : ''
+      const desc = [takes, t.notes, ...(t.subtasks || []).map((s) => `${s.done ? '☑' : '☐'} ${s.title}`)].filter(Boolean).join('\n')
       if (desc) lines.push(`DESCRIPTION:${ESC(desc)}`)
       if (t.time && t.remind !== null && t.remind !== undefined) {
         lines.push('BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${ESC(t.title)}`, `TRIGGER:-PT${t.remind}M`, 'END:VALARM')

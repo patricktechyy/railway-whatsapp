@@ -7,6 +7,7 @@ import { STATUS_LABEL, nextStatus, statusOf, type Status } from '../status'
 import { ExtLink } from './Links'
 import { WaIcon, describeWa, waSent } from './WaPicker'
 import { Icon } from './Icon'
+import { HourglassIcon, describeDuration, endTime } from './DurationPicker'
 
 export const PRIORITY_LABEL = ['None', 'Low', 'Medium', 'High'] as const
 
@@ -140,6 +141,9 @@ export const TaskItem = memo(function TaskItem({ task, list, showList, selected,
               {task.remind !== null && <Icon name="bell" label="Reminder set" />}
             </span>
           )}
+          {task.duration ? (
+            <span className="meta" title={`Takes about ${describeDuration(task.duration, { long: true })}${endTime(task.time, task.duration) ? `, until ${endTime(task.time, task.duration)}` : ''}`}><HourglassIcon />{describeDuration(task.duration)}</span>
+          ) : null}
           {task.wa && !task.done && (
             <span className={`meta wa${waSent(task) ? ' sent' : ''}`} title="WhatsApp Buddy will message you"><WaIcon />{describeWa(task)}</span>
           )}

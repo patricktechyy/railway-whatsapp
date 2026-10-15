@@ -22,6 +22,7 @@ export interface Task {
   doneAt: number | null
   due: string | null // YYYY-MM-DD
   time: string | null // HH:MM
+  duration?: number | null // how long it takes, in minutes (optional; its calendar event is that long)
   remind: number | null // minutes before due
   repeat: Repeat | null
   spawnedId?: string // a finished repeat: the copy it created for the next date
