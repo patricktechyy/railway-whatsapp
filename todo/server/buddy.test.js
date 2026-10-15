@@ -263,7 +263,7 @@ test('repeats keep messaging: done → the next one goes off; a snooze doesn’t
   store.change('gavin', (doc) => { const o = doc.tasks.find((x) => x.id === old.id); o.wa = { at: y, sent: `at:${y}` }; o.createdAt = y + 3600e3; return o })
   await buddy.tick(Date.now())
   const fixed = store.snapshot('gavin').tasks.find((x) => x.id === old.id).wa
-  assert.equal(fixed.at, zonedTime(today, '18:00', TZ), 'moved to its own day')
+  assert.deepEqual(fixed, { before: 0 }, 'back to its own time')
   assert.ok(!fixed.sent)
 })
 

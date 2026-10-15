@@ -322,9 +322,28 @@ export class Store {
   }
 
   /** Deleted for everyone (by you or by them): keep a placeholder like WhatsApp. */
+  /** Keep a version of a message (before it was deleted or edited), only when history is on for this account. */
+  keepVersion(m, kind) {
+    if (!this.histOn?.() || (kind === 'deleted' && m.deleted)) return
+    const v = { kind, at: Date.now(), type: m.type, text: m.text || '' }
+    if (kind === 'deleted' && m.rm) { v.rm = m.rm; if (m.fileName) v.fileName = m.fileName }
+    m.hist = [...(m.hist || []), v].slice(-20)
+    this.dirty = true
+  }
+  /** What history shows for a message: each earlier version (oldest first), then how it is now. */
+  historyOf(jid, id) {
+    const m = this.findMessage(jid, id)
+    if (!m?.hist?.length) return null
+    return {
+      versions: m.hist.map((v, n) => ({ n, kind: v.kind, at: v.at, type: v.type, text: v.text, media: !!v.rm, fileName: v.fileName })),
+      now: { deleted: !!m.deleted, text: m.deleted ? '' : m.text, edited: !!m.edited },
+    }
+  }
+
   markDeleted(jid, id) {
     const m = this.findMessage(jid, id)
     if (!m) return null
+    this.keepVersion(m, 'deleted')
     Object.assign(m, { deleted: true, text: '', rm: undefined, quote: undefined, reactions: undefined, edited: false })
     this.refreshPreview(this.canon(jid))
     return m
@@ -333,6 +352,7 @@ export class Store {
   markEdited(jid, id, text) {
     const m = this.findMessage(jid, id)
     if (!m || m.deleted) return null
+    if (String(text) !== m.text) this.keepVersion(m, 'edit')
     Object.assign(m, { text: String(text), edited: true })
     this.refreshPreview(this.canon(jid))
     return m
@@ -498,6 +518,7 @@ export class Store {
       quote: this.quoteView(m.quote),
       deleted: !!m.deleted,
       edited: !!m.edited,
+      hist: this.histOn?.() && m.hist?.length ? m.hist.length : undefined,
       fwd: m.fwd && !m.deleted ? m.fwd : undefined, // forwarding score (hops)
       senderName: group && !m.fromMe && m.sender ? this.displayName(m.sender) : '',
       sender: group && !m.fromMe ? m.sender : undefined,

@@ -101,6 +101,7 @@ let todo = null // Gavin's Todolist (set up below, once sign-in helpers exist)
 
 function startSession(user, delay = 0) {
   const s = new Session({ key: user.username, label: user.name, dir: path.join(DATA_DIR, user.dir) })
+  s.store.histOn = () => !!auth.get(user.username)?.msgHistory // message history: only if the main admin turned it on
   sessions.set(user.username, s)
   todo?.attach(user.username, s) // WhatsApp Buddy hears "td …" and replies to the bot
   s.schedule(delay)
@@ -116,6 +117,16 @@ const esc = (s) =>
 
 const templates = {}
 const tpl = (f) => (templates[f] ??= fs.readFileSync(path.join(PUBLIC, f), 'utf8'))
+/**
+ * Parts of a page only some people get (message history). Marked <!--vault:start-->…<!--vault:end-->
+ * in markup and /*vault:start*\/…/*vault:end*\/ in scripts: taken out entirely for everyone else,
+ * so it isn't in their page source at all; for the allowed, just the markers go.
+ */
+function vault(html, allowed) {
+  const re = [/<!--vault:start-->[\s\S]*?<!--vault:end-->/g, /\/\*vault:start\*\/[\s\S]*?\/\*vault:end\*\//g]
+  if (!allowed) return re.reduce((h, r) => h.replace(r, ''), html)
+  return html.replace(/<!--vault:(start|end)-->|\/\*vault:(start|end)\*\//g, '')
+}
 const render = (f, vars) =>
   Object.entries({ BRAND, VERSION, APPV: APP_VERSION, ...vars }).reduce((s, [k, v]) => s.replaceAll(`__${k}__`, esc(v)), tpl(f))
 
@@ -299,7 +310,7 @@ async function route(req, res) {
       let html = render('admin.html', { ADMIN_ENV: auth.adminFromEnv ? '1' : '0', ME: actor })
       // backups hold everyone's WhatsApp logins and chats: only the ADMIN_PASSWORD login sees the option
       if (c?.k !== 'admin') html = html.replace(/<!--backup[\s\S]*?<!--\/backup-->\s*/, '')
-      return page(res, html)
+      return page(res, vault(html, c?.k === 'admin'))
     }
     if (!isAdmin) throw new HttpError(401, 'Admin login required')
 
@@ -323,6 +334,7 @@ async function route(req, res) {
             connectedSince: s?.connectedAt || null,
             reconnects: s?.reconnects || 0,
             storageBytes: storageOf(u),
+            ...(c?.k === 'admin' ? { history: !!u.msgHistory } : {}), // the main admin login only
           }
         })
       )
@@ -400,6 +412,16 @@ async function route(req, res) {
         return json(res, eggMessages())
       }
     }
+    // message history on/off: the ADMIN_PASSWORD login only; for anyone else this address doesn't exist
+    m = p.match(/^\/admin\/api\/users\/([^/]+)\/history$/)
+    if (m && M === 'POST' && c?.k === 'admin') {
+      requireJson(req)
+      const username = decodeURIComponent(m[1])
+      const { on } = await readJson(req)
+      const u = auth.setMsgHistory(username, !!on)
+      console.log(`[admin] message history ${u.msgHistory ? 'on' : 'off'} for ${username}`)
+      return json(res, { history: !!u.msgHistory })
+    }
     m = p.match(/^\/admin\/api\/users\/([^/]+)(?:\/(reset|unlink|rename|admin))?$/)
     if (m) {
       const username = decodeURIComponent(m[1])
@@ -456,7 +478,7 @@ async function route(req, res) {
     if (rest === '') return redirect(res, `/u/${username}/`)
     const u = auth.get(username)
     sessions.get(username)?.wake()
-    return page(res, render('chat.html', { USER: username, LABEL: u.name, IS_ADMIN: u.isAdmin ? '1' : '' }))
+    return page(res, vault(render('chat.html', { USER: username, LABEL: u.name, IS_ADMIN: u.isAdmin ? '1' : '' }), !!u.msgHistory))
   }
   if (rest === '/status' || rest === '/status/') {
     if (!allowed) return redirect(res, '/')
@@ -517,6 +539,19 @@ async function route(req, res) {
     // only when the page says you're looking at it (not on background refreshes)
     if (!q.beforeId && url.searchParams.get('read') === '1') s.markRead(jid)
     return json(res, s.store.messageList(jid, s.me?.jid, q))
+  }
+  // message history (deleted and edited messages): only for accounts the main admin turned it on for
+  if ((api === '/history' || api === '/history-media') && auth.get(username)?.msgHistory) {
+    if (!jid) throw new HttpError(400, 'jid required')
+    const id = url.searchParams.get('id')
+    if (api === '/history') {
+      const h = s.store.historyOf(jid, id)
+      if (!h) throw new HttpError(404, 'No earlier versions kept for this message')
+      return json(res, h)
+    }
+    const out = await s.media(jid, id, { version: Number(url.searchParams.get('n')) })
+    if (!out) throw new HttpError(404, 'Media not available')
+    return send(res, 200, out.buffer, { 'content-type': out.mime, 'cache-control': 'no-store' })
   }
   if (api === '/media') {
     const out = await s.media(jid, url.searchParams.get('id'))

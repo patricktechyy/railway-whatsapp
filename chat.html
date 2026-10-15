@@ -1289,6 +1289,7 @@ html:root[data-theme="dark"][data-accent]{--out:color-mix(in srgb,var(--accent) 
 const USER = '__USER__';
 const api = (p) => `/u/${USER}/api${p}`;
 const $ = (s) => document.querySelector(s);
+let bubbleExtra = () => '';   // extra bits under a bubble's text (set by optional parts of the page)
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 let replyTo = null;
@@ -1709,7 +1710,7 @@ function bubble(m) {
   const mm = m.pending || m.failed || String(m.id).startsWith('tmp') ? '' : `<button class="mm" data-mm="${esc(m.id)}" title="Edit or delete">⋯</button>`;
   const ed = m.edited && !m.deleted ? '<span class="edl">edited</span>' : '';
   const fw = m.fwd && !m.deleted ? `<div class="fwd">${FWD_ICON}${m.fwd >= 5 ? 'Forwarded many times' : 'Forwarded'}</div>` : '';
-  return `<div class="m ${m.fromMe ? 'me' : ''} ${(m.type === 'sticker' || m.type === 'ptv') && !m.deleted ? 'sticker' : ''} ${m.pending ? 'pending' : ''} ${m.failed ? 'failed' : ''}" data-id="${esc(m.id)}"><div class="hov">${m.deleted ? '' : rp}${ra}${mm}</div>${who}${fw}${m.deleted ? '' : q}${body}<span class="t">${ed}${fmtTime(m.ts)}${tick}</span>${m.deleted ? '' : rxbar}</div>`;
+  return `<div class="m ${m.fromMe ? 'me' : ''} ${(m.type === 'sticker' || m.type === 'ptv') && !m.deleted ? 'sticker' : ''} ${m.pending ? 'pending' : ''} ${m.failed ? 'failed' : ''}" data-id="${esc(m.id)}"><div class="hov">${m.deleted ? '' : rp}${ra}${mm}</div>${who}${fw}${m.deleted ? '' : q}${body}${bubbleExtra(m)}<span class="t">${ed}${fmtTime(m.ts)}${tick}</span>${m.deleted ? '' : rxbar}</div>`;
 }
 function renderMsgs(stick) {
   const box = $('#msgs');
@@ -4685,3 +4686,56 @@ stream();
   }));
 })();
 </script>
+<!--vault:start-->
+<style>
+.m .hx{display:flex;width:max-content;align-items:center;gap:5px;margin:5px 0 0;padding:3px 9px;border:1px solid var(--line);border-radius:999px;background:var(--panel);color:var(--muted);font:inherit;font-size:12px;font-weight:600;cursor:pointer}
+.m .hx:hover{color:var(--ink)}
+.m .hx svg{width:13px;height:13px}
+#histList{display:flex;flex-direction:column;gap:10px;max-height:min(60vh,520px);overflow:auto;margin:6px 0 4px}
+.hv{border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:var(--field)}
+.hv .hv-k{font-size:12px;color:var(--muted);font-weight:600;margin-bottom:4px}
+.hv .hv-t{white-space:pre-wrap;word-break:break-word;font-size:14.5px}
+.hv.now{background:none;border-style:dashed}
+.hv img,.hv video{max-width:100%;max-height:260px;border-radius:8px;display:block;margin-top:4px}
+.hv audio{width:100%;margin-top:4px}
+</style>
+<div class="overlay" id="histDlg">
+  <div class="dlg" role="dialog" aria-modal="true" aria-labelledby="histTitle">
+    <h3 id="histTitle">Message history</h3>
+    <div id="histList"></div>
+    <div class="acts"><button type="button" class="btn" id="histX">Done</button></div>
+  </div>
+</div>
+<script>
+// Message history: what a message said before it was deleted or edited (this account only).
+(() => {
+  const ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/></svg>';
+  bubbleExtra = (m) => m.hist ? `<button type="button" class="hx" data-hx="${esc(m.id)}">${ICON}${m.deleted ? 'See what it said' : `See edits (${m.hist})`}</button>` : '';
+  const when = (ms) => new Date(ms).toLocaleString([], {day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit'});
+  const label = (v) => v.kind === 'deleted' ? `Before it was deleted · ${when(v.at)}` : `Before the edit at ${when(v.at)}`;
+  async function show(id) {
+    const jid = current; if (!jid) return;
+    $('#histList').innerHTML = '<div class="empty">Loading…</div>';
+    $('#histDlg').classList.add('on');
+    try {
+      const h = await call('GET', `/history?jid=${encodeURIComponent(jid)}&id=${encodeURIComponent(id)}`);
+      const media = (v) => {
+        if (!v.media) return '';
+        const src = api(`/history-media?jid=${encodeURIComponent(jid)}&id=${encodeURIComponent(id)}&n=${v.n}` + ckq(jid));
+        if (v.type === 'image' || v.type === 'sticker') return `<img src="${esc(src)}" alt="">`;
+        if (v.type === 'video' || v.type === 'ptv') return `<video src="${esc(src)}" controls playsinline></video>`;
+        if (v.type === 'audio') return `<audio src="${esc(src)}" controls></audio>`;
+        return `<a class="lnk" href="${esc(src)}" target="_blank" rel="noopener">${esc(v.fileName || 'Open the file')}</a>`;
+      };
+      $('#histList').innerHTML = h.versions.map(v => `<div class="hv"><div class="hv-k">${esc(label(v))}</div>${v.text ? `<div class="hv-t">${rich(v.text)}</div>` : ''}${media(v)}</div>`).join('') +
+        `<div class="hv now"><div class="hv-k">Now</div><div class="hv-t">${h.now.deleted ? '<i>Deleted</i>' : rich(h.now.text || '')}</div></div>`;
+    } catch (x) { $('#histList').innerHTML = `<div class="empty">${esc(x.message)}</div>`; }
+  }
+  $('#msgs').addEventListener('click', e => { const b = e.target.closest('[data-hx]'); if (b) { e.stopPropagation(); show(b.dataset.hx); } });
+  $('#histX').addEventListener('click', () => $('#histDlg').classList.remove('on'));
+  $('#histDlg').addEventListener('click', e => { if (e.target.id === 'histDlg') $('#histDlg').classList.remove('on'); });
+  addEventListener('keydown', e => { if (e.key === 'Escape' && $('#histDlg').classList.contains('on')) { e.preventDefault(); e.stopImmediatePropagation(); $('#histDlg').classList.remove('on'); } }, true);
+  if (current) renderMsgs(false);
+})();
+</script>
+<!--vault:end-->

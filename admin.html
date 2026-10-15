@@ -242,7 +242,7 @@ async function load() {
       <div class="av">${esc(Array.from((u.name || u.username).split(/\s+/).map(w => Array.from(w)[0] || '').join('')).slice(0, 2).join('').toUpperCase())}</div>
       <div class="who">
         <div class="l1"><b>${esc(u.name)}</b><span>@${esc(u.username)}</span>${u.phone ? `<span>${esc(u.phone)}</span>` : ''}</div>
-        <div class="tags">${u.isAdmin ? '<span class="badge ok">Admin</span>' : ''}${presence}<span class="badge ${tone}">${esc(st)}</span><span class="badge ${pw[1]}">${pw[0]}</span></div>
+        <div class="tags">${u.isAdmin ? '<span class="badge ok">Admin</span>' : ''}/*vault:start*/${u.history ? '<span class="badge">Message history on</span>' : ''}/*vault:end*/${presence}<span class="badge ${tone}">${esc(st)}</span><span class="badge ${pw[1]}">${pw[0]}</span></div>
         ${meta.length ? `<div class="meta">${meta.map(m => `<span>${esc(m)}</span>`).join('')}</div>` : ''}
         ${u.error && u.status !== 'connected' ? `<div class="err">${esc(u.error)}</div>` : ''}
       </div>
@@ -250,6 +250,7 @@ async function load() {
         <button data-a="link">${u.hasPassword ? 'Reset password' : 'New setup link'}</button>
         <button data-a="rename">Rename</button>
         <button data-a="admin">${u.isAdmin ? 'Remove admin' : 'Make admin'}</button>
+        /*vault:start*/<button data-a="history" data-on="${u.history ? '1' : ''}">${u.history ? 'Turn off message history' : 'Turn on message history'}</button>/*vault:end*/
         <button data-a="unlink" ${u.linked || u.status === 'connected' ? '' : 'disabled'}>Unlink phone</button>
         ${u.username === ME ? '' : '<hr><button data-a="delete" class="risky">Remove account</button>'}
       </div></details>
@@ -294,7 +295,15 @@ $('#list').addEventListener('click', async (e) => {
       await call('POST', url + '/admin', {admin: makeIt});
       toast(makeIt ? `${n} is now an admin` : `${n} is no longer an admin`);
       if (self && !makeIt) { location.href = '/'; return; }
-    } else if (a === 'rename') {
+    }/*vault:start*/ else if (a === 'history') {
+      const on = !b.dataset.on;
+      const msg = on
+        ? `Turn on message history for ${n}?\n\nFrom now on, when a message in their chats is deleted or edited, they can still see what it said before. Only they see it, and only you can turn it on or off. Other admins don't see this option.`
+        : `Turn off message history for ${n}?\n\nThey won't see deleted or edited messages' earlier versions any more, and nothing new is kept.`;
+      if (!confirm(msg)) return;
+      await call('POST', url + '/history', {on});
+      toast(on ? `Message history on for ${n}` : `Message history off for ${n}`);
+    }/*vault:end*/ else if (a === 'rename') {
       const name = prompt(`New display name for @${u}`, n);
       if (name === null || !name.trim() || name.trim() === n) return;
       await call('POST', url + '/rename', {name}); toast('Renamed');

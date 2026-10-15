@@ -1246,6 +1246,7 @@ export class Session extends EventEmitter {
       quote: this.store.quoteView(m.quote),
       deleted: !!m.deleted,
       edited: !!m.edited,
+      hist: this.store.histOn?.() && m.hist?.length ? m.hist.length : undefined,
       fwd: m.fwd && !m.deleted ? m.fwd : undefined,
       senderName: isGroup(m.jid) && !m.fromMe && m.sender ? this.store.displayName(m.sender) : '',
       sender: isGroup(m.jid) && !m.fromMe ? m.sender : undefined,
@@ -2218,11 +2219,12 @@ export class Session extends EventEmitter {
     for (const j of jids) this.markRead(j).catch(() => {})
   }
 
-  async media(jid, id) {
+  async media(jid, id, { version } = {}) {
     const m = this.store.findMessage(jid, id)
-    if (!m?.rm) return null
+    const rm = version != null ? (this.store.histOn?.() ? m?.hist?.[version]?.rm : null) : m?.rm
+    if (!rm) return null
     const B = await loadBaileys()
-    let raw = fromJsonSafe(m.rm)
+    let raw = fromJsonSafe(rm)
     let lastError
 
     for (let attempt = 1; attempt <= MEDIA_DOWNLOAD_ATTEMPTS; attempt++) {

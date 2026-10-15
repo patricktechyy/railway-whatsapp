@@ -275,6 +275,16 @@ export class Auth {
     return u
   }
 
+  /** Message history (deleted and edited messages kept): only the ADMIN_PASSWORD login turns it on. */
+  setMsgHistory(username, on) {
+    const u = this.get(username)
+    if (!u) throw new HttpError(404, 'No such user')
+    if (on) u.msgHistory = true
+    else delete u.msgHistory
+    this.save()
+    return u
+  }
+
   markSeen(username, version) {
     this.refresh()
     const u = this.get(username)
