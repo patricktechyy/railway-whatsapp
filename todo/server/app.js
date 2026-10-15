@@ -18,6 +18,7 @@ import { parseQuickAdd } from './quickadd.js'
 import { Exams } from './exams.js'
 import { StudyPlans } from './study.js'
 import { QuickReminders } from './quickremind.js'
+import { gzipped } from './gzip.js'
 
 /**
  * Gavin's Todolist, as a part of Whats Up.
@@ -113,6 +114,7 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
     if (res.revOf && !res.headersSent) {
       try { headers = { ...headers, 'x-rev': String(store.snapshot(res.revOf).rev) } } catch {}
     }
+    ;({ body, headers } = gzipped(res, body, headers))
     res.writeHead(code, {
       'cache-control': 'no-store',
       'x-content-type-options': 'nosniff',

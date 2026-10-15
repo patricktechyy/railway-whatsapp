@@ -705,6 +705,8 @@ body.todo #rail,body.todo #railHot{display:none!important}
 #composer>#send{margin-bottom:1px}
 #emojiPanel{left:auto;right:74px}
 @media (min-width:761px){#archChip{display:none}}
+.m .jumbo{display:block;font-size:40px;line-height:1.15;letter-spacing:2px;padding:2px 0}
+.seg-help{color:var(--muted);font-size:12px;margin:6px 0 0}
 /* the account name for password managers: there (so they pair the password with it, not with the chat search), never seen */
 .pm-user{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;border:0!important;opacity:0!important;pointer-events:none!important;clip-path:inset(50%)}
 /* chat lock */
@@ -1180,6 +1182,7 @@ html:root[data-theme="dark"][data-accent]{--out:color-mix(in srgb,var(--accent) 
     <div class="seg" data-p="size"><button data-v="small">Small</button><button data-v="normal">Normal</button><button data-v="large">Large</button></div>
     <label>Enter key</label>
     <div class="seg" data-p="enter"><button data-v="auto">Auto</button><button data-v="send">Sends</button><button data-v="newline">New line</button></div>
+    <p class="seg-help">Auto: Enter sends on computers, adds a new line on phones.</p>
     <label>Left bar</label>
     <div class="seg" data-p="rail"><button data-v="show">Always show</button><button data-v="auto">Auto-hide</button></div>
     <label>Chat list privacy blur</label>
@@ -1210,7 +1213,7 @@ html:root[data-theme="dark"][data-accent]{--out:color-mix(in srgb,var(--accent) 
     <label>Sound while Whats Up is open</label>
     <div class="seg" data-p="msgSound"><button data-v="on">On</button><button data-v="off">Off</button></div>
     <p style="color:var(--muted);font-size:12px;margin:8px 0 0">Mute a chat with <b>🔕 Mute</b> at the top of it. Chats you muted on your phone stay quiet here too.</p>
-    <p style="color:var(--muted);font-size:12px;margin:14px 0 0">Auto: Enter sends on computers, adds a new line on phones. Saved on this device only.</p>
+    <p style="color:var(--muted);font-size:12px;margin:14px 0 0">These settings are saved on this device only.</p>
     <div class="acts"><button type="button" class="btn" id="prefsX">Done</button></div>
   </div>
 </div>
@@ -1289,6 +1292,7 @@ html:root[data-theme="dark"][data-accent]{--out:color-mix(in srgb,var(--accent) 
 const USER = '__USER__';
 const api = (p) => `/u/${USER}/api${p}`;
 const $ = (s) => document.querySelector(s);
+const JUMBO = /^\s*(?:(?:\p{Extended_Pictographic}|\p{Regional_Indicator}{2})(?:\uFE0F|\p{Emoji_Modifier}|\u200D(?:\p{Extended_Pictographic})\uFE0F?)*\s*){1,3}$/u;
 let bubbleExtra = () => '';   // extra bits under a bubble's text (set by optional parts of the page)
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
@@ -1687,7 +1691,8 @@ function bubble(m) {
   } else if (m.type === 'contact') {
     body = `<span class="note">👤 ${esc(m.text)}</span>`;
   } else {
-    body = mentionize(rich(m.text), m.mentions);
+    // just one to three emoji (no words): shown big, like WhatsApp
+    body = JUMBO.test(m.text || '') ? `<span class="jumbo">${esc(m.text.trim())}</span>` : mentionize(rich(m.text), m.mentions);
   }
   let tick = '';
   if (m.failed) tick = ' <span class="tick">⚠️</span>';
@@ -2480,7 +2485,7 @@ function renderInfo() {
   const n = counts.media + counts.docs + counts.links;
   let h = `<div class="ihero"><div class="av${info.group ? ' g' : ''}">${esc(info.group ? '👥' : initials(info.name))}<img src="${esc(api('/avatar?jid=' + encodeURIComponent(info.jid) + ckq(info.jid)))}" alt="" onerror="this.remove()"></div>` +
     `<h2>${esc(c.name || info.name)}</h2>${sub ? `<p class="isub">${esc(sub)}</p>` : ''}${!info.group && info.notify && info.notify !== (c.name || info.name) ? `<p class="isub">~${esc(info.notify)}</p>` : ''}</div>`;
-  if (info.about) h += `<section class="isec"><h4>About</h4><p>${rich(info.about)}</p>${info.aboutAt ? `<small>${esc(new Date(info.aboutAt).toLocaleDateString([], {day: 'numeric', month: 'long', year: 'numeric'}))}</small>` : ''}</section>`;
+  if (info.about?.trim()) h += `<section class="isec"><h4>About</h4><p>${rich(info.about)}</p>${info.aboutAt ? `<small>${esc(new Date(info.aboutAt).toLocaleDateString([], {day: 'numeric', month: 'long', year: 'numeric'}))}</small>` : ''}</section>`;
   if (info.group && info.grp?.desc) h += `<section class="isec"><h4>Description</h4><p>${rich(info.grp.desc)}</p></section>`;
   h += `<section class="isec"><button class="irow" data-info="media">${ICO.media}<span>Media, links and docs</span><span class="iv">${info.loading ? '…' : n}${ICO.chev}</span></button>`;
   if (info.recent?.length) h += `<div class="ithumbs">${info.recent.slice(0, 3).map(x => thumb(x)).join('')}</div>`;
@@ -2628,7 +2633,7 @@ $('#prefs').addEventListener('click', e => {
 });
 document.addEventListener('keydown', e => {
   const typing = /^(INPUT|TEXTAREA)$/.test(document.activeElement?.tagName);
-  if ((e.key === '/' && !typing) || (e.key.toLowerCase() === 'k' && (e.ctrlKey || e.metaKey))) {
+  if ((e.key === '/' && !typing) || ((e.key || '').toLowerCase() === 'k' && (e.ctrlKey || e.metaKey))) {
     e.preventDefault(); $('#newchat').classList.remove('on'); document.body.classList.remove('open'); unlockChatSearch(); $('#search').focus(); $('#search').select();
   } else if (e.key === 'Escape' && !$('#emojiPanel').hidden) {
     closeEmoji();
@@ -2706,7 +2711,11 @@ function openEmoji() {
   $('#emojiPanel').hidden = false;
   if (innerWidth > 760) $('#emojiSearch').focus();
 }
-function closeEmoji() { $('#emojiPanel').hidden = true; }
+function closeEmoji() {
+  const inside = $('#emojiPanel').contains(document.activeElement) || document.activeElement === $('#emojiBtn');
+  $('#emojiPanel').hidden = true;
+  if (inside && current && !$('#text').disabled) $('#text').focus();   // back to typing, like WhatsApp
+}
 $('#emojiBtn').addEventListener('click', e => { e.stopPropagation(); $('#emojiPanel').hidden ? openEmoji() : closeEmoji(); });
 $('#emojiSearch').addEventListener('input', renderEmoji);
 $('#emojiSearch').addEventListener('keydown', e => {
@@ -3238,7 +3247,7 @@ $('#lockForgot').addEventListener('click', () => {
 document.addEventListener('keydown', e => {
   if (locked && e.target?.id !== 'lockPin') { e.preventDefault(); e.stopImmediatePropagation(); $('#lockPin').focus(); return; }
   const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName);
-  if (e.key.length === 1) { keyTrail = (Date.now() - keyTrailAt > 2000 ? '' : keyTrail).slice(-8) + e.key.toLowerCase(); keyTrailAt = Date.now(); }
+  if (e.key?.length === 1) { keyTrail = (Date.now() - keyTrailAt > 2000 ? '' : keyTrail).slice(-8) + e.key.toLowerCase(); keyTrailAt = Date.now(); }
   if (!locked && !typing && (e.key === 'l' || e.key === 'L') && !keyTrail.endsWith('hanzel') && !e.ctrlKey && !e.metaKey && !e.altKey && lockData()) { e.preventDefault(); lockApp(); }
 }, true);
 for (const ev of ['mousemove', 'keydown', 'touchstart', 'click', 'scroll']) document.addEventListener(ev, () => { lastActive = Date.now(); }, {passive: true, capture: true});
@@ -3476,6 +3485,7 @@ function syncRail() {
   $('#rArch').classList.toggle('on', arch && !todo);
 
   $('#rArchN').hidden = true;   // no count on Archived: archiving is meant to put chats out of mind
+  $('.ctitle').textContent = arch ? 'Archived' : 'Chats';   // the list's title says where you are
   const bl = document.documentElement.dataset.blur === 'on';
   $('#rBlur').classList.toggle('on', bl);
   $('#rBlur').title = bl ? 'Unblur chat list (B)' : 'Blur chat list (B)';
@@ -3782,7 +3792,7 @@ function closeChat() {
   return true;
 }
 document.addEventListener('keydown', e => {
-  if (e.key.startsWith('Arrow')) lastArrowAt = Date.now();
+  if (e.key?.startsWith('Arrow')) lastArrowAt = Date.now();   // (autofill sends key events with no key)
   if (locked || panicOn) return;
   const ae = document.activeElement;
   const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(ae?.tagName) || ae?.isContentEditable;
@@ -4357,7 +4367,15 @@ for (const ev of ['pointerup', 'pointercancel']) $('#msgs').addEventListener(ev,
   if (lp) { clearTimeout(lp.t); lp = null; }
   if (lpFired) { lpFired = false; lpSkipClick = Date.now() + 500; }   // the release isn't a tap
 }, {passive: true});
-$('#msgs').addEventListener('contextmenu', e => { if (selMode || lpFired) e.preventDefault(); });
+$('#msgs').addEventListener('contextmenu', e => {
+  if (selMode || lpFired) { e.preventDefault(); return; }
+  const el = e.target.closest('.m[data-id]');
+  if (!el || e.target.closest('a, img, video, audio') || !el.querySelector('[data-mm]')) return;
+  const s = getSelection();
+  if (String(s || '').trim() && el.contains(s.anchorNode)) return;   // copying selected text: the browser's own menu
+  e.preventDefault();
+  openMsgMenu(el.dataset.id, {getBoundingClientRect: () => ({left: e.clientX, right: e.clientX, top: e.clientY, bottom: e.clientY, width: 0, height: 0})});
+});
 // while selecting, a click anywhere on a message's row picks it; nothing inside reacts
 $('#msgs').addEventListener('click', e => {
   if (Date.now() < lpSkipClick) { lpSkipClick = 0; e.preventDefault(); e.stopImmediatePropagation(); return; }
@@ -4711,8 +4729,9 @@ stream();
 (() => {
   const ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/></svg>';
   bubbleExtra = (m) => m.hist ? `<button type="button" class="hx" data-hx="${esc(m.id)}">${ICON}${m.deleted ? 'See what it said' : `See edits (${m.hist})`}</button>` : '';
-  const when = (ms) => new Date(ms).toLocaleString([], {day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit'});
-  const label = (v) => v.kind === 'deleted' ? `Before it was deleted · ${when(v.at)}` : `Before the edit at ${when(v.at)}`;
+  const when = (ms) => { const d = new Date(ms), t = d.toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'});
+    return d.toDateString() === new Date().toDateString() ? `Today, ${t}` : `${d.toLocaleDateString([], {day: 'numeric', month: 'short'})}, ${t}`; };
+  const label = (v) => `${v.kind === 'deleted' ? 'Before it was deleted' : 'Before the edit'} · ${when(v.at)}`;
   async function show(id) {
     const jid = current; if (!jid) return;
     $('#histList').innerHTML = '<div class="empty">Loading…</div>';

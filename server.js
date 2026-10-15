@@ -8,6 +8,7 @@ import { Auth, COOKIE, HttpError, MIN_PASSWORD } from './auth.js'
 import { createTodo } from './todo/server/app.js'
 import { Scheduler } from './schedule.js'
 import { streamBackup } from './backup.js'
+import { gzipped } from './todo/server/gzip.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 // Works both flat (repo root) and in the Docker layout (src/ + public/).
@@ -131,6 +132,7 @@ const render = (f, vars) =>
   Object.entries({ BRAND, VERSION, APPV: APP_VERSION, ...vars }).reduce((s, [k, v]) => s.replaceAll(`__${k}__`, esc(v)), tpl(f))
 
 function send(res, code, body, headers = {}) {
+  ;({ body, headers } = gzipped(res, body, headers))
   res.writeHead(code, {
     'cache-control': 'no-store',
     'x-content-type-options': 'nosniff',
@@ -743,6 +745,7 @@ async function route(req, res) {
 }
 
 const server = http.createServer(async (req, res) => {
+  res.gzipOk = /\bgzip\b/.test(String(req.headers['accept-encoding'] || '')) // text responses go out gzipped
   try {
     await route(req, res)
   } catch (e) {

@@ -383,6 +383,8 @@ body.resizing .app, body.resizing .app::before, body.resizing .resize-handle { t
 .cal-date { align-self: flex-start; border: 0; background: none; padding: 0; display: flex; align-items: baseline; gap: 6px; }
 .cal-date .num { display: inline-grid; place-items: center; min-width: 28px; height: 28px; border-radius: 50%; font-size: var(--t-sm); font-weight: 650; }
 .cal-date .dow { font-size: var(--t-xs); color: var(--muted); font-weight: 600; }
+/* the week's column headers already say the day; the in-cell one is for phones, where those headers hide */
+.cal-grid.week .cal-date .dow { display: none; }
 .cal-day.today .num { background: var(--leaf); color: var(--leaf-ink); }
 .cal-chips { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .cal-chip {
@@ -1248,6 +1250,7 @@ body.resizing-board.y { cursor: ns-resize; } body.resizing-board.xy { cursor: nw
   .range-presets { margin-left: 0; }
   .range-field .input { min-width: 0; }
   .cal-grid.week .cal-dow { display: none; }
+  .cal-grid.week .cal-date .dow { display: inline; }
   .cal-grid.week .cal-day { min-height: 0; border-right: 0; border-bottom: 1px solid var(--line); flex-direction: row; align-items: flex-start; gap: 12px; }
   .cal-grid.week .cal-date { flex-direction: column; align-items: center; gap: 0; width: 34px; }
   .cal-grid.week .cal-chips { flex: 1; padding-top: 4px; }

@@ -380,7 +380,7 @@ function Shell({ me, setMe }: { me: Me; setMe: (m: Me | null) => void }) {
       active()
       const el = e.target as HTMLElement
       if (el.closest?.('input, textarea, select, [contenteditable], dialog') || e.metaKey || e.ctrlKey || e.altKey) return
-      const k = e.key.toLowerCase()
+      const k = (e.key || '').toLowerCase() // autofill sends key events with no key
       if (k === 'c' || k === 'p' || k === 'l' || k === 't') { e.preventDefault(); toWhatsUp({ type: 'key', key: k }) }
     }
     window.addEventListener('keydown', onKey)
@@ -532,7 +532,7 @@ function Shell({ me, setMe }: { me: Me; setMe: (m: Me | null) => void }) {
       const future = active.filter((t) => t.due && t.due > today && matches(t)).sort(byDue)
       const days = Array.from({ length: 14 }, (_, i) => addDays(today, i + 1))
       groups = [
-        ...days.map((k) => ({ key: k, title: `${formatDay(k)}${daysBetween(today, k) > 1 ? ` · ${fromKey(k).getDate()} ${MONTHS[fromKey(k).getMonth()].slice(0, 3)}` : ''}${holidayName(k) ? ` · ${holidayName(k)}` : ''}`, tasks: future.filter((t) => t.due === k) })),
+        ...days.map((k) => ({ key: k, title: `${formatDay(k)}${daysBetween(today, k) > 1 && daysBetween(today, k) < 7 ? ` · ${fromKey(k).getDate()} ${MONTHS[fromKey(k).getMonth()].slice(0, 3)}` : ''}${holidayName(k) ? ` · ${holidayName(k)}` : ''}`, tasks: future.filter((t) => t.due === k) })),
         { key: 'later', title: 'Later', tasks: future.filter((t) => t.due! > days[days.length - 1]) },
       ]
       scope = tasks.filter((t) => t.due && t.due > today && matches(t))

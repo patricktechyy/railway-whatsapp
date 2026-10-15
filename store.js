@@ -466,7 +466,7 @@ export class Store {
         profile: this.profileName(c.jid),
         t: c.t,
         unread: c.unread || 0,
-        preview: c.preview || '',
+        preview: plainPreview(c.preview),
         group: isGroup(c.jid),
         archived: !!c.localArchived,
         pinned: !!c.localPinned,
@@ -592,6 +592,12 @@ function pickDefined(o = {}) {
   for (const [k, v] of Object.entries(o || {})) if (v != null && v !== '') r[k] = v
   return r
 }
+
+/** A chat-list preview reads as plain text: WhatsApp's *bold* _italic_ ~strike~ marks come off, lines join up. */
+export const plainPreview = (s) => String(s || '')
+  .replace(/(^|[\s(])([*_~])(?=\S)([^\n]*?\S)\2(?=$|[\s).,!?:;])/g, '$1$3')
+  .replace(/\s*\n+\s*/g, ' ')
+  .trim()
 
 export function previewOf(msg, store) {
   if (msg.deleted) return msg.fromMe ? '🚫 You deleted this message' : '🚫 This message was deleted'

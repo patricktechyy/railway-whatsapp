@@ -33,9 +33,16 @@ export function examTime(e: Pick<Exam, 'start' | 'minutes'>) {
 }
 const lengthText = (m: number | null) => (!m ? '' : m < 60 ? `${m} min` : `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60} min` : ''}`)
 export const examTitle = (e: Pick<Exam, 'subject' | 'paper'>) => `${e.subject}${e.paper ? ` ${e.paper}` : ''}`
-function countdown(date: string, today: string) {
+/** Finished: an earlier day, or today once its time is up (an hour if its length isn't known). */
+function isOver(e: Pick<Exam, 'date' | 'start' | 'minutes'>, today: string, now = new Date()) {
+  if (e.date !== today) return e.date < today
+  if (!e.start) return false
+  const [h, m] = e.start.split(':').map(Number)
+  return now.getHours() * 60 + now.getMinutes() >= h * 60 + m + (e.minutes || 60)
+}
+function countdown(date: string, today: string, e?: Pick<Exam, 'date' | 'start' | 'minutes'>) {
   const n = daysBetween(today, date)
-  return n < 0 ? 'Done' : n === 0 ? 'Today' : n === 1 ? 'Tomorrow' : `in ${n} days`
+  return n < 0 || (e && isOver(e, today)) ? 'Done' : n === 0 ? 'Today' : n === 1 ? 'Tomorrow' : `in ${n} days`
 }
 const longDate = (k: string) => {
   const d = fromKey(k)
@@ -211,14 +218,14 @@ function PickSchool({ schools, onPick }: { schools: School[]; onPick: (id: strin
 
 /** The next paper, big, with a countdown, and how far through the exams you are. */
 function NextUp({ exams, today, onOpen, onPlan }: { exams: Exam[]; today: string; onOpen: (e: Exam) => void; onPlan?: () => void }) {
-  const next = exams.find((e) => e.date >= today)
+  const next = exams.find((e) => !isOver(e, today)) // today's paper that's already over doesn't count as next
   if (!next) {
     return exams.length ? <div className="ex-next done card"><span className="ex-next-big"><Icon name="done" /></span><div><b>All done</b><p className="help">No more exams on the timetable.</p></div></div> : null
   }
   const n = daysBetween(today, next.date)
   // "this exam period": the papers within a few weeks either side of the next one
   const season = exams.filter((e) => Math.abs(daysBetween(next.date, e.date)) <= 28)
-  const done = season.filter((e) => e.date < today).length
+  const done = season.filter((e) => isOver(e, today)).length
   const sameDay = exams.filter((e) => e.date === next.date && e.id !== next.id)
   return (
     <div className={`ex-next card ${subjectColor(next.subject)}`}>
@@ -313,7 +320,7 @@ function ExamList({ exams, today, weekStartsMonday, schoolName, onOpen }: { exam
     const n = daysBetween(today, e.date)
     return (
       <li key={e.id}>
-        <button className={`ex-row ${subjectColor(e.subject)}${e.date < today ? ' past' : ''}`} onClick={() => onOpen(e)}>
+        <button className={`ex-row ${subjectColor(e.subject)}${isOver(e, today) ? ' past' : ''}`} onClick={() => onOpen(e)}>
           <span className="ex-date" aria-hidden="true"><small>{WEEKDAYS[dd.getDay()]}</small><b>{dd.getDate()}</b><small>{MONTHS[dd.getMonth()].slice(0, 3)}</small></span>
           <span className="ex-row-body">
             <span className="ex-row-title">{examTitle(e)}{e.who && <span className="ex-who">{e.who}</span>}</span>
@@ -321,7 +328,7 @@ function ExamList({ exams, today, weekStartsMonday, schoolName, onOpen }: { exam
               {[examTime(e), lengthText(e.minutes), e.venue, schoolName ? schoolName(e.school) : ''].filter(Boolean).join(' · ') || 'Time to be confirmed'}
             </span>
           </span>
-          <span className={`ex-when${n === 0 ? ' now' : n > 0 && n <= 3 ? ' soon' : ''}`}>{countdown(e.date, today)}</span>
+          <span className={`ex-when${n === 0 && !isOver(e, today) ? ' now' : n > 0 && n <= 3 ? ' soon' : ''}`}>{countdown(e.date, today, e)}</span>
         </button>
       </li>
     )

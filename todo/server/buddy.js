@@ -513,7 +513,10 @@ export class Buddy {
     if ((m = low.match(/^(?:tick|studied|did|centang)\s+(\d{1,2})$/))) return { reply: this.tickTopic(u, Number(m[1])) }
     if (/^(exams?|ujian)$/.test(low)) return { reply: this.upcomingExams(u, now) }
 
-    const show = (label, list, hint = '_td done 1 · td start 2 · td snooze 3 2h_') => {
+    const show = (label, list, hint) => {
+      // the example numbers are ones on this list ("done 1 · start 2" on a list of one would point nowhere)
+      const k = (i) => Math.min(i, Math.max(1, Math.min(list.length, MAX_LIST)))
+      hint ||= `_td done ${k(1)} · td start ${k(2)} · td snooze ${k(3)} 2h_`
       this.remember(u, list.slice(0, MAX_LIST).map((t) => t.id))
       if (!list.length) return { reply: `📋 *${label}*: nothing open` }
       return { reply: [`📋 *${label}* (${list.length})`, ...this.numbered(list, today), list.length > MAX_LIST ? `…and ${list.length - MAX_LIST} more` : null, '', hint].filter((x) => x !== null).join('\n') }
