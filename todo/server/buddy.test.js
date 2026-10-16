@@ -276,3 +276,41 @@ test('a task added after its reminder time has passed doesn’t message straight
   await buddy.tick(now)
   assert.ok(!sent.some((x) => /Read a book/.test(x.text || '')))
 })
+
+test('a reply quoting a reminder means that reminder’s task, not the newest one', async () => {
+  const { store, buddy, sent } = setup()
+  const now = Date.now()
+  const vit = store.addTask('gavin', { title: 'Makan Vitamin', wa: { at: now - 5 * 60e3 } })
+  store.change('gavin', (doc) => { doc.tasks.find((x) => x.id === vit.id).createdAt = now - 3600e3; return null })
+  await buddy.tick(now - 4 * 60e3)
+  const scr = store.addTask('gavin', { title: 'collect screen protector', wa: { at: now - 1000 } })
+  await buddy.tick(now)
+  const ids = sent.filter((x) => x.ep === 'send').map((x, i) => ({ text: x.text, id: `msg-${sent.indexOf(x) + 1}` }))
+  const vitMsg = ids.find((m) => m.text.includes('Makan Vitamin'))
+  assert.ok(vitMsg && ids.some((m) => m.text.includes('collect screen protector')))
+  // without a quote, "done" is the newest reminder (as before)…
+  // …but quoting the vitamin reminder ticks the vitamin
+  assert.equal(buddy.useQuoted('gavin', vitMsg.id), true)
+  const r = buddy.command('gavin', 'done')
+  assert.match(r.reply, /Makan Vitamin/)
+  const doc = store.snapshot('gavin')
+  assert.equal(doc.tasks.find((t) => t.id === vit.id).done, true)
+  assert.equal(doc.tasks.find((t) => t.id === scr.id).done, false)
+  // a message Buddy doesn't know: nothing changes
+  assert.equal(buddy.useQuoted('gavin', 'someone-elses-message'), false)
+})
+
+test('a reply quoting an older list: its numbers, not the latest list’s', () => {
+  const { store, buddy } = setup()
+  const today = todayIn(TZ)
+  store.addTask('gavin', { title: 'Alpha', due: today })
+  store.addTask('gavin', { title: 'Beta', due: today })
+  buddy.command('gavin', 'today'); buddy.noteMsg('gavin', 'list-1')
+  store.addTask('gavin', { title: 'Aardvark', due: today, priority: 3 }) // jumps to the top of the next list
+  buddy.command('gavin', 'today'); buddy.noteMsg('gavin', 'list-2')
+  const first = buddy.st('gavin').byMsg['list-1'].codes[1], newest = buddy.st('gavin').codes[1]
+  assert.notEqual(first, newest)
+  buddy.useQuoted('gavin', 'list-1')
+  const r = buddy.command('gavin', 'done 1')
+  assert.match(r.reply, new RegExp(store.snapshot('gavin').tasks.find((t) => t.id === first).title))
+})

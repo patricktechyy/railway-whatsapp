@@ -171,7 +171,32 @@ export class Buddy {
     const out = (this.state[u] ||= { codes: {}, last: null })
     out.codes ||= {}
     out.sent ||= []
+    out.byMsg ||= {}
     return out
+  }
+  /**
+   * What a message Buddy sent was about (its numbered tasks and its one task), keyed by the
+   * WhatsApp message id. A reply that quotes that message means those tasks, not whatever
+   * Buddy happened to mention last.
+   */
+  noteMsg(u, id) {
+    if (!id) return
+    const s = this.st(u)
+    s.byMsg[id] = { codes: { ...s.codes }, last: s.last, at: Date.now() }
+    const cutoff = Date.now() - 14 * 86400e3
+    const keep = Object.entries(s.byMsg).filter(([, v]) => v.at >= cutoff).sort((a, b) => a[1].at - b[1].at).slice(-300)
+    s.byMsg = Object.fromEntries(keep)
+    this.saveState()
+  }
+  /** A reply quoting one of Buddy's messages: back to what that message was about. True if it knew the message. */
+  useQuoted(u, id) {
+    const s = this.state[u]
+    const ctx = id && s?.byMsg?.[id]
+    if (!ctx) return false
+    s.codes = { ...ctx.codes }
+    s.last = ctx.last
+    this.saveState()
+    return true
   }
   /** The numbers in Buddy's last message, so "td done 2" means its second task. */
   remember(u, ids) {
@@ -234,15 +259,17 @@ export class Buddy {
     const s = this.st(u)
     const cutoff = Date.now() - 60 * 3600e3
     s.sent = [...s.sent, { session, jid, id: result.id, at: Date.now(), kind }].filter((x) => x.at >= cutoff).slice(-150)
-    this.saveState()
+    this.noteMsg(u, result.id) // also saves
     return result
   }
-  async send(u, text, { kind = 'buddy' } = {}) {
+  /** tasks: the ids this message is about (numbered in order), so "done" (or a reply quoting it) means them. */
+  async send(u, text, { kind = 'buddy', tasks = null } = {}) {
     if (this.viaBot(u)) {
       const jid = await this.jidOf(u)
       if (jid) {
         try {
           const result = await this.link.call('send', { username: this.botUser, jid, text: plain(text) })
+          if (tasks) this.remember(u, tasks)
           return this.trackSent(u, result, { session: this.botUser, jid: result?.jid || jid, kind })
         } catch (e) {
           console.warn(`[buddy] bot couldn't send to ${u} (${e.message}); using their "Message yourself" chat`)
@@ -250,6 +277,7 @@ export class Buddy {
       }
     }
     const result = await this.link.call('send', { username: u, text })
+    if (tasks) this.remember(u, tasks)
     return this.trackSent(u, result, { session: u, jid: result?.jid, kind })
   }
   /** Best-effort removal of messages Buddy itself sent. WhatsApp limits delete-for-everyone to recent messages. */
@@ -785,8 +813,7 @@ export class Buddy {
         // a time that had already passed when the task was made (added at 8 PM, "on the day" = 9 AM): nothing to remind
         if (at < (t.createdAt || 0) - 60e3) continue
         try {
-          await this.send(u, this.taskMessage(u, t, { now }), { kind: 'reminder' })
-          this.remember(u, [t.id])
+          await this.send(u, this.taskMessage(u, t, { now }), { kind: 'reminder', tasks: [t.id] })
           console.log(`[buddy] ${u}: "${t.title}" → WhatsApp`)
         } catch (e) { console.warn(`[buddy] ${u}: ${e.message}`) }
       }

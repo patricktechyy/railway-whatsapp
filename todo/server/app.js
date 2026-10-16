@@ -388,8 +388,7 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
         // "Message yourself" chat of people who asked for WhatsApp reminders
         if (waOk && (buddy.viaBot(u) || store.snapshot(u).profile.waReminders !== false)) {
           try {
-            await buddy.send(u, `📌 *${byName} gave you a task*\n\n${taskMessage(task, { today: todayIn(tzOf(u)), brand })}`, { kind: 'assignment' })
-            buddy.remember(u, [task.id])
+            await buddy.send(u, `📌 *${byName} gave you a task*\n\n${taskMessage(task, { today: todayIn(tzOf(u)), brand })}`, { kind: 'assignment', tasks: [task.id] })
             whatsapp++
           } catch (e) { console.warn(`[todo/assign] ${u}: WhatsApp failed: ${e.message}`) }
         }
@@ -416,7 +415,7 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
           if (body.whatsapp && link.enabled('reminders') && pr.taskId && (buddy.viaBot(u) || store.snapshot(u).profile.waReminders !== false)) {
             const task = store.snapshot(u).tasks.find((x) => x.id === pr.taskId)
             try {
-              if (task) { await buddy.send(u, `👋 *${rec.byName} is checking on this*\n\n${buddy.taskMessage(u, task)}`, { kind: 'nudge' }); buddy.remember(u, [task.id]); whatsapp++ }
+              if (task) { await buddy.send(u, `👋 *${rec.byName} is checking on this*\n\n${buddy.taskMessage(u, task)}`, { kind: 'nudge', tasks: [task.id] }); whatsapp++ }
             } catch (e) { console.warn(`[todo/nudge] ${u}: WhatsApp failed: ${e.message}`) }
           }
         }
@@ -724,9 +723,20 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
       if (!u) return // not one of us: the bot stays quiet
       // they chose "Message yourself": the bot's number is switched off for them (it never answers)
       if (!buddy.viaBot(u)) return
-      let reply
-      try { reply = QuickReminders.wants(msg.text) ? quick.command(u, msg.text, { via: 'bot', jid }) : botReply(u, msg.text) } catch (e) { reply = `⚠️ ${e.message}` }
-      if (reply) await link.call('send', { username: bot, jid, text: plain(reply) })
+      let reply, quickOne = false
+      try {
+        quickOne = QuickReminders.wants(msg.text)
+        if (quickOne) reply = quick.command(u, msg.text, { via: 'bot', jid })
+        else {
+          // a reply to one of Buddy's messages ("done" under a reminder): that message's task
+          if (msg.quote?.id && buddy.available) buddy.useQuoted(u, msg.quote.id)
+          reply = botReply(u, msg.text)
+        }
+      } catch (e) { reply = `⚠️ ${e.message}` }
+      if (reply) {
+        const r = await link.call('send', { username: bot, jid, text: plain(reply) })
+        if (!quickOne && buddy.available) buddy.noteMsg(u, r?.id) // a reply quoting this answer means what it listed
+      }
       return
     }
 
@@ -746,6 +756,7 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
     if (username !== bot && buddy.viaBot(username) && botView()?.connected) return
     let reply
     const selfBody = stripTodo(msg.text)
+    if (msg.quote?.id && buddy.available) buddy.useQuoted(username, msg.quote.id)
     try {
       const quick = selfBody.match(/^(?:add|new|todo|task|tambah)\s*:?\s+(.+)$/is)
       if (quick) {
@@ -764,7 +775,8 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
         reply = handleInbox(store, username, msg.text, { tz: tzOf(username), brand }).reply
       }
     } catch (e) { reply = `⚠️ ${e.message}` }
-    await link.call('send', { username, text: reply })
+    const r = await link.call('send', { username, text: reply })
+    if (buddy.available) buddy.noteMsg(username, r?.id)
   }
 
   /** Listen to one Whats Up account's WhatsApp (call for every session, including new ones). */
