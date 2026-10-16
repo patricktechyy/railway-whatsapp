@@ -6,6 +6,7 @@ import path from 'node:path'
 import { Store } from './store.js'
 import { Buddy, snoozeUntil, waInstant, waSig } from './buddy.js'
 import { zonedTime, todayIn } from './tz.js'
+import { Reminders } from './reminders.js'
 
 const TZ = 'Asia/Singapore'
 /** A stand-in for the WhatsApp link: remembers what would have been sent. */
@@ -313,4 +314,25 @@ test('a reply quoting an older list: its numbers, not the latest list’s', () =
   buddy.useQuoted('gavin', 'list-1')
   const r = buddy.command('gavin', 'done 1')
   assert.match(r.reply, new RegExp(store.snapshot('gavin').tasks.find((t) => t.id === first).title))
+})
+
+test('a task with a bell and "WhatsApp me" at the same time: one WhatsApp message, not two', async () => {
+  const { store, buddy, sent } = setup()
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rem-')); fs.mkdirSync(path.join(dir, 'push'))
+  const pushed = []
+  const push = { devices: () => [{}], timezone: () => TZ, send: async (u, n) => { pushed.push(n); return { sent: 1 } } }
+  const link = { enabled: () => true, call: async () => ({}) }
+  const rem = new Reminders(dir, store, push, link, buddy)
+  const now = Date.now()
+  const today = todayIn(TZ, now)
+  const hm = new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(now))
+  store.change('gavin', (doc) => { doc.profile.waReminders = true; return null })
+  store.addTask('gavin', { title: 'Read Books', due: today, time: hm, remind: 0, wa: { before: 0 }, repeat: { freq: 'day', interval: 1 } })
+  store.addTask('gavin', { title: 'Bell only', due: today, time: hm, remind: 0 })
+  await buddy.tick(now + 1000); await rem.tick(now + 1000)
+  await buddy.tick(now + 31000); await rem.tick(now + 31000)
+  const wa = sent.filter((x) => x.ep === 'send')
+  assert.equal(wa.filter((m) => m.text.includes('Read Books')).length, 1, wa.map((m) => m.text).join('\n---\n'))
+  assert.equal(wa.filter((m) => m.text.includes('Bell only')).length, 1) // no "WhatsApp me": the bell still comes to WhatsApp
+  assert.equal(pushed.filter((n) => n.title.includes('Read Books')).length, 1) // and the bell still rings on the phone/browser
 })

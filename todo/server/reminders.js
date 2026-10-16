@@ -69,11 +69,12 @@ export class Reminders {
           })
           console.log(`[reminders] ${username}: "${t.title}" → ${r.sent} device(s)`)
         }
-        if (toWa && !this.sent[`wa|${base}`]) {
+        // a task with its own "WhatsApp me" message gets that one: the bell doesn't send a second copy
+        if (toWa && !t.wa && !this.sent[`wa|${base}`]) {
           this.sent[`wa|${base}`] = now
           changed = true
           try {
-            if (this.buddy) { await this.buddy.send(username, this.buddy.taskMessage(username, t, { now })); this.buddy.remember(username, [t.id]) }
+            if (this.buddy) await this.buddy.send(username, this.buddy.taskMessage(username, t, { now }), { kind: 'reminder', tasks: [t.id] })
             else await this.link.call('send', { username, text: reminderMessage(t, todayIn(tz, now)) })
             console.log(`[reminders] ${username}: "${t.title}" → WhatsApp`)
           } catch (e) {
