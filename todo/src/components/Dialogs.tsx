@@ -365,14 +365,14 @@ export function BuddyFromDialog({ me, onDone }: { me: Me; onDone: (via: 'self' |
           <span className="bf-radio" aria-hidden="true" />
           <span className="bf-body">
             <b>Message yourself <span className="bf-tag">Recommended</span></b>
-            <span>🔒 Private: Buddy writes in your own “Message yourself” chat, and only you can see it. Your phone doesn’t buzz for it. Reply with <code>td done</code>, <code>td snooze 1h</code>.</span>
+            <span>Private: Buddy writes in your own “Message yourself” chat, and only you can see it. Your phone doesn’t buzz for it. Reply with <code>td done</code>, <code>td snooze 1h</code>.</span>
           </span>
         </button>
         <button type="button" role="radio" aria-checked={via === 'bot'} className={`bf-option${via === 'bot' ? ' on' : ''}`} onClick={() => setVia('bot')}>
           <span className="bf-radio" aria-hidden="true" />
           <span className="bf-body">
             <b>Buddy’s number{bot.phone ? ` (${bot.phone})` : ''}</b>
-            <span>🔔 Buddy messages you like a normal contact, so your phone buzzes. 🔓 <b>Not private:</b> pake nomor Hanzel yang lama...</span>
+            <span>Buddy messages you like a normal contact, so your phone buzzes. <b>Not private:</b> pake nomor Hanzel yang lama...</span>
           </span>
         </button>
       </div>

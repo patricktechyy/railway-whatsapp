@@ -132,6 +132,27 @@ html[data-locked] #lock{display:flex}
 #msgMenu button{display:block;width:100%;text-align:left;background:none;border:0;padding:10px 14px;font-size:14px;color:var(--fg)}
 #msgMenu button:hover{background:var(--hover)}
 #msgMenu .danger{color:var(--danger)}
+.vbtn.vx svg{width:22px;height:22px}
+#schedList button svg{width:14px;height:14px;display:block}
+.ic{width:18px;height:18px;flex:none;vertical-align:-4px}
+.ic.pi{width:15px;height:15px;vertical-align:-3px;margin-right:3px;opacity:.85}
+.av .ic{width:56%;height:56%;vertical-align:0}
+.mut .ic,.pin .ic{width:14px;height:14px;vertical-align:-2px}
+.note .ic,.del .ic{width:15px;height:15px;vertical-align:-3px;margin-right:4px}
+.m .file .ic{width:24px;height:24px;color:var(--muted)}
+.pnote .ic{width:28px;height:28px;display:block;margin:0 auto 4px}
+.pdur .ic{width:13px;height:13px;vertical-align:-2px}
+.tick .ic{width:13px;height:13px;vertical-align:-2px}
+.tick.bad{color:var(--danger)}
+#chips button,#grpInvite{display:inline-flex;align-items:center;gap:6px}
+#chips .ic{width:15px;height:15px}
+#muteMenu button[data-mute]{display:flex;align-items:center;gap:12px}
+#muteMenu .ic{width:20px;height:20px;color:var(--muted)}
+#editbar .q b .ic{width:14px;height:14px;vertical-align:-2px;margin-right:4px}
+#attIcon .ic{width:30px;height:30px;color:var(--muted)}
+.ilist .ic{width:16px;height:16px;margin-right:4px}
+#tour .ico .ic,#tour .ico .mk{width:36px;height:36px;color:var(--leaf)}
+#aboutDlg .logo .mk{width:58px;height:58px;display:block;margin:0 auto}
 #msgMenu button{display:flex;align-items:center;gap:12px}
 #msgMenu button svg{width:20px;height:20px;flex:none;color:var(--muted)}
 #msgMenu .danger svg{color:inherit}
@@ -200,7 +221,7 @@ html[data-locked] #lock{display:flex}
 #tour{position:fixed;inset:0;z-index:50;display:flex;align-items:flex-end;justify-content:center;padding:20px;background:rgba(0,0,0,.35);pointer-events:none}
 #tour .card{pointer-events:auto;background:var(--panel);color:var(--fg);border-radius:16px;width:100%;max-width:420px;padding:22px 22px 16px;
   box-shadow:0 18px 50px rgba(0,0,0,.35);animation:tourIn .25s ease-out;margin-bottom:max(12px,env(safe-area-inset-bottom))}
-#tour .ico{font-size:34px;line-height:1}
+#tour .ico{font-size:34px;line-height:1;display:flex;justify-content:center}
 #tour h3{margin:8px 0 6px;font-size:18px}
 #tour .body{font-size:14px;line-height:1.55;color:var(--fg)}
 #tour .body ul{margin:6px 0 0;padding-left:18px}
@@ -924,14 +945,14 @@ html:root[data-theme="dark"][data-accent]{--out:color-mix(in srgb,var(--accent) 
       <button class="ib" id="menuBtn" title="Menu"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="12" r="1.1" fill="currentColor"/><circle cx="12" cy="12" r="1.1" fill="currentColor"/><circle cx="18" cy="12" r="1.1" fill="currentColor"/></svg></button>
       <span class="grow"></span>
       <button class="ib mob" id="lockBtn" title="Lock now (L)"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="10.5" width="15" height="10" rx="2.2"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/></svg></button>
-      <button class="ib mob" id="blurBtn" title="Blur chat list (hover to peek)">👁</button>
+      <button class="ib mob" id="blurBtn" title="Blur chat list (hover to peek)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 12s3.5-6.5 9.5-6.5 9.5 6.5 9.5 6.5-3.5 6.5-9.5 6.5S2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.8"/></svg></button>
       <button class="ib mob todo-ib" id="todoBtn" title="Todolist"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16.8 7.4A6.9 6.9 0 1 0 18.5 12.6" stroke-opacity=".55"/><path d="m8.4 12.2 2.8 2.8 7.6-7.6" stroke-width="2.1"/></svg><span class="rcount due" id="todoBtnN" hidden></span></button>
       <button class="ib" id="newBtn" title="New chat"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4.5H6.5a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V13"/><path d="M17.8 3.7a1.9 1.9 0 0 1 2.7 2.7L12 14.9l-3.5.8.8-3.5z"/></svg></button>
     </div>
     <div id="menu">
       <div class="me"><b id="meName" data-egg>__LABEL__</b><small id="mePhone">connecting…</small></div>
       <button data-m="new">New chat</button>
-      <button data-m="todo">✓ Todolist</button>
+      <button data-m="todo">Todolist</button>
       <button data-m="prefs">Appearance &amp; settings</button>
       <button data-m="name">Change display name</button>
       <button data-m="pw">Change password</button>
@@ -945,7 +966,7 @@ html:root[data-theme="dark"][data-accent]{--out:color-mix(in srgb,var(--accent) 
     </div>
     <div id="sync">Syncing your chats…</div>
     <input class="search" id="search" type="search" name="chat-filter" data-gramm="false" data-gramm_editor="false" data-enable-grammarly="false" placeholder="Search chats" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" readonly aria-label="Search chats" data-lpignore="true" data-1p-ignore="true" data-bwignore="true">
-    <div id="chips"><button data-f="all" class="on">All</button><button data-f="unread">Unread</button><button data-f="groups">Groups</button><button data-f="archived" id="archChip">📦 Archived</button></div>
+    <div id="chips"><button data-f="all" class="on">All</button><button data-f="unread">Unread</button><button data-f="groups">Groups</button><button data-f="archived" id="archChip"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="4.5" rx="1.2"/><path d="M5 9v9.5a1.5 1.5 0 0 0 1.5 1.5h11a1.5 1.5 0 0 0 1.5-1.5V9M10 13h4"/></svg>Archived</button></div>
     <div class="list" id="chats"><div class="empty">Loading…</div></div>
 
     <div id="sideGrip" role="separator" aria-orientation="vertical" aria-label="Chat list width" tabindex="0" title="Drag to make the chat list wider · double-click to reset"></div>
@@ -970,12 +991,12 @@ html:root[data-theme="dark"][data-accent]{--out:color-mix(in srgb,var(--accent) 
         <div id="title"><b>Select a chat</b><small></small></div>
       </button>
       <div id="chatActs">
-      <button class="pill" id="grpBtn" title="Group members" hidden>👥 Members</button>
-      <button class="pill" id="nickBtn" title="Nickname only you can see" hidden>✏️ Nickname</button>
-      <button class="pill" id="pinBtn" title="Pin to top (this site only)" hidden>📌 Pin</button>
-      <button class="pill" id="archBtn" title="Archive (this site only)" hidden>📦 Archive</button>
-      <button class="pill" id="muteBtn" title="Notifications for this chat" hidden>🔕 Mute</button>
-      <button class="pill" id="lockChatBtn" title="Lock this chat behind your password" hidden>🔒 Lock</button>
+      <button class="pill" id="grpBtn" title="Group members" hidden><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8.5" r="3.3"/><path d="M3 19.5c.6-3.6 2.9-5.4 6-5.4s5.4 1.8 6 5.4M15.3 5.5a3.3 3.3 0 0 1 0 6.3M17.6 14.5c1.9.7 3.1 2.4 3.4 5"/></svg>Members</button>
+      <button class="pill" id="nickBtn" title="Nickname only you can see" hidden><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15.8 4.2 19.8 8.2 8.6 19.4H4.6v-4z"/><path d="m13.3 6.7 4 4"/></svg>Nickname</button>
+      <button class="pill" id="pinBtn" title="Pin to top (this site only)" hidden><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.5 3.5h7M9.8 3.5v6L6.8 13.8h10.4l-3-4.3v-6M12 13.8v6.7"/></svg>Pin</button>
+      <button class="pill" id="archBtn" title="Archive (this site only)" hidden><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="4.5" rx="1.2"/><path d="M5 9v9.5a1.5 1.5 0 0 0 1.5 1.5h11a1.5 1.5 0 0 0 1.5-1.5V9M10 13h4"/></svg>Archive</button>
+      <button class="pill" id="muteBtn" title="Notifications for this chat" hidden><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.8 1.8H4.2zM10 20.5a2.2 2.2 0 0 0 4 0M3.5 3.5l17 17"/></svg>Mute</button>
+      <button class="pill" id="lockChatBtn" title="Lock this chat behind your password" hidden><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path d="M8.5 10.5V7.8a3.5 3.5 0 0 1 7 0v2.7"/></svg>Lock</button>
       </div>
       <button class="ib" id="chatMore" title="Chat options" aria-haspopup="true" hidden><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="8" cy="12" r=".9" fill="currentColor"/><circle cx="12" cy="12" r=".9" fill="currentColor"/><circle cx="16" cy="12" r=".9" fill="currentColor"/></svg></button>
     </div>
@@ -988,17 +1009,17 @@ html:root[data-theme="dark"][data-accent]{--out:color-mix(in srgb,var(--accent) 
     </div>
     <div id="suggest" hidden></div>
     <div id="editbar">
-      <div class="q"><b>✏️ Editing message</b><span id="editText"></span></div>
-      <button class="ib" id="editX" title="Cancel editing">✕</button>
+      <div class="q"><b><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15.8 4.2 19.8 8.2 8.6 19.4H4.6v-4z"/><path d="m13.3 6.7 4 4"/></svg>Editing message</b><span id="editText"></span></div>
+      <button class="ib" id="editX" title="Cancel editing"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
     </div>
     <div id="reply">
       <div class="q"><b id="replyName"></b><span id="replyText"></span></div>
-      <button class="ib" id="replyX" title="Cancel reply">✕</button>
+      <button class="ib" id="replyX" title="Cancel reply"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
     </div>
     <div id="att">
-      <img id="attImg" alt="" hidden><span id="attIcon" style="font-size:28px" hidden>📄</span>
+      <img id="attImg" alt="" hidden><span id="attIcon" hidden><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 3.5h7l4 4v13h-11z"/><path d="M13.5 3.5v4h4M9 12.5h6M9 16h6"/></svg></span>
       <div class="info"><b id="attName"></b><small id="attSize"></small></div>
-      <button class="ib" id="attX" title="Remove">✕</button>
+      <button class="ib" id="attX" title="Remove"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
     </div>
     <div id="schedBar" hidden>
       <button type="button" id="schedToggle"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.6"/><path d="M12 7.5V12l3 2"/></svg><span id="schedCount"></span><svg class="caret" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
@@ -1071,7 +1092,7 @@ html:root[data-theme="dark"][data-accent]{--out:color-mix(in srgb,var(--accent) 
 
 <div class="overlay" id="about" style="background:rgba(0,0,0,.45)">
   <div class="dlg" id="aboutDlg">
-    <div class="logo">💬</div>
+    <div class="logo"><svg class="mk" viewBox="0 0 48 48" aria-hidden="true"><path fill="var(--leaf)" d="M15 3.5 L22.5 13 H33 A11 11 0 0 1 44 24 V31 A11 11 0 0 1 33 42 H15 A11 11 0 0 1 4 31 V24 A11 11 0 0 1 11.5 13.4 Z"/><path d="M16 31.5 24 23.5 32 31.5" fill="none" stroke="var(--leaf-ink)" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
     <h3>__BRAND__</h3>
     <p>Solusi buat anak IPLU</p>
     <p style="margin:-10px 0 18px;font-size:12px;opacity:.75">Versi __VERSION__</p>
@@ -1080,7 +1101,7 @@ html:root[data-theme="dark"][data-accent]{--out:color-mix(in srgb,var(--accent) 
 </div>
 <div class="overlay" id="news">
   <div class="dlg">
-    <h3>✨ What's new</h3>
+    <h3>What's new</h3>
     <div class="ver" id="newsVer"></div>
     <div id="newsBody"></div>
     <div class="acts"><button type="button" class="btn" id="newsX">Got it</button></div>
@@ -1100,7 +1121,7 @@ html:root[data-theme="dark"][data-accent]{--out:color-mix(in srgb,var(--accent) 
       <h4>Members</h4>
       <div id="grpList"><div class="empty">Loading…</div></div>
     </div>
-    <div class="acts"><button type="button" class="btn ghost" id="grpInvite" hidden>🔗 Copy invite link</button><button type="button" class="btn" id="grpX">Done</button></div>
+    <div class="acts"><button type="button" class="btn ghost" id="grpInvite" hidden><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1"/></svg>Copy invite link</button><button type="button" class="btn" id="grpX">Done</button></div>
   </div>
 </div>
 <div class="overlay" id="viewer" aria-label="Photo viewer">
@@ -1108,7 +1129,7 @@ html:root[data-theme="dark"][data-accent]{--out:color-mix(in srgb,var(--accent) 
     <span class="vinfo" id="vInfo"></span>
     <a class="vbtn" id="vOpen" target="_blank" rel="noopener" title="Open in new tab">Open in new tab</a>
     <a class="vbtn" id="vDown" download title="Download">Download</a>
-    <button class="vbtn vx" id="vClose" title="Close (Esc)">✕</button>
+    <button class="vbtn vx" id="vClose" title="Close (Esc)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
   </div>
   <button class="vnav vprev" id="vPrev" title="Previous (←)">‹</button>
   <figure class="vfig"><img id="vImg" alt=""><figcaption id="vCap"></figcaption></figure>
@@ -1200,7 +1221,7 @@ html:root[data-theme="dark"][data-accent]{--out:color-mix(in srgb,var(--accent) 
       <label>Lock automatically after</label>
       <div class="seg" data-p="idle"><button data-v="0">Never</button><button data-v="1">1 min</button><button data-v="5">5 min</button><button data-v="15">15 min</button></div>
     </div>
-    <h4 class="psec">🔔 Notifications</h4>
+    <h4 class="psec">Notifications</h4>
     <label>New messages on this device</label>
     <div class="nt-row">
       <button type="button" class="btn ghost" id="ntOn">Turn on</button>
@@ -1215,7 +1236,7 @@ html:root[data-theme="dark"][data-accent]{--out:color-mix(in srgb,var(--accent) 
     </div>
     <label>Sound while Whats Up is open</label>
     <div class="seg" data-p="msgSound"><button data-v="on">On</button><button data-v="off">Off</button></div>
-    <p style="color:var(--muted);font-size:12px;margin:8px 0 0">Mute a chat with <b>🔕 Mute</b> at the top of it. Chats you muted on your phone stay quiet here too.</p>
+    <p style="color:var(--muted);font-size:12px;margin:8px 0 0">Mute a chat with <b>Mute</b> at the top of it. Chats you muted on your phone stay quiet here too.</p>
     <p style="color:var(--muted);font-size:12px;margin:14px 0 0">These settings are saved on this device only.</p>
     <div class="acts"><button type="button" class="btn" id="prefsX">Done</button></div>
   </div>
@@ -1296,6 +1317,17 @@ const USER = '__USER__';
 const api = (p) => `/u/${USER}/api${p}`;
 const $ = (s) => document.querySelector(s);
 const JUMBO = /^\s*(?:(?:\p{Extended_Pictographic}|\p{Regional_Indicator}{2})(?:\uFE0F|\p{Emoji_Modifier}|\u200D(?:\p{Extended_Pictographic})\uFE0F?)*\s*){1,3}$/u;
+// line icons (same style as the rest of the page), for buttons, labels and placeholders
+const IC = {"people": "<circle cx=\"9\" cy=\"8.5\" r=\"3.3\"/><path d=\"M3 19.5c.6-3.6 2.9-5.4 6-5.4s5.4 1.8 6 5.4M15.3 5.5a3.3 3.3 0 0 1 0 6.3M17.6 14.5c1.9.7 3.1 2.4 3.4 5\"/>", "pencil": "<path d=\"M15.8 4.2 19.8 8.2 8.6 19.4H4.6v-4z\"/><path d=\"m13.3 6.7 4 4\"/>", "pin": "<path d=\"M8.5 3.5h7M9.8 3.5v6L6.8 13.8h10.4l-3-4.3v-6M12 13.8v6.7\"/>", "unpin": "<path d=\"M8.5 3.5h7M9.8 3.5v6L6.8 13.8h10.4l-3-4.3v-6M12 13.8v6.7M3.5 3.5l17 17\"/>", "arch": "<rect x=\"3.5\" y=\"4.5\" width=\"17\" height=\"4.5\" rx=\"1.2\"/><path d=\"M5 9v9.5a1.5 1.5 0 0 0 1.5 1.5h11a1.5 1.5 0 0 0 1.5-1.5V9M10 13h4\"/>", "unarch": "<rect x=\"3.5\" y=\"4.5\" width=\"17\" height=\"4.5\" rx=\"1.2\"/><path d=\"M5 9v9.5a1.5 1.5 0 0 0 1.5 1.5h11a1.5 1.5 0 0 0 1.5-1.5V9M12 17.5v-5.2M9.7 14.5l2.3-2.3 2.3 2.3\"/>", "bell": "<path d=\"M6 16.5V11a6 6 0 0 1 12 0v5.5l1.8 1.8H4.2zM10 20.5a2.2 2.2 0 0 0 4 0\"/>", "belloff": "<path d=\"M6 16.5V11a6 6 0 0 1 12 0v5.5l1.8 1.8H4.2zM10 20.5a2.2 2.2 0 0 0 4 0M3.5 3.5l17 17\"/>", "lock": "<rect x=\"5\" y=\"10.5\" width=\"14\" height=\"10\" rx=\"2.5\"/><path d=\"M8.5 10.5V7.8a3.5 3.5 0 0 1 7 0v2.7\"/>", "unlock": "<rect x=\"5\" y=\"10.5\" width=\"14\" height=\"10\" rx=\"2.5\"/><path d=\"M8.5 10.5V7.8a3.5 3.5 0 0 1 6.9-.8\"/>", "eye": "<path d=\"M2.5 12s3.5-6.5 9.5-6.5 9.5 6.5 9.5 6.5-3.5 6.5-9.5 6.5S2.5 12 2.5 12z\"/><circle cx=\"12\" cy=\"12\" r=\"2.8\"/>", "eyeoff": "<path d=\"M9.9 5.8a9.7 9.7 0 0 1 2.1-.3c6 0 9.5 6.5 9.5 6.5a17 17 0 0 1-2.6 3.4M6.4 7.1C3.9 8.8 2.5 12 2.5 12s3.5 6.5 9.5 6.5c1.7 0 3.2-.5 4.5-1.2M9.9 9.9a2.8 2.8 0 0 0 4.2 4.2M3.5 3.5l17 17\"/>", "doc": "<path d=\"M6.5 3.5h7l4 4v13h-11z\"/><path d=\"M13.5 3.5v4h4M9 12.5h6M9 16h6\"/>", "link": "<path d=\"M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1\"/><path d=\"M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1\"/>", "photo": "<rect x=\"3.5\" y=\"4.5\" width=\"17\" height=\"15\" rx=\"2.5\"/><circle cx=\"9\" cy=\"10\" r=\"1.8\"/><path d=\"m4 17 5-4.5 4 3.5 3-2.5 4 3.5\"/>", "video": "<rect x=\"3\" y=\"6\" width=\"13\" height=\"12\" rx=\"2.5\"/><path d=\"m16 10.3 5-2.8v9l-5-2.8\"/>", "vmsg": "<circle cx=\"12\" cy=\"12\" r=\"8.6\"/><path d=\"M9.6 9.3h3.6a1.1 1.1 0 0 1 1.1 1.1v3.2a1.1 1.1 0 0 1-1.1 1.1H9.6a1.1 1.1 0 0 1-1.1-1.1v-3.2a1.1 1.1 0 0 1 1.1-1.1z\"/><path d=\"m14.3 11.3 2.2-1.3v4l-2.2-1.3\"/>", "mic": "<rect x=\"9\" y=\"3\" width=\"6\" height=\"11\" rx=\"3\"/><path d=\"M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21\"/>", "sticker": "<path d=\"M14 20.5H7A3.5 3.5 0 0 1 3.5 17V7A3.5 3.5 0 0 1 7 3.5h10A3.5 3.5 0 0 1 20.5 7v7\"/><path d=\"M14 20.5c0-3.6 2.9-6.5 6.5-6.5\"/>", "place": "<path d=\"M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z\"/><circle cx=\"12\" cy=\"10\" r=\"2.4\"/>", "person": "<circle cx=\"12\" cy=\"8.5\" r=\"3.5\"/><path d=\"M5 20c.7-3.8 3.4-5.8 7-5.8s6.3 2 7 5.8\"/>", "ban": "<circle cx=\"12\" cy=\"12\" r=\"8.5\"/><path d=\"m6 6 12 12\"/>", "clock": "<circle cx=\"12\" cy=\"12\" r=\"8.5\"/><path d=\"M12 7.5V12l3 2\"/>", "alert": "<path d=\"M10.3 4.3 2.9 17.5A2 2 0 0 0 4.6 20.5h14.8a2 2 0 0 0 1.7-3L13.7 4.3a2 2 0 0 0-3.4 0z\"/><path d=\"M12 9.5v4.2M12 16.8h.01\"/>", "poll": "<path d=\"M5 20V10M10 20V4M15 20v-7M20 20v-4\"/>", "todo": "<path d=\"M16.8 7.4A6.9 6.9 0 1 0 18.5 12.6\" stroke-opacity=\".55\"/><path d=\"m8.4 12.2 2.8 2.8 7.6-7.6\" stroke-width=\"2.1\"/>", "sliders": "<path d=\"M4 7h9M17 7h3M4 12h3M11 12h9M4 17h11M19 17h1\"/><circle cx=\"15\" cy=\"7\" r=\"2\"/><circle cx=\"9\" cy=\"12\" r=\"2\"/><circle cx=\"17\" cy=\"17\" r=\"2\"/>", "keys": "<rect x=\"2.5\" y=\"6\" width=\"19\" height=\"12\" rx=\"2.5\"/><path d=\"M6.5 10h.01M10 10h.01M13.5 10h.01M17 10h.01M7.5 14h9\"/>", "done": "<circle cx=\"12\" cy=\"12\" r=\"8.5\"/><path d=\"m8.3 12.3 2.6 2.6 5-5.2\"/>"};
+const ic = (n, cls = 'ic') => `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IC[n] || ''}</svg>`;
+const MARK = '<svg class="mk" viewBox="0 0 48 48" aria-hidden="true"><path fill="var(--leaf)" d="M15 3.5 L22.5 13 H33 A11 11 0 0 1 44 24 V31 A11 11 0 0 1 33 42 H15 A11 11 0 0 1 4 31 V24 A11 11 0 0 1 11.5 13.4 Z"/><path d="M16 31.5 24 23.5 32 31.5" fill="none" stroke="var(--leaf-ink)" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+// previews and quotes are text ("You: 📷 Photo", also used in notifications): show their leading media emoji as an icon
+const PV_IC = {'📷': 'photo', '🎥': 'video', '📹': 'vmsg', '🎤': 'mic', '📄': 'doc', '📊': 'poll', '📍': 'place', '👤': 'person', '🚫': 'ban', '🏷️': 'sticker'};
+function pvIcon(s) {
+  s = String(s ?? '');
+  const m = s.match(/^((?:[^:\n]{1,60}): )?(📷|🎥|📹|🎤|📄|📊|📍|👤|🚫|🏷️) /u);
+  return m ? esc(m[1] || '') + ic(PV_IC[m[2]], 'ic pi') + esc(s.slice(m[0].length)) : esc(s);
+}
 let bubbleExtra = () => '';   // extra bits under a bubble's text (set by optional parts of the page)
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
@@ -1313,7 +1345,7 @@ function applyPrefs() {
   if (prefs.theme === 'auto') delete r.dataset.theme; else r.dataset.theme = prefs.theme;
   if (prefs.accent === 'green') delete r.dataset.accent; else r.dataset.accent = prefs.accent;
   r.dataset.wall = prefs.wall; r.dataset.size = prefs.size; r.dataset.blur = prefs.blur; r.dataset.rail = prefs.rail;
-  const bb = document.getElementById('blurBtn'); if (bb) { bb.textContent = prefs.blur === 'on' ? '🙈' : '👁'; bb.title = prefs.blur === 'on' ? 'Unblur chat list' : 'Blur chat list (hover to peek)'; }
+  const bb = document.getElementById('blurBtn'); if (bb) { bb.innerHTML = ic(prefs.blur === 'on' ? 'eyeoff' : 'eye'); bb.title = prefs.blur === 'on' ? 'Unblur chat list' : 'Blur chat list (hover to peek)'; }
   document.querySelectorAll('#prefs .seg[data-p]').forEach(g =>
     g.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === prefs[g.dataset.p])));
 }
@@ -1546,10 +1578,10 @@ setInterval(() => { if (current && status === 'connected' && selfActive()) subsc
 // ------------------------------------------------------------ chat list
 function row(c, extra = '', img = true) {
   return `<div class="row ${c.jid === current ? 'sel' : ''}${c.muted ? ' muted' : ''}" data-jid="${esc(c.jid)}" data-name="${esc(c.name)}">
-    <div class="av ${c.group ? 'g' : ''}">${esc(c.group ? '👥' : initials(c.name))}${img ? avImg(c.jid) : ''}</div>
+    <div class="av ${c.group ? 'g' : ''}">${c.group ? ic('people') : esc(initials(c.name))}${img ? avImg(c.jid) : ''}</div>
     <div class="ct">
-      <div class="top"><span class="nm">${esc(c.profile && c.name === c.profile ? '~' + c.name : c.name)}</span><span class="tm">${c.t ? fmtWhen(c.t) : ''}${c.muted ? '<span class="mut" title="Muted">🔕</span>' : ''}${c.pinned ? '<span class="pin" title="Pinned">📌</span>' : ''}</span></div>
-      <div class="pv"><span class="pvt">${extra || esc(c.preview || c.phone || '')}</span>${c.unread ? `<span class="badge">${c.unread}</span>` : ''}</div>
+      <div class="top"><span class="nm">${esc(c.profile && c.name === c.profile ? '~' + c.name : c.name)}</span><span class="tm">${c.t ? fmtWhen(c.t) : ''}${c.muted ? `<span class="mut" title="Muted">${ic('belloff')}</span>` : ''}${c.pinned ? `<span class="pin" title="Pinned">${ic('pin')}</span>` : ''}</span></div>
+      <div class="pv"><span class="pvt">${extra || pvIcon(c.preview || c.phone || '')}</span>${c.unread ? `<span class="badge">${c.unread}</span>` : ''}</div>
     </div></div>`;
 }
 function renderChats() {
@@ -1584,11 +1616,11 @@ function renderChats() {
     if (rowEls.size > list.length * 2 + 50) { const on = new Set(list.map(c => c.jid)); for (const j of rowEls.keys()) if (!on.has(j)) rowEls.delete(j); }
     for (const j of typers.keys()) paintRowTyping(j);   // a rebuilt row keeps showing "typing…"
   } else box.innerHTML =
-    `<div class="empty">${q ? 'No chats match.' : filter === 'locked' ? 'No locked chats.' : filter === 'unread' ? 'No unread chats 🎉' : filter === 'groups' ? 'No groups yet.' : filter === 'archived' ? 'No archived chats.' : status === 'connected' ? 'No chats yet. They show up as history syncs, or start one with <svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align:-3px" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4.5H6.5a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V13"/><path d="M17.8 3.7a1.9 1.9 0 0 1 2.7 2.7L12 14.9l-3.5.8.8-3.5z"/></svg>.' : 'Waiting for WhatsApp…'}</div>`;
+    `<div class="empty">${q ? 'No chats match.' : filter === 'locked' ? 'No locked chats.' : filter === 'unread' ? 'No unread chats' : filter === 'groups' ? 'No groups yet.' : filter === 'archived' ? 'No archived chats.' : status === 'connected' ? 'No chats yet. They show up as history syncs, or start one with <svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align:-3px" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4.5H6.5a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V13"/><path d="M17.8 3.7a1.9 1.9 0 0 1 2.7 2.7L12 14.9l-3.5.8.8-3.5z"/></svg>.' : 'Waiting for WhatsApp…'}</div>`;
   const n = chats.filter(c => c.unread > 0 && !c.archived && !c.locked).length;
   if (!panicOn && !locked) document.title = (n ? `(${n}) ` : '') + BASE_TITLE;
   const na = chats.filter(c => c.archived).length;
-  $('#archChip').textContent = '📦 Archived';   // no count, like the rail button
+  $('#archChip').innerHTML = ic('arch') + 'Archived';   // no count, like the rail button
   if (typeof syncRail === 'function') syncRail();
 }
 // /u/you/#chat=<id> (from a todolist task) opens that chat once the list is in
@@ -1625,7 +1657,7 @@ function updateTitle() {
   const name = c?.name || currentName || current.split('@')[0];
   $('#tav').hidden = false;
   $('#tav').className = 'av sm' + (c?.group ? ' g' : '');
-  $('#tav').innerHTML = esc(c?.group ? '👥' : initials(name)) + avImg(current);
+  $('#tav').innerHTML = (c?.group ? ic('people') : esc(initials(name))) + avImg(current);
   const extra = presenceLabel()
   $('#title').innerHTML = `<b>${esc(name)}</b><small id="presenceLabel">${esc(extra || titleSub())}</small>`;
   $('#nickBtn').hidden = false;
@@ -1633,12 +1665,12 @@ function updateTitle() {
   $('#chatMore').hidden = false;
   $('#grpBtn').hidden = !(c?.group || String(current).endsWith('@g.us'));
   $('#pinBtn').hidden = false;
-  $('#pinBtn').textContent = c?.pinned ? '📌 Unpin' : '📌 Pin';
-  $('#archBtn').textContent = c?.archived ? '📤 Unarchive' : '📦 Archive';
+  $('#pinBtn').innerHTML = c?.pinned ? ic('unpin') + 'Unpin' : ic('pin') + 'Pin';
+  $('#archBtn').innerHTML = c?.archived ? ic('unarch') + 'Unarchive' : ic('arch') + 'Archive';
   $('#muteBtn').hidden = false;
-  $('#muteBtn').textContent = c?.muted ? '🔔 Unmute' : '🔕 Mute';
+  $('#muteBtn').innerHTML = c?.muted ? ic('bell') + 'Unmute' : ic('belloff') + 'Mute';
   $('#lockChatBtn').hidden = false;
-  $('#lockChatBtn').textContent = c?.locked ? '🔓 Unlock' : '🔒 Lock';
+  $('#lockChatBtn').innerHTML = c?.locked ? ic('unlock') + 'Unlock' : ic('lock') + 'Lock';
   $('#lockChatBtn').title = c?.locked ? 'Take this chat out of Locked chats' : 'Lock this chat behind your password';
 }
 async function setNickname() {
@@ -1664,19 +1696,19 @@ function bubble(m) {
     // like WhatsApp Web: no bubble, transparent, ~160px, not clickable
     const src = m.local || (m.media ? mediaUrl(m) : '');
     body = src
-      ? `<img class="stk" loading="lazy" src="${esc(src)}" alt="Sticker" width="160" height="160" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'note',textContent:'🏷️ Sticker'}))">`
-      : '<span class="note">🏷️ Sticker</span>';
+      ? `<img class="stk" loading="lazy" src="${esc(src)}" alt="Sticker" width="160" height="160" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'note',textContent:'Sticker'}))">`
+      : `<span class="note">${ic('sticker')}Sticker</span>`;
   } else if (m.type === 'ptv' && !m.deleted) {
     // a video note: round, plays with sound when tapped (WhatsApp style)
     const src = m.local || (m.media ? mediaUrl(m) : '');
     body = `<div class="ptv" role="button" tabindex="0" aria-label="Video message${m.dur ? ', ' + fmtDur(m.dur) : ''}">` +
-      (src ? `<video src="${esc(src)}#t=0.1" preload="metadata" playsinline></video>` : '<span class="pnote">📹 Video message</span>') +
+      (src ? `<video src="${esc(src)}#t=0.1" preload="metadata" playsinline></video>` : `<span class="pnote">${ic('vmsg')}Video message</span>`) +
       `<svg class="ring" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="48"/></svg>` +
       (src ? `<span class="pbtn" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 4.5v15l12.5-7.5z"/></svg></span>` : '') +
-      `<span class="pdur">${m.dur ? fmtDur(m.dur) : '📹'}</span></div>`;
+      `<span class="pdur">${m.dur ? fmtDur(m.dur) : ic('vmsg')}</span></div>`;
   } else if (m.type === 'image') {
     const src = m.local || (m.media ? mediaUrl(m) : '');
-    body = src ? `<img loading="lazy" src="${esc(src)}" alt="" data-full="${esc(src)}">` : '<span class="note">📷 Photo</span>';
+    body = src ? `<img loading="lazy" src="${esc(src)}" alt="" data-full="${esc(src)}">` : `<span class="note">${ic('photo')}Photo</span>`;
     if (m.text) body += mentionize(rich(m.text), m.mentions);
   } else if (m.type === 'audio' && !m.deleted && (m.media || m.local)) {
     body = voiceBubble(m);
@@ -1684,22 +1716,21 @@ function bubble(m) {
     body = pollBubble(m);
   } else if (m.type === 'document' || m.type === 'video' || m.type === 'audio') {
     const label = m.type === 'document' ? (m.fileName || 'Document') : m.type === 'video' ? 'Video' : 'Voice message';
-    const icon = {document: '📄', video: '🎥', audio: '🎤'}[m.type];
-    const inner = `<span style="font-size:22px">${icon}</span><span>${esc(label)}</span>`;
+    const inner = `${ic({document: 'doc', video: 'video', audio: 'mic'}[m.type])}<span>${esc(label)}</span>`;
     body = m.media ? `<a class="file" href="${esc(mediaUrl(m))}" target="_blank" rel="noopener">${inner}</a>` : `<div class="file">${inner}</div>`;
     if (m.text) body += mentionize(rich(m.text), m.mentions);
   } else if (m.type === 'location') {
     const q = encodeURIComponent(m.text);
-    body = `<a class="file" href="https://maps.google.com/?q=${q}" target="_blank" rel="noopener">📍 ${esc(m.text)}</a>`;
+    body = `<a class="file" href="https://maps.google.com/?q=${q}" target="_blank" rel="noopener">${ic('place')}${esc(m.text)}</a>`;
   } else if (m.type === 'contact') {
-    body = `<span class="note">👤 ${esc(m.text)}</span>`;
+    body = `<span class="note">${ic('person')}${esc(m.text)}</span>`;
   } else {
     // just one to three emoji (no words): shown big, like WhatsApp
     body = JUMBO.test(m.text || '') ? `<span class="jumbo">${esc(m.text.trim())}</span>` : mentionize(rich(m.text), m.mentions);
   }
   let tick = '';
-  if (m.failed) tick = ' <span class="tick">⚠️</span>';
-  else if (m.pending) tick = ' <span class="tick">🕓</span>';
+  if (m.failed) tick = ` <span class="tick bad" title="Not sent">${ic('alert')}</span>`;
+  else if (m.pending) tick = ` <span class="tick" title="Sending">${ic('clock')}</span>`;
   else if (m.fromMe) {
     const st = Number.isFinite(Number(m.status)) ? Number(m.status) : 2;
     const tip = m.rsum ? ` title="Read by ${m.rsum.read} of ${m.rsum.total} · delivered to ${m.rsum.delivered} of ${m.rsum.total}"` : '';
@@ -1707,14 +1738,14 @@ function bubble(m) {
     else if (st >= 3) tick = ` <span class="tick"${tip}>✓✓</span>`;
     else tick = ` <span class="tick"${tip}>✓</span>`;
   }
-  const q = m.quote ? `<span class="q" data-qid="${esc(m.quote.id)}"><b>${esc(m.quote.name || '')}</b>${esc(m.quote.text || '')}</span>` : '';
+  const q = m.quote ? `<span class="q" data-qid="${esc(m.quote.id)}"><b>${esc(m.quote.name || '')}</b>${pvIcon(m.quote.text || '')}</span>` : '';
   const rp = m.pending || m.failed || String(m.id).startsWith('tmp') ? '' : `<button class="rp" data-reply="${esc(m.id)}" title="Reply">↩</button>`;
   const canReact = !m.pending && !m.failed && !String(m.id).startsWith('tmp');
   const rx = Array.isArray(m.reactions) ? m.reactions : [];
   const pills = rx.map(r => `<button class="rx ${r.mine ? 'mine' : ''}" data-rx-value="${esc(r.emoji)}" data-rx-message="${esc(m.id)}" title="${r.count} reaction${r.count === 1 ? '' : 's'}">${esc(r.emoji)} ${r.count > 1 ? `<span>${r.count}</span>` : ''}</button>`).join('');
   const rxbar = canReact && rx.length ? `<div class="rxs">${pills}</div>` : '';
   const ra = canReact && !m.deleted ? `<button class="ra" data-rx-add="${esc(m.id)}" title="React">☺</button><span class="rxpick">${REACTIONS.map(e => `<button data-rx-pick="${esc(e)}" data-rx-message="${esc(m.id)}">${e}</button>`).join('')}</span>` : '';
-  if (m.deleted) body = `<span class="del">🚫 ${m.fromMe ? 'You deleted this message' : 'This message was deleted'}</span>`;
+  if (m.deleted) body = `<span class="del">${ic('ban')}${m.fromMe ? 'You deleted this message' : 'This message was deleted'}</span>`;
   const mm = m.pending || m.failed || String(m.id).startsWith('tmp') ? '' : `<button class="mm" data-mm="${esc(m.id)}" title="Edit or delete">⋯</button>`;
   const ed = m.edited && !m.deleted ? '<span class="edl">edited</span>' : '';
   const fw = m.fwd && !m.deleted ? `<div class="fwd">${FWD_ICON}${m.fwd >= 5 ? 'Forwarded many times' : 'Forwarded'}</div>` : '';
@@ -1753,7 +1784,7 @@ function renderMsgs(stick) {
     html += selMode ? selRow(m, out, key !== prevKey) : out;
     prevKey = key;
   }
-  box.innerHTML = html || '<div class="empty">No messages here yet. Say hi 👋</div>';
+  box.innerHTML = html || '<div class="empty">No messages here yet. Say hi!</div>';
   if (stick === 'keep') box.scrollTop = prevTop + (box.scrollHeight - prevH);
   else if (stick || nearBottom) box.scrollTop = box.scrollHeight;
   paintVoice();
@@ -1775,7 +1806,7 @@ function startReply(id) {
   const m = msgs.find(x => x.id === id); if (!m) return;
   replyTo = m;
   $('#replyName').textContent = m.fromMe ? 'You' : (m.senderName || $('#title b')?.textContent || '');
-  $('#replyText').textContent = quotePreview(m);
+  $('#replyText').innerHTML = pvIcon(quotePreview(m));
   $('#reply').classList.add('on');
   $('#text').focus();
   syncSchedBtn();
@@ -2486,7 +2517,7 @@ function renderInfo() {
   const sub = info.group ? (info.grp ? `Group · ${info.grp.members.length} member${info.grp.members.length === 1 ? '' : 's'}` : 'Group') : fmtPhone(info.phone) || '';
   const counts = info.counts || {media: 0, docs: 0, links: 0};
   const n = counts.media + counts.docs + counts.links;
-  let h = `<div class="ihero"><div class="av${info.group ? ' g' : ''}">${esc(info.group ? '👥' : initials(info.name))}<img src="${esc(api('/avatar?jid=' + encodeURIComponent(info.jid) + ckq(info.jid)))}" alt="" onerror="this.remove()"></div>` +
+  let h = `<div class="ihero"><div class="av${info.group ? ' g' : ''}">${info.group ? ic('people') : esc(initials(info.name))}<img src="${esc(api('/avatar?jid=' + encodeURIComponent(info.jid) + ckq(info.jid)))}" alt="" onerror="this.remove()"></div>` +
     `<h2>${esc(c.name || info.name)}</h2>${sub ? `<p class="isub">${esc(sub)}</p>` : ''}${!info.group && info.notify && info.notify !== (c.name || info.name) ? `<p class="isub">~${esc(info.notify)}</p>` : ''}</div>`;
   if (info.about?.trim()) h += `<section class="isec"><h4>About</h4><p>${rich(info.about)}</p>${info.aboutAt ? `<small>${esc(new Date(info.aboutAt).toLocaleDateString([], {day: 'numeric', month: 'long', year: 'numeric'}))}</small>` : ''}</section>`;
   if (info.group && info.grp?.desc) h += `<section class="isec"><h4>Description</h4><p>${rich(info.grp.desc)}</p></section>`;
@@ -2527,7 +2558,7 @@ async function openInfoMedia(tab = 'media') {
   $('#infoTitle').textContent = 'Media, links and docs';
   let h = `<div class="itabs" role="tablist">${[['media', 'Media', a.media.length], ['docs', 'Docs', a.docs.length], ['links', 'Links', a.links.length]].map(([k, l, n]) => `<button role="tab" aria-selected="${k === tab}" class="${k === tab ? 'on' : ''}" data-itab="${k}">${l} <small>${n}</small></button>`).join('')}</div>`;
   if (tab === 'media') h += a.media.length ? `<div class="igrid">${a.media.map(x => thumb(x)).join('')}</div>` : '<div class="iempty">No photos or videos in this chat yet.</div>';
-  if (tab === 'docs') h += a.docs.length ? `<ul class="ilist">${a.docs.map(x => `<li><a href="${esc(mediaUrl({jid, id: x.id}))}" target="_blank" rel="noopener">📄 ${esc(x.fileName)}</a><small>${esc(fmtDay(x.ts))}</small></li>`).join('')}</ul>` : '<div class="iempty">No documents in this chat yet.</div>';
+  if (tab === 'docs') h += a.docs.length ? `<ul class="ilist">${a.docs.map(x => `<li><a href="${esc(mediaUrl({jid, id: x.id}))}" target="_blank" rel="noopener">${ic('doc')}${esc(x.fileName)}</a><small>${esc(fmtDay(x.ts))}</small></li>`).join('')}</ul>` : '<div class="iempty">No documents in this chat yet.</div>';
   if (tab === 'links') h += a.links.length ? `<ul class="ilist">${a.links.map(x => `<li><a class="lnk" href="${esc(x.url)}" target="_blank" rel="noopener noreferrer">${esc(x.url)}</a><small>${esc(fmtDay(x.ts))}</small></li>`).join('')}</ul>` : '<div class="iempty">No links in this chat yet.</div>';
   $('#infoBody').innerHTML = h;
   $('#infoBody').scrollTop = 0;
@@ -2796,24 +2827,24 @@ $('#text').addEventListener('click', checkShortcode);
 // ---------------------------------------------------------------- tutorial
 // Shown once per device the first time you reach your chats; reopen it from ⋮ → Tutorial.
 const TOUR = [
-  {ico: '👋', title: 'Welcome to __BRAND__',
+  {ico: MARK, title: 'Welcome to __BRAND__',
    body: `Your WhatsApp in the browser, linked to your phone like WhatsApp Web.<p class="muted">Quick tour. Arrow keys work too.</p>`},
-  {ico: '✏️', title: 'Nicknames', target: '#chatMore',
-   body: `In a chat, <b>⋯ → ✏️ Nickname</b>. Only you see it, and it never goes to WhatsApp.`},
-  {ico: '📌', title: 'Pin & archive (this site only)', target: '#rArch',
+  {ico: ic('pencil'), title: 'Nicknames', target: '#chatMore',
+   body: `In a chat, <b>⋯ → Nickname</b>. Only you see it, and it never goes to WhatsApp.`},
+  {ico: ic('pin'), title: 'Pin & archive (this site only)', target: '#rArch',
    body: `Pins and archives here don't sync with your phone in either direction. Archived chats are behind the box icon (the <b>Archived</b> filter on phones).`},
-  {ico: '✅', title: 'Your todolist', target: '#rTodo',
+  {ico: ic('todo'), title: 'Your todolist', target: '#rTodo',
    body: `The <b>✓</b> button (top right on phones) opens Gavin's Todolist. <kbd>T</kbd> switches between chats and tasks.
      <ul><li>Your tasks are yours. Nobody else sees them, not even the admin.</li>
      <li>The red number is what's due today.</li>
-     <li>Pick <b>💬 WhatsApp me</b> on a task and WhatsApp Buddy reminds you on WhatsApp. Those reminders also show on the bot's phone.</li></ul>`},
-  {ico: '🎨', title: 'Settings, blur, lock', target: '#rPrefs',
+     <li>Pick <b>WhatsApp me</b> on a task and WhatsApp Buddy reminds you on WhatsApp. Those reminders also show on the bot's phone.</li></ul>`},
+  {ico: ic('sliders'), title: 'Settings, blur, lock', target: '#rPrefs',
    body: `Theme, colours, text size and what <kbd>Enter</kbd> does. The eye icon blurs the chat list, the lock icon locks the app with a PIN.<p class="muted">Saved per device.</p>`},
-  {ico: '⌨️', title: 'Keyboard shortcuts',
+  {ico: ic('keys'), title: 'Keyboard shortcuts',
    body: `<ul><li><kbd>/</kbd> search</li><li><kbd>Esc</kbd> close</li>
      <li><kbd>T</kbd> chats / todolist</li><li><kbd>B</kbd> blur chat list</li><li><kbd>L</kbd> lock (once you've set a PIN)</li></ul>
      <p class="muted">Not while you're typing in a box.</p>`},
-  {ico: '⚠️', title: 'Good to know',
+  {ico: ic('alert'), title: 'Good to know',
    body: `<ul>
      <li><b>History:</b> the last 14 days are kept here. <b>Load earlier messages</b> asks your phone for older ones.</li>
      <li><b>Names:</b> some contacts show as a number until they message you. Give them a nickname meanwhile.</li>
@@ -2822,7 +2853,7 @@ const TOUR = [
      <li><b>Privacy:</b> the admin can see if you're online here and when you were last active, never your messages, chats or contacts.</li>
      <li><b>Stuck on "Reconnecting…"?</b> Give it a minute, then try <b>⋯ → Re-link WhatsApp</b>.</li>
      <li>If your phone is offline for about 14 days, WhatsApp unlinks this site and you'll scan the QR again.</li></ul>`},
-  {ico: '🎉', title: "You're all set",
+  {ico: ic('done'), title: "You're all set",
    body: `Reopen this from <b>⋯ → Tutorial</b>. Selamat ngobrol!`},
 ];
 let tourStep = -1, tourHl = null;
@@ -3121,7 +3152,7 @@ function renderScheduled() {
   $('#schedToggle').classList.toggle('open', schedOpen);
   $('#schedToggle').setAttribute('aria-expanded', schedOpen ? 'true' : 'false');
   $('#schedList').hidden = !schedOpen;
-  $('#schedList').innerHTML = scheduled.map(x => `<li><span class="when ${x.failed ? 'bad' : ''}">${esc(x.failed ? 'Not sent' : fmtAt(x.at))}</span><span class="txt" title="${esc(x.failed || x.text)}">${esc(x.text)}</span><button type="button" data-id="${esc(x.id)}" title="Cancel">✕</button></li>`).join('');
+  $('#schedList').innerHTML = scheduled.map(x => `<li><span class="when ${x.failed ? 'bad' : ''}">${esc(x.failed ? 'Not sent' : fmtAt(x.at))}</span><span class="txt" title="${esc(x.failed || x.text)}">${esc(x.text)}</span><button type="button" data-id="${esc(x.id)}" title="Cancel" aria-label="Cancel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></li>`).join('');
 }
 $('#schedToggle').addEventListener('click', () => { schedOpen = !schedOpen; renderScheduled(); });
 $('#schedList').addEventListener('click', async e => {
@@ -3664,7 +3695,7 @@ function paintNotif() {
   else if (support === 'ios-install') st.textContent = 'On iPhone and iPad: Share → Add to Home Screen, open Whats Up from there, then turn this on.';
   else if (support !== 'ok') st.textContent = 'This browser can’t show notifications.';
   else if (on) st.textContent = '✓ On: new messages show up here even when Whats Up is closed.';
-  else if (Notification.permission === 'denied') { st.textContent = 'Notifications are blocked for this site. Allow them in the browser’s site settings (the 🔒 next to the address), then try again.'; st.className = 'nt-state bad'; }
+  else if (Notification.permission === 'denied') { st.textContent = 'Notifications are blocked for this site. Allow them in the browser’s site settings (the icon next to the address), then try again.'; st.className = 'nt-state bad'; }
   else st.textContent = 'Off on this device. Your phone still gets WhatsApp’s own notifications.';
   const s = notif.settings || {};
   document.querySelectorAll('#prefs .seg[data-n]').forEach(g => g.querySelectorAll('button').forEach(x => {
@@ -3751,8 +3782,8 @@ function openMuteMenu(btn) {
   const el = document.createElement('div'); el.id = 'muteMenu';
   const when = until === -1 ? 'Muted until you unmute' : until ? `Muted until ${new Date(until).toLocaleString([], {weekday: 'short', hour: 'numeric', minute: '2-digit'})}` : 'Notifications for this chat';
   el.innerHTML = `<div class="hd">${esc(when)}</div>` + (until
-    ? '<button data-mute="0">🔔 Unmute</button>'
-    : '<button data-mute="8h">🔕 8 hours</button><button data-mute="1w">🔕 1 week</button><button data-mute="always">🔕 Always</button>');
+    ? `<button data-mute="0">${ic('bell')}Unmute</button>`
+    : ['8h', '1w', 'always'].map(k => `<button data-mute="${k}">${ic('belloff')}${{'8h': '8 hours', '1w': '1 week', always: 'Always'}[k]}</button>`).join(''));
   document.body.appendChild(el);
   const r = btn.getBoundingClientRect();
   el.style.left = Math.max(8, Math.min(innerWidth - 220, r.right - 210)) + 'px';
@@ -3994,7 +4025,7 @@ function lockHeadEl() {
 }
 function lockEmptyEl() {
   const d = document.createElement('div'); d.className = 'empty';
-  d.textContent = filter === 'locked' ? 'No locked chats. Lock one from its 🔒 Lock button.' : 'No other chats.';
+  d.textContent = filter === 'locked' ? 'No locked chats. Lock one from its Lock button.' : 'No other chats.';
   return d;
 }
 let clkResolve = null, clkMode = 'open';
@@ -4507,7 +4538,7 @@ function fwdRow(c) {
   const on = fwdPicked.some(p => p.jid === c.jid);
   const sub = c.group ? '' : c.phone && c.phone !== c.name ? c.phone : '';
   return `<div class="frow" data-fj="${esc(c.jid)}" data-fn="${esc(c.name)}" role="checkbox" aria-checked="${on}">
-    <div class="av${c.group ? ' g' : ''}">${esc(c.group ? '👥' : initials(c.name))}${avImg(c.jid)}</div>
+    <div class="av${c.group ? ' g' : ''}">${c.group ? ic('people') : esc(initials(c.name))}${avImg(c.jid)}</div>
     <div class="fi"><b>${esc(c.name)}</b>${sub ? `<small>${esc(sub)}</small>` : ''}</div>${ckHtml(on)}</div>`;
 }
 function renderFwd() {
