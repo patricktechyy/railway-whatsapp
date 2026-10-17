@@ -127,6 +127,7 @@ export function parseQuickAdd(input, lists, today = localToday()) {
     out.time = `${pad(h)}:${pad(min)}`
   })
   if (!out.time) take(/\s(?:at\s)?([01]?\d|2[0-3]):([0-5]\d)(?=\s)/, (m) => { out.time = `${pad(Number(m[1]))}:${m[2]}` })
+  if (!out.time) take(/\s(?:at\s)?(midnight|tengah\smalam)(?=\s)/i, () => { out.time = '00:00' })
 
   take(/\s(today|tod)(?=\s)/i, () => { out.due = today })
   if (!out.due) take(/\s(tonight)(?=\s)/i, () => { out.due = today; out.time ||= '20:00' })
@@ -153,10 +154,29 @@ export function parseQuickAdd(input, lists, today = localToday()) {
     } else out.due = today
   }
   if (out.time && !out.due) out.due = today
+  // "12 AM today", "midnight tonight": the midnight coming up, not the one this morning that's already gone
+  if (out.time === '00:00' && out.due === today) out.due = addDays(today, 1)
 
   if (out.due) out.hints.unshift(out.time ? `Due ${out.due === today ? 'today' : out.due} at ${out.time}` : `Due ${out.due === today ? 'today' : out.due}`)
-  out.title = text.replace(/\s+/g, ' ').trim()
+  out.title = tidyTitle(text)
   return out
+}
+
+/**
+ * What's left once the date, time and the rest are taken out. "add 12 AM today to charge powerbank"
+ * leaves "to charge powerbank", "submit essay by 5pm" leaves "submit essay by": drop the joining
+ * words at either end. A title that's only those words stays as it is.
+ */
+const LEAD = /^(?:(?:i\s)?(?:need|have|got|want)\sto|remember\sto|reminder\sto|remind\sme\sto|don['’]?t\sforget\sto|dont\sforget\sto|jangan\slupa|to|that|untuk|buat)\s+/i
+const TRAIL = /\s+(?:at|on|by|from|to|in|for|di|jam|pada|pukul)$/i
+function tidyTitle(text) {
+  let t = text.replace(/\s+/g, ' ').trim()
+  for (let i = 0; i < 3; i++) {
+    const next = t.replace(LEAD, '').replace(TRAIL, '').trim()
+    if (!next || next === t) break
+    t = next
+  }
+  return t
 }
 
 /** The next time this day and month comes round (this year, or next year if it's passed). */

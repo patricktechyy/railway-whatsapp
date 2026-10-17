@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { zonedTime, todayIn } from './tz.js'
 import { parseQuickAdd } from './quickadd.js'
-import { dayLabel, time12 } from './whatsapp.js'
+import { dayLabel, dueText, time12 } from './whatsapp.js'
 import { describeRepeat } from './repeat.js'
 import { model as intentModel, listNumber, snoozePhrase, findTask, nameWords, onlyWhen } from './intent.js'
 
@@ -91,7 +91,7 @@ const ago = (min) => (min < 60 ? `${min} min` : min < 48 * 60 ? `${Math.round(mi
 function dueLine(t, tz, now) {
   if (!t.due) return null
   const today = todayIn(tz, now)
-  const label = `${dayLabel(t.due, today)}${t.time ? `, ${time12(t.time)}` : ''}`
+  const label = dueText(t, today)
   if (!t.time) return t.due < today ? `${label} _(overdue)_` : label
   const min = Math.round((zonedTime(t.due, t.time, tz) - now) / 60000)
   if (Math.abs(min) <= 2) return `${label} _(now!)_`
@@ -394,6 +394,7 @@ export class Buddy {
       '• *td done 2* · *td start 2* · *td step 2*',
       '• *td snooze 2 1h*',
       '• *td move* push today’s leftovers to tomorrow',
+      '• *td move 2 6pm* · *td move 2 fri* one task to another time or day',
       '• *td delete 2* · *td clear completed*',
       '• *td remind me to* call mum at 8pm',
       '• *td clear reminders* cancel reminders and delete my reminder messages',
@@ -574,7 +575,7 @@ export class Buddy {
       const task = this.store.addTask(u, fields)
       this.st(u).last = task.id
       this.saveState()
-      const extras = [task.due && `${dayLabel(task.due, today)}${task.time ? `, ${time12(task.time)}` : ''}`, task.priority > 0 && `🚩 P${task.priority}`, task.tags?.length && task.tags.map((x) => `#${x}`).join(' ')].filter(Boolean)
+      const extras = [task.due && dueText(task, today), task.priority > 0 && `🚩 P${task.priority}`, task.tags?.length && task.tags.map((x) => `#${x}`).join(' ')].filter(Boolean)
       return { reply: `✅ Added: *${task.title}*${extras.length ? `\n${extras.join(' · ')}` : ''}` , task }
     }
 
@@ -615,6 +616,18 @@ export class Buddy {
       const base = typeof task.wa?.before === 'number' ? { before: task.wa.before } : task.wa?.base
       this.changed(u, this.store.updateTask(u, task.id, { wa: base ? { at, base } : { at } }))
       return { reply: say(style, 'snooze', { when: whenText(at, tz, now) }) + `\n_${task.title}_` }
+    }
+
+    // move [n] <when>: one task to another time and/or day ("move 6pm", "move 2 fri 3pm", "pindah besok")
+    if ((m = text.match(/^(?:move|pindah(?:kan)?|reschedule|push|shift|geser)(?:\s+#?(\d{1,2})(?=\s))?\s+(.+)$/i)) && !/^(all|everything|semua)$/i.test(m[2].trim())) {
+      let n = m[1] && Number(m[1])
+      let when = this.whenOf(u, m[2], now, { strict: true })
+      if (!when && n) { when = this.whenOf(u, `${m[1]} ${m[2]}`, now, { strict: true }); n = null } // "move 12 am": the 12 is the time
+      const { task, error } = this.target(u, n)
+      if (when) {
+        if (error) return { reply: error }
+        return { reply: this.moveTo(u, task, when, now) }
+      }
     }
 
     // move: today's unfinished (and overdue) tasks to tomorrow
@@ -726,13 +739,92 @@ export class Buddy {
     this.saveState()
     if (intent === 'snooze') return run(`snooze ${snoozePhrase(text)}`)
     if (intent === 'move') {
-      const due = parseQuickAdd(` ${text.replace(/\bbesok\b/gi, 'tomorrow')} `, doc.lists, today).due || addDaysKey(today, 1)
-      if (due === task.due) return { reply: `*${task.title}* is already on ${dayLabel(due, today).toLowerCase()}.` }
-      this.changed(u, this.store.updateTask(u, task.id, { due }))
-      return { reply: `➡️ Moved *${task.title}* to ${dayLabel(due, today).toLowerCase()}.` }
+      const when = this.whenOf(u, text, now) || { due: addDaysKey(today, 1), time: null, dayGiven: true, timeGiven: false }
+      return { reply: this.moveTo(u, task, when, now) }
     }
     return run(intent) // done / start / step / delete, on the task we just picked
   }
+  /**
+   * A "when" in a message: { due, time, dayGiven, timeGiven }, or null if there isn't one.
+   * strict: the message must be only the when ("6pm", "to fri 3pm", "besok jam 7pm"), nothing that names a task.
+   */
+  whenOf(u, text, now = Date.now(), { strict = false } = {}) {
+    const { today } = this.ctx(u, now)
+    const s = ` ${String(text || '').replace(/\bbesok\b/gi, 'tomorrow').replace(/\blusa\b/gi, '').replace(/\b(?:jam|pukul)\s+(?=\d)/gi, '').replace(/\bmalam ini\b/gi, 'tonight').replace(/\bhari ini\b/gi, 'today')} `
+    const p = parseQuickAdd(s, [], today)
+    if (!p.due && !p.time) return null
+    if (strict && p.title && !/^(?:to|ke|on|at|for|it|this|that|one|again|instead)?$/i.test(p.title.trim())) return null
+    const noTime = s.replace(/\s(?:at\s)?\d{1,2}(?::\d{2})?\s?(?:am|pm)(?=\s)|\s(?:at\s)?(?:[01]?\d|2[0-3]):[0-5]\d(?=\s)|\s(?:at\s)?midnight(?=\s)/gi, ' ')
+    const dayGiven = !!parseQuickAdd(noTime, [], today).due
+    return { due: p.due || null, time: p.time || null, dayGiven, timeGiven: !!p.time }
+  }
+  /** Move one task to a new day and/or time. Its WhatsApp message and bell go off at the new time. Returns the reply. */
+  moveTo(u, task, when, now = Date.now()) {
+    const { tz, today } = this.ctx(u, now)
+    const time = when.timeGiven ? when.time : task.time || null
+    let due
+    if (when.dayGiven) due = when.due
+    else {
+      // just a time: the same day it's on (today if it's overdue or has no date); a time already gone today means tomorrow
+      due = task.due && task.due > today ? task.due : today
+      if (time && due === today && zonedTime(due, time, tz) <= now) due = addDaysKey(today, 1)
+    }
+    const where = dueText({ due, time }, today).replace(/^(Today|Tomorrow|Tonight|Yesterday)/, (x) => x.toLowerCase())
+    if (due === task.due && time === (task.time || null)) return `*${task.title}* is already on ${where}.`
+    const patch = { due, time }
+    // a fixed WhatsApp time (a snooze, or "at 6:43 PM") belonged to the old slot: back to its setting, at the new time
+    if (typeof task.wa?.at === 'number') patch.wa = task.wa.base ? { ...task.wa.base } : { before: 0 }
+    this.changed(u, this.store.updateTask(u, task.id, patch))
+    this.st(u).last = task.id
+    this.saveState()
+    return `➡️ Moved *${task.title}* to ${where}.`
+  }
+  /**
+   * A reply to one of Buddy's messages that we didn't record (sent before this was kept, or long ago):
+   * work out its task(s) from the quoted text ("📝 *Read Books*", or "2. ○ Makan Pome · 6:00 PM" on a list).
+   */
+  useQuotedText(u, quoted) {
+    const text = String(quoted || '')
+    if (!text.trim()) return false
+    const tasks = this.store.snapshot(u).tasks
+    const byTitle = (title) => {
+      const k = String(title || '').trim().toLowerCase()
+      if (!k) return null
+      const same = tasks.filter((t) => t.title.trim().toLowerCase() === k)
+      return same.find((t) => !t.done) || same.sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0))[0] || null
+    }
+    const s = this.st(u)
+    // a numbered list: its numbers
+    const codes = {}
+    for (const line of text.split('\n')) {
+      const m = line.match(/^\s*(\d{1,2})\.\s*(?:[○◐●✓☐☑]|⚠️?)?\s*(.+?)(?:\s+·\s+.*|\s+_\(.*\)_)?\s*$/u)
+      const t = m && byTitle(m[2].replace(/[*_~]/g, ''))
+      if (t) codes[m[1]] = t.id
+    }
+    if (Object.keys(codes).length) {
+      s.codes = codes
+      if (Object.keys(codes).length === 1) s.last = Object.values(codes)[0]
+      this.saveState()
+      return true
+    }
+    // one task in bold
+    const ids = [...new Set([...text.matchAll(/\*([^*\n]{1,200})\*/g)].map((m) => byTitle(m[1])?.id).filter(Boolean))]
+    if (ids.length === 1) {
+      s.codes = { 1: ids[0] }
+      s.last = ids[0]
+      this.saveState()
+      return true
+    }
+    return false
+  }
+  /** A reply to Buddy that it couldn't follow: say which task it's about and what works. */
+  quotedHelp(u) {
+    const t = this.target(u, null).task
+    return t
+      ? `Didn’t get that for *${t.title}*. Reply *done*, *start*, *snooze 1h*, *move 6pm* or *move tomorrow*.`
+      : 'Didn’t get that. Try *today*, *add* buy milk 5pm, *done*, *snooze 1h* or *help*.'
+  }
+
   /** The task a loose message is about: its number on my last list, its name, or the one we were just talking about. */
   pickTask(u, text, n, doc, intent) {
     if (n) {

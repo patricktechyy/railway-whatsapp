@@ -43,3 +43,24 @@ test('how long: "for 1h", "for 30 min", "for 1.5 hours", "for 1h30", "for an hou
   assert.equal(p('Buy a gift for mum').title, 'Buy a gift for mum')
   assert.equal(p('Nap for 2 min').duration, undefined, 'too short: stays in the title')
 })
+
+test('joining words left over at the ends of the title go', () => {
+  const p = parseQuickAdd('12 AM today to charge powerbank', lists, T)
+  assert.equal(p.title, 'charge powerbank')
+  assert.equal(parseQuickAdd('submit essay by 5pm', lists, T).title, 'submit essay')
+  assert.equal(parseQuickAdd('tomorrow I need to call mum', lists, T).title, 'call mum')
+  assert.equal(parseQuickAdd('remind me to drink water at 3pm', lists, T).title, 'drink water')
+  assert.equal(parseQuickAdd('jangan lupa bayar listrik besok jam 7pm', lists, T).title, 'bayar listrik besok')
+  assert.equal(parseQuickAdd('Tomato soup 6pm', lists, T).title, 'Tomato soup') // "to" inside a word stays
+  assert.equal(parseQuickAdd('Go to the bank fri', lists, T).title, 'Go to the bank') // "to" in the middle stays
+  assert.equal(parseQuickAdd('to', lists, T).title, 'to') // nothing else left: keep it
+})
+
+test('"12 AM today" and "midnight" mean the midnight coming up', () => {
+  const p = parseQuickAdd('12 AM today to charge powerbank', lists, T)
+  assert.deepEqual([p.due, p.time], ['2026-09-28', '00:00'])
+  assert.deepEqual(['due', 'time'].map((k) => parseQuickAdd('charge phone midnight', lists, T)[k]), ['2026-09-28', '00:00'])
+  assert.deepEqual(['due', 'time'].map((k) => parseQuickAdd('charge phone 12am', lists, T)[k]), ['2026-09-28', '00:00'])
+  assert.deepEqual(['due', 'time'].map((k) => parseQuickAdd('flight 12am fri', lists, T)[k]), ['2026-10-02', '00:00']) // another day: as written
+  assert.deepEqual(['due', 'time'].map((k) => parseQuickAdd('call 12:30am today', lists, T)[k]), ['2026-09-27', '00:30']) // only exactly midnight moves
+})

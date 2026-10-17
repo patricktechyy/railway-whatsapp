@@ -665,7 +665,7 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
   const SMALL_TALK = /^(thanks?|thank you|thx|ty|tq|ok(ay)?|oke|okey|sip|siap|mantap|nice|cool|great|noted|alright|terima ?kasih|makasih|👍|🙏|❤️|😊|🙂|👌)[\s.!]*$/i
 
   /** A message sent to the bot: the reply (or null to stay quiet). */
-  function botReply(u, text) {
+  function botReply(u, text, quoted = false) {
     const raw = String(text || '').trim()
     const prefixed = isTodoCommand(raw)
     const body = prefixed ? stripTodo(raw) : raw
@@ -695,10 +695,18 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
       return handleInbox(store, u, raw, { tz, brand }).reply
     }
     if (SMALL_TALK.test(body)) return null
+    // a reply to one of Buddy's messages is always answered, naming the task it's about
+    if (quoted) return buddy.quotedHelp(u)
     // don't lecture twice in a row
     if (Date.now() - (lastHelp.get(u) || 0) < 10 * 60e3) return null
     lastHelp.set(u, Date.now())
     return 'Didn’t get that. Try *today*, *add* buy milk 5pm, *done*, *snooze 1h* or *help*.'
+  }
+
+  /** A reply quoting one of Buddy's messages: Buddy turns to that message's task(s). By what it recorded when it sent it, else by the quoted text. */
+  function quotedTask(u, msg) {
+    if (!msg.quote?.id || !buddy.available) return false
+    return buddy.useQuoted(u, msg.quote.id) || buddy.useQuotedText(u, msg.quote.text)
   }
 
   async function onWhatsApp(username, s, msg) {
@@ -729,8 +737,8 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
         if (quickOne) reply = quick.command(u, msg.text, { via: 'bot', jid })
         else {
           // a reply to one of Buddy's messages ("done" under a reminder): that message's task
-          if (msg.quote?.id && buddy.available) buddy.useQuoted(u, msg.quote.id)
-          reply = botReply(u, msg.text)
+          const quoted = quotedTask(u, msg)
+          reply = botReply(u, msg.text, quoted)
         }
       } catch (e) { reply = `⚠️ ${e.message}` }
       if (reply) {
@@ -756,7 +764,7 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
     if (username !== bot && buddy.viaBot(username) && botView()?.connected) return
     let reply
     const selfBody = stripTodo(msg.text)
-    if (msg.quote?.id && buddy.available) buddy.useQuoted(username, msg.quote.id)
+    quotedTask(username, msg)
     try {
       const quick = selfBody.match(/^(?:add|new|todo|task|tambah)\s*:?\s+(.+)$/is)
       if (quick) {

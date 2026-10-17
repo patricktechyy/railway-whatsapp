@@ -336,3 +336,58 @@ test('a task with a bell and "WhatsApp me" at the same time: one WhatsApp messag
   assert.equal(wa.filter((m) => m.text.includes('Bell only')).length, 1) // no "WhatsApp me": the bell still comes to WhatsApp
   assert.equal(pushed.filter((n) => n.title.includes('Read Books')).length, 1) // and the bell still rings on the phone/browser
 })
+
+test('move one task to a time or a day: "move 6pm", "move 1 6pm", "move tomorrow", "move fri 3pm"', () => {
+  const { store, buddy } = setup()
+  const now = zonedTime(todayIn(TZ), '16:23', TZ)
+  const today = todayIn(TZ, now)
+  const tmr = new Date(Date.UTC(...today.split('-').map((x, i) => Number(x) - (i === 1 ? 1 : 0)))) ; tmr.setUTCDate(tmr.getUTCDate() + 1)
+  const tomorrow = tmr.toISOString().slice(0, 10)
+  const a = store.addTask('gavin', { title: 'collect screen protector', due: today, time: '12:00', wa: { at: now - 3600e3, base: { before: 0 } } })
+  const b2 = store.addTask('gavin', { title: 'Makan Pome', due: today, time: '18:00', wa: { before: 0 } })
+  buddy.command('gavin', 'today', now)
+  let r = buddy.command('gavin', 'move 1 6PM', now)
+  assert.match(r.reply, /Moved \*collect screen protector\* to today, 6:00 PM/)
+  let t = store.snapshot('gavin').tasks.find((x) => x.id === a.id)
+  assert.deepEqual([t.due, t.time, t.wa], [today, '18:00', { before: 0 }]) // the old fixed WhatsApp time is gone: it goes off at 6 PM
+  // no number: the one we were just talking about
+  r = buddy.command('gavin', 'move 7:30pm', now)
+  assert.match(r.reply, /collect screen protector\* to today, 7:30 PM/)
+  // a time already gone today: tomorrow
+  r = buddy.command('gavin', 'move 2pm', now)
+  assert.match(r.reply, /to tomorrow, 2:00 PM/)
+  t = store.snapshot('gavin').tasks.find((x) => x.id === a.id)
+  assert.deepEqual([t.due, t.time], [tomorrow, '14:00'])
+  // a day keeps the time; a day and a time sets both
+  r = buddy.command('gavin', 'move 2 tomorrow', now)
+  assert.match(r.reply, /Makan Pome\* to tomorrow, 6:00 PM/)
+  r = buddy.command('gavin', 'move 2 to fri 3pm', now)
+  t = store.snapshot('gavin').tasks.find((x) => x.id === b2.id)
+  assert.equal(t.time, '15:00'); assert.match(r.reply, /Makan Pome\* to \w{3} \d+ \w{3}, 3:00 PM/)
+  assert.match(buddy.command('gavin', 'pindah besok jam 7pm', now).reply, /to tomorrow, 7:00 PM/)
+  // "move" alone still pushes today's leftovers; a name isn't a when (the model handles "move maths to friday")
+  assert.equal(buddy.command('gavin', 'move maths to friday', now), null)
+})
+
+test('a reply to a Buddy message it never recorded: the task comes from the quoted text', () => {
+  const { store, buddy } = setup()
+  const today = todayIn(TZ)
+  const a = store.addTask('gavin', { title: 'collect screen protector', due: today, time: '12:00' })
+  const b2 = store.addTask('gavin', { title: 'Makan Pome', due: today, time: '18:00' })
+  buddy.remember('gavin', [b2.id]) // Buddy was last on Makan Pome
+  const reminder = 'Hey Patrick, reminder…\n\n📝 *collect screen protector*\n📅 Today, 12:00 PM _(now!)_\n\n↩️ Reply *done* · *start* · *snooze 1h*'
+  assert.equal(buddy.useQuoted('gavin', 'old-message-id'), false)
+  assert.equal(buddy.useQuotedText('gavin', reminder), true)
+  assert.match(buddy.command('gavin', 'done').reply, /collect screen protector/)
+  assert.equal(store.snapshot('gavin').tasks.find((x) => x.id === a.id).done, true)
+  // a list: its numbers
+  const list = '📋 *Today* (2)\n1. ○ collect screen protector · 12:00 PM\n2. ○ Makan Pome · 6:00 PM\n\n_done 1 · start 2 · snooze 2 2h_'
+  buddy.remember('gavin', [])
+  assert.equal(buddy.useQuotedText('gavin', list), true)
+  assert.match(buddy.command('gavin', 'start 2').reply, /Makan Pome/)
+  // something that isn't about a task
+  assert.equal(buddy.useQuotedText('gavin', 'Hi there, how are you?'), false)
+  // not understood, but a reply: say which task
+  buddy.useQuotedText('gavin', '📝 *Makan Pome*')
+  assert.match(buddy.quotedHelp('gavin'), /for \*Makan Pome\*.*move 6pm/)
+})

@@ -27,7 +27,12 @@ export function dayLabel(k, today) {
   return `${DAYS[d.getUTCDay()]} ${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`
 }
 
-export const dueText = (t, today) => (t.due ? `${dayLabel(t.due, today)}${t.time ? `, ${time12(t.time)}` : ''}` : '')
+/** "Today, 6:00 PM". The midnight coming up reads "Tonight, 12:00 AM (midnight)" rather than "Tomorrow, 12:00 AM". */
+export const dueText = (t, today) => {
+  if (!t.due) return ''
+  if (t.time === '00:00' && dayDiff(today, t.due) === 1) return 'Tonight, 12:00 AM (midnight)'
+  return `${dayLabel(t.due, today)}${t.time ? `, ${time12(t.time)}` : ''}`
+}
 
 /** A task written out as a WhatsApp message (WhatsApp understands *bold* and _italic_). */
 export function taskMessage(t, { today, listName, brand }) {
