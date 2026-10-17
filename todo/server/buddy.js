@@ -648,8 +648,24 @@ export class Buddy {
       const s = this.st(u)
       if (s.last === task.id) s.last = null
       for (const [k, id] of Object.entries(s.codes || {})) if (id === task.id) delete s.codes[k]
+      s.removed = { task: removed, at: now } // "undo" brings it back
       this.saveState()
-      return { reply: `🗑️ Removed *${task.title}*.` }
+      return { reply: `🗑️ Removed *${task.title}*.\n_Wrong one? Reply *td undo* to bring it back._` }
+    }
+
+    // undo: the task Buddy last removed comes back (within a day)
+    if (/^(undo|restore|bring it back|balikin|kembalikan)$/.test(low)) {
+      const s = this.st(u)
+      const r = s.removed
+      if (!r || now - r.at > 24 * 3600e3) return { reply: 'Nothing to undo.' }
+      const { id: _i, order: _o, createdAt: _c, updatedAt: _up, doneAt: _d, spawnedId: _s, ...input } = r.task
+      if (input.wa) { const { sent: _x, ...wa } = input.wa; input.wa = typeof wa.at === 'number' && wa.at < now ? (wa.base || { before: 0 }) : wa }
+      let back
+      try { back = this.store.addTask(u, input) } catch (e) { return { reply: `Couldn’t bring *${r.task.title}* back: ${e.message}` } }
+      this.changed(u, back)
+      s.removed = null
+      this.remember(u, [back.id])
+      return { reply: `↩️ *${back.title}* is back.${back.due ? `\n${dueText(back, today)}` : ''}` }
     }
 
     if (/^(?:clear|clean) completed$/.test(low)) {
@@ -783,7 +799,7 @@ export class Buddy {
    * A reply to one of Buddy's messages that we didn't record (sent before this was kept, or long ago):
    * work out its task(s) from the quoted text ("📝 *Read Books*", or "2. ○ Makan Pome · 6:00 PM" on a list).
    */
-  useQuotedText(u, quoted) {
+  useQuotedText(u, quoted, { merge = false } = {}) {
     const text = String(quoted || '')
     if (!text.trim()) return false
     const tasks = this.store.snapshot(u).tasks
@@ -802,7 +818,7 @@ export class Buddy {
       if (t) codes[m[1]] = t.id
     }
     if (Object.keys(codes).length) {
-      s.codes = codes
+      s.codes = merge ? { ...s.codes, ...codes } : codes
       if (Object.keys(codes).length === 1) s.last = Object.values(codes)[0]
       this.saveState()
       return true

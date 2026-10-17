@@ -677,7 +677,7 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
     let m
     if ((m = body.match(/^(?:add|new|todo|task|tambah)\s*:?\s+(.+)$/is))) {
       if (!link.enabled('inbox')) return 'Adding tasks from WhatsApp is turned off.'
-      return handleInbox(store, u, `todo: ${m[1]}`, { tz, brand }).reply
+      return added(u, handleInbox(store, u, `todo: ${m[1]}`, { tz, brand }))
     }
     if (!buddy.available) return null
     const r = buddy.command(u, body)
@@ -688,11 +688,11 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
     if (g?.chat) return null
     if (g?.add && !prefixed) {
       if (!link.enabled('inbox')) return 'Adding tasks from WhatsApp is turned off.'
-      return handleInbox(store, u, `todo: ${body}`, { tz, brand }).reply
+      return added(u, handleInbox(store, u, `todo: ${body}`, { tz, brand }))
     }
     if (prefixed) {
       if (!link.enabled('inbox')) return 'Adding tasks from WhatsApp is turned off.'
-      return handleInbox(store, u, raw, { tz, brand }).reply
+      return added(u, handleInbox(store, u, raw, { tz, brand }))
     }
     if (SMALL_TALK.test(body)) return null
     // a reply to one of Buddy's messages is always answered, naming the task it's about
@@ -706,7 +706,15 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
   /** A reply quoting one of Buddy's messages: Buddy turns to that message's task(s). By what it recorded when it sent it, else by the quoted text. */
   function quotedTask(u, msg) {
     if (!msg.quote?.id || !buddy.available) return false
-    return buddy.useQuoted(u, msg.quote.id) || buddy.useQuotedText(u, msg.quote.text)
+    // what Buddy recorded for that message, then what the quoted text itself names (that wins: it's what they're looking at)
+    const rec = buddy.useQuoted(u, msg.quote.id)
+    const txt = buddy.useQuotedText(u, msg.quote.text, { merge: rec })
+    return rec || txt
+  }
+  /** A task just added from WhatsApp: Buddy is now on it, so "done", "move 6pm" or a reply to "Added: …" mean it. */
+  function added(u, r) {
+    if (r?.task && buddy.available) buddy.remember(u, [r.task.id])
+    return r?.reply
   }
 
   async function onWhatsApp(username, s, msg) {
@@ -769,7 +777,7 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
       const quick = selfBody.match(/^(?:add|new|todo|task|tambah)\s*:?\s+(.+)$/is)
       if (quick) {
         if (!link.enabled('inbox')) return
-        reply = handleInbox(store, username, `todo: ${quick[1]}`, { tz: tzOf(username), brand }).reply
+        reply = added(username, handleInbox(store, username, `todo: ${quick[1]}`, { tz: tzOf(username), brand }))
       } else {
         reply = (buddy.available ? buddy.command(username, selfBody) : null)?.reply
         if (!reply && buddy.available) {
@@ -780,7 +788,7 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
       }
       if (!reply) {
         if (!link.enabled('inbox')) return
-        reply = handleInbox(store, username, msg.text, { tz: tzOf(username), brand }).reply
+        reply = added(username, handleInbox(store, username, msg.text, { tz: tzOf(username), brand }))
       }
     } catch (e) { reply = `⚠️ ${e.message}` }
     const r = await link.call('send', { username, text: reply })
