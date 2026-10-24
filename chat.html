@@ -1722,6 +1722,10 @@ function bubble(m) {
   } else if (m.type === 'location') {
     const q = encodeURIComponent(m.text);
     body = `<a class="file" href="https://maps.google.com/?q=${q}" target="_blank" rel="noopener">${ic('place')}${esc(m.text)}</a>`;
+  } else if (m.type === 'waiting') {
+    body = `<span class="note waiting">${ic(m.gaveUp ? 'alert' : 'clock')}${esc(m.text || 'Waiting for this message.')}</span>`;
+  } else if (m.type === 'unsupported') {
+    body = `<span class="note">${ic('alert')}${esc(m.text || 'This message isn’t supported here yet.')}</span>`;
   } else if (m.type === 'contact') {
     body = `<span class="note">${ic('person')}${esc(m.text)}</span>`;
   } else {

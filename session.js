@@ -306,6 +306,16 @@ const safeJson = (v) => {
   }
 }
 
+// A message that couldn't be decrypted (or came as an empty placeholder): when to ask the phone
+// for it, in seconds after it first showed up. WhatsApp's own retry gets the first 8 s; then we
+// keep asking, further apart, for about 2½ hours. WA_RESEND_PLAN="8,30,120" overrides it.
+const RESEND_PLAN = String(process.env.WA_RESEND_PLAN || '8,30,120,600,1800,7200')
+  .split(',').map((x) => Number(x) * 1000).filter((x) => x > 0)
+// after the last ask, how long the phone gets to answer before we say it couldn't be loaded
+const RESEND_GRACE = Number(process.env.WA_RESEND_GRACE_MS) || 30 * 60e3
+const PENDING_MAX = 300 // never track more than this many at once
+const PENDING_TTL = 24 * 3600e3 // and forget any after a day
+
 const num = (t) => (t == null ? 0 : typeof t === 'object' && t.toNumber ? t.toNumber() : Number(t) || 0)
 /**
  * Who wrote a group message. Live messages carry it on the key; copies WhatsApp re-sends
@@ -340,6 +350,9 @@ export class Session extends EventEmitter {
     this.metrics = { messagesIn: 0, messagesOut: 0, reactionsIn: 0, reactionsOut: 0, lastInboundAt: 0, lastOutboundAt: 0, lastPresenceAt: 0, lastEventAt: Date.now(), lastMediaError: null, historyProgress: null }
     this.stopped = false
     fs.mkdirSync(this.authDir, { recursive: true })
+    this.pendingFile = path.join(dir, 'pending-messages.json')
+    this.pending = new Map() // message id -> { key, jid, first, tries, ts, gaveUp }
+    this.loadPending()
   }
 
   log(...a) {
@@ -540,6 +553,8 @@ export class Session extends EventEmitter {
         this.connectedAt = Date.now()
         this.setStatus('connected')
         this.log('connected as', this.me.phone || pn)
+        // messages that hadn't come through before the connection dropped (or the server restarted)
+        setTimeout(() => { if (live()) this.askAllMissing() }, 3000).unref?.()
         this.loadGroups(sock)
         this.scheduleLidResolve()
         setTimeout(() => this.flushReadPending(), 1500)
@@ -660,55 +675,9 @@ export class Session extends EventEmitter {
       }
     })
 
-    sock.ev.on('messages.upsert', ({ messages = [], type }) => {
+    sock.ev.on('messages.upsert', (up) => {
       if (!live()) return
-      let received = 0
-      let failed = 0
-      let placeholders = 0
-      for (const m of messages) {
-        try {
-          // Baileys can emit a placeholder when a message could not be
-          // decrypted yet. Ask the phone to resend it instead of silently
-          // dropping it from our local message list.
-          if (!m?.message && !m?.messageStubType && m?.key?.id && typeof sock.requestPlaceholderResend === 'function') {
-            this.rememberName(m)
-            this.rememberSender(m)
-            placeholders++
-            Promise.resolve(sock.requestPlaceholderResend(m.key)).catch((e) => {
-              if (live()) this.log('placeholder resend failed:', m.key.id, e?.message || e)
-            })
-            continue
-          }
-
-          const msg = this.ingest(m, { bumpUnread: type === 'notify' })
-          if (msg) {
-            received++
-            this.metrics.messagesIn++
-            this.metrics.lastInboundAt = Date.now()
-            this.metrics.lastEventAt = Date.now()
-            try {
-              const pub = this.publicMsg(msg)
-              this.emit('event', { type: 'message', message: pub })
-              // the Todolist's WhatsApp Buddy listens here (a separate event name, so it
-              // never counts as someone looking at the page)
-              if (type === 'notify' || type === 'append') this.emit('wa:new', pub)
-            } catch (e) {
-              this.log('message event delivery failed:', e?.message || e)
-            }
-          }
-        } catch (e) {
-          failed++
-          this.log('incoming message failed:', m?.key?.id || '?', e?.message || e)
-        }
-      }
-      if (received || failed || placeholders) {
-        this.log(
-          `messages.upsert type=${type ?? '?'} received=${received}` +
-            (placeholders ? ` placeholders=${placeholders}` : '') +
-            (failed ? ` failed=${failed}` : '')
-        )
-      }
-      try { this.emit('event', { type: 'chats' }) } catch (e) { this.log('chat event delivery failed:', e?.message || e) }
+      this.onUpsert(up, sock, live)
     })
 
     // WhatsApp delivery/read receipts for messages we sent. In 1:1 chats,
@@ -943,6 +912,182 @@ export class Session extends EventEmitter {
     }
   }
 
+  /**
+   * New messages from WhatsApp. A message that couldn't be decrypted yet comes as an empty
+   * placeholder ("Waiting for this message" on the phone): WhatsApp retries by itself, and if
+   * the real one still hasn't come a few seconds later we ask the phone to send it over.
+   */
+  onUpsert({ messages = [], type } = {}, sock = this.sock, live = () => true) {
+    let received = 0, failed = 0, placeholders = 0, waiting = 0
+    for (const m of messages) {
+      try {
+        const k = m?.key
+        const stub = m?.messageStubType
+        const cipher = !m?.message && k?.id && (stub === 2 || stub === 'CIPHERTEXT')
+        if (k?.id && !m?.message && (!stub || cipher) && typeof sock?.requestPlaceholderResend === 'function') {
+          this.rememberName(m)
+          this.rememberSender(m)
+          this.resendVia = sock
+          if (cipher) {
+            waiting++
+            this.noteUndecrypted(m)
+          } else {
+            placeholders++
+            Promise.resolve(sock.requestPlaceholderResend(k)).catch((e) => { if (live()) this.log('placeholder resend failed:', k.id, e?.message || e) })
+          }
+          // keep asking until it comes (WhatsApp's own retry usually brings it within seconds)
+          this.trackMissing(m)
+          continue
+        }
+        const msg = this.ingest(m, { bumpUnread: type === 'notify' })
+        if (msg && this.pending.has(msg.id)) this.missingArrived(msg.id)
+        if (msg) {
+          received++
+          this.metrics.messagesIn++
+          this.metrics.lastInboundAt = Date.now()
+          this.metrics.lastEventAt = Date.now()
+          try {
+            const pub = this.publicMsg(msg)
+            this.emit('event', { type: 'message', message: pub })
+            // the Todolist's WhatsApp Buddy listens here (a separate event name, so it
+            // never counts as someone looking at the page)
+            if (type === 'notify' || type === 'append') this.emit('wa:new', pub)
+          } catch (e) {
+            this.log('message event delivery failed:', e?.message || e)
+          }
+        }
+      } catch (e) {
+        failed++
+        this.log('incoming message failed:', m?.key?.id || '?', e?.message || e)
+      }
+    }
+    if (received || failed || placeholders || waiting) {
+      this.log(
+        `messages.upsert type=${type ?? '?'} received=${received}` +
+          (placeholders ? ` placeholders=${placeholders}` : '') +
+          (waiting ? ` undecrypted=${waiting}` : '') +
+          (failed ? ` failed=${failed}` : '')
+      )
+    }
+    try { this.emit('event', { type: 'chats' }) } catch (e) { this.log('chat event delivery failed:', e?.message || e) }
+    return { received, failed, placeholders, waiting }
+  }
+  // ------------------------------------------------ messages that haven't come through yet
+  loadPending() {
+    try {
+      const list = JSON.parse(fs.readFileSync(this.pendingFile, 'utf8'))
+      for (const e of Array.isArray(list) ? list : []) {
+        if (!e?.key?.id || Date.now() - (e.first || 0) > PENDING_TTL || e.gaveUp) continue
+        this.pending.set(e.key.id, e)
+      }
+    } catch {}
+    // after a restart: carry on where each one was
+    for (const e of this.pending.values()) this.scheduleMissing(e, 5000)
+  }
+  savePending() {
+    try { fs.writeFileSync(this.pendingFile, JSON.stringify([...this.pending.values()].map(({ timer, ...e }) => e))) } catch (e) { this.log('saving pending messages failed:', e?.message || e) }
+  }
+  /** A message we were told about but couldn't read: keep asking the phone for it on RESEND_PLAN. */
+  trackMissing(m) {
+    const k = m.key
+    if (this.pending.has(k.id)) return
+    if (this.pending.size >= PENDING_MAX) {
+      const oldest = [...this.pending.values()].sort((a, b) => a.first - b.first)[0]
+      if (oldest) this.dropMissing(oldest.key.id)
+    }
+    const key = { remoteJid: k.remoteJid, id: k.id, fromMe: !!k.fromMe, participant: senderOf(m) || this.knownSender(k.remoteJid, k.id) || undefined }
+    const e = { key, jid: this.store.canon(k.remoteJid), first: Date.now(), tries: 0, ts: num(m.messageTimestamp) || Math.floor(Date.now() / 1000) }
+    this.pending.set(k.id, e)
+    this.savePending()
+    this.scheduleMissing(e)
+  }
+  scheduleMissing(e, delay) {
+    clearTimeout(e.timer)
+    if (this.stopped) return
+    const plan = RESEND_PLAN[e.tries]
+    if (plan === undefined) {
+      // asked as many times as planned: give the last ask time to be answered, then say so
+      e.lastAskAt ||= Date.now()
+      e.timer = setTimeout(() => this.giveUpMissing(e), Math.max(0, e.lastAskAt + RESEND_GRACE - Date.now()))
+      e.timer.unref?.()
+      return
+    }
+    // the plan counts from when it first showed up
+    const wait = delay ?? Math.max(200, e.first + plan - Date.now())
+    e.timer = setTimeout(() => this.askAgain(e), wait)
+    e.timer.unref?.()
+  }
+  async askAgain(e) {
+    if (this.stopped || !this.pending.has(e.key.id)) return
+    const have = this.store.findMessage(e.jid, e.key.id)
+    if (have && !have.waiting) return this.missingArrived(e.key.id)
+    const sock = typeof this.sock?.requestPlaceholderResend === 'function' ? this.sock : this.resendVia
+    // not connected right now: try again in a minute without using up a try (reconnecting asks for all of them anyway)
+    if (this.status !== 'connected' || typeof sock?.requestPlaceholderResend !== 'function') return this.scheduleMissing(e, 60e3)
+    e.tries++
+    // after the first try, a "waiting for this message" bubble holds its place, like on the phone
+    if (e.tries === 1) this.showWaiting(e)
+    this.metrics.resendAsked = (this.metrics.resendAsked || 0) + 1
+    e.lastAskAt = Date.now()
+    try { await sock.requestPlaceholderResend(e.key) } catch (x) { this.log('asking the phone again failed:', e.key.id, x?.message || x) }
+    this.savePending()
+    this.scheduleMissing(e)
+  }
+  /** WhatsApp just reconnected: ask for everything still missing straight away (the timers carry on as planned). */
+  askAllMissing() {
+    const sock = this.sock
+    if (!this.pending.size || typeof sock?.requestPlaceholderResend !== 'function') return
+    this.log(`asking the phone again for ${this.pending.size} message${this.pending.size === 1 ? '' : 's'} that haven't come through`)
+    for (const e of this.pending.values()) Promise.resolve(sock.requestPlaceholderResend(e.key)).catch(() => {})
+  }
+  showWaiting(e) {
+    if (this.store.findMessage(e.jid, e.key.id)) return
+    const msg = this.store.addMessage({
+      id: e.key.id, jid: e.jid, fromMe: e.key.fromMe, ts: e.ts, type: 'waiting', waiting: true,
+      text: 'Waiting for this message. It can take a while.',
+      sender: e.key.participant ? this.store.canon(e.key.participant) : undefined,
+      rj: e.key.remoteJid !== e.jid ? e.key.remoteJid : undefined, rp: e.key.participant,
+    })
+    if (msg) { try { this.emit('event', { type: 'message', message: this.publicMsg(msg) }); this.emit('event', { type: 'chats' }) } catch {} }
+  }
+  giveUpMissing(e) {
+    if (!this.pending.has(e.key.id)) return
+    const have = this.store.findMessage(e.jid, e.key.id)
+    this.pending.delete(e.key.id)
+    this.savePending()
+    if (have && !have.waiting) return
+    this.metrics.gaveUp = (this.metrics.gaveUp || 0) + 1
+    this.log(`a message never came through after ${e.tries} tries (${isGroup(e.jid) ? 'group' : 'chat'})`)
+    if (!have) this.showWaiting(e)
+    const m = this.store.findMessage(e.jid, e.key.id)
+    if (m?.waiting) {
+      m.text = 'Couldn’t load this message. Open WhatsApp on your phone to see it.'
+      m.gaveUp = true
+      this.store.dirty = true
+      try { this.emit('event', { type: 'message', message: this.publicMsg(m) }) } catch {}
+    }
+  }
+  missingArrived(id) {
+    const e = this.pending.get(id)
+    if (!e) return
+    clearTimeout(e.timer)
+    this.pending.delete(id)
+    this.savePending()
+    if (e.tries) this.log(`a missing message came through after ${e.tries} ${e.tries === 1 ? 'try' : 'tries'}`)
+  }
+  dropMissing(id) { const e = this.pending.get(id); if (e) { clearTimeout(e.timer); this.pending.delete(id) } }
+
+  /** Counted (and the reason logged, now and then) so Connection & status can show it. */
+  noteUndecrypted(m) {
+    this.metrics.undecrypted = (this.metrics.undecrypted || 0) + 1
+    const why = String(m?.messageStubParameters?.[0] || 'unknown').slice(0, 80)
+    const now = Date.now()
+    if (!this.lastUndecryptedLog || now - this.lastUndecryptedLog > 60e3) {
+      this.lastUndecryptedLog = now
+      this.log(`couldn't decrypt a message yet in ${isGroup(m?.key?.remoteJid || '') ? 'a group' : 'a chat'} (${why}); WhatsApp retries, then we ask the phone`)
+    }
+  }
+
   /** Raw Baileys message -> our slim shape, stored under the canonical chat. */
   ingest(m, opts) {
     const k = m?.key
@@ -976,9 +1121,11 @@ export class Session extends EventEmitter {
       if (t === 0 || t === 'REVOKE') { this.applyRemoteDelete(pm.key, k); return null }
       if (t === 14 || t === 'MESSAGE_EDIT') { this.applyRemoteEdit(pm.key, k, pm.editedMessage); return null }
     }
-    if (c.protocolMessage || c.senderKeyDistributionMessage) {
-      if (!c.conversation && !c.extendedTextMessage) return null
-    }
+    // In groups, a sender's first message after a key change carries the key hand-out
+    // (senderKeyDistributionMessage) next to the real content: keep the content. Skip only
+    // when the hand-out (or other bookkeeping) is all there is.
+    const kinds = Object.keys(c).filter((x) => c[x] != null && !META_KEYS.has(x))
+    if (!kinds.length) return null
     if (c.pollUpdateMessage) { this.applyPollVote(k, c.pollUpdateMessage); return null }
 
     let type = 'text'
@@ -1014,6 +1161,22 @@ export class Session extends EventEmitter {
     } else if (c.contactMessage) {
       type = 'contact'
       text = c.contactMessage.displayName || 'Contact'
+    } else if (c.contactsArrayMessage) {
+      type = 'contact'
+      const n = (c.contactsArrayMessage.contacts || []).length
+      text = c.contactsArrayMessage.displayName || `${n || 'Some'} contact${n === 1 ? '' : 's'}`
+    } else if (c.liveLocationMessage) {
+      type = 'location'
+      text = `${c.liveLocationMessage.degreesLatitude}, ${c.liveLocationMessage.degreesLongitude}`
+    } else if ((text = otherText(c))) {
+      // invites, events, business buttons and lists, picked answers…: their words, as a message
+    } else if (kinds.some((x) => !QUIET_KEYS.has(x))) {
+      // a kind we don't show yet: say so (like WhatsApp Web) rather than lose it without a trace
+      type = 'unsupported'
+      text = 'This message isn’t supported here yet. Open WhatsApp on your phone to see it.'
+      this.unsupportedSeen ??= new Set()
+      const kind = kinds.find((x) => !QUIET_KEYS.has(x))
+      if (!this.unsupportedSeen.has(kind) && this.unsupportedSeen.size < 30) { this.unsupportedSeen.add(kind); this.log(`message kind not shown yet: ${kind}`) }
     } else {
       return null
     }
@@ -1237,6 +1400,7 @@ export class Session extends EventEmitter {
       ts: m.ts,
       type: m.type,
       text: m.text,
+      gaveUp: m.gaveUp || undefined,
       media: !!m.rm,
       fileName: m.fileName,
       dur: m.dur || undefined,
@@ -2293,6 +2457,7 @@ export class Session extends EventEmitter {
   /** Permanently remove: unlink from the phone and delete everything. */
   async destroy() {
     this.stopped = true
+    for (const e of this.pending.values()) clearTimeout(e.timer)
     this.gen++
     clearTimeout(this.lidTimer)
     clearTimeout(this.retryTimer)
@@ -2319,16 +2484,52 @@ function textOf(c) {
 
 function inner(message) {
   let m = message
-  for (let i = 0; i < 4 && m; i++) {
+  for (let i = 0; i < 6 && m; i++) {
     const next =
       m.ephemeralMessage?.message ??
       m.viewOnceMessage?.message ??
       m.viewOnceMessageV2?.message ??
       m.viewOnceMessageV2Extension?.message ??
       m.documentWithCaptionMessage?.message ??
-      m.editedMessage?.message
+      m.editedMessage?.message ??
+      m.deviceSentMessage?.message ?? // sent from your phone, as your other devices see it
+      m.associatedChildMessage?.message ?? // one photo or video of an album
+      m.groupMentionedMessage?.message ??
+      m.botInvokeMessage?.message ??
+      m.lottieStickerMessage?.message ??
+      m.groupStatusMessage?.message ??
+      m.groupStatusMessageV2?.message
     if (!next) break
     m = next
   }
   return m
+}
+
+/** Bookkeeping that rides along with messages, never something to show by itself. */
+const META_KEYS = new Set(['messageContextInfo', 'senderKeyDistributionMessage', 'fastRatchetKeySenderKeyDistributionMessage', 'protocolMessage'])
+/** Kinds we deliberately keep out of the chat (they act on other messages, or are WhatsApp housekeeping). */
+const QUIET_KEYS = new Set([
+  'reactionMessage', 'encReactionMessage', 'pollUpdateMessage', 'keepInChatMessage', 'pinInChatMessage', 'encCommentMessage',
+  'call', 'callLogMesssage', 'callLogMessage', 'albumMessage', 'messageHistoryBundle', 'messageHistoryNotice', 'placeholderMessage',
+  'peerDataOperationRequestMessage', 'peerDataOperationRequestResponseMessage', 'appStateSyncKeyShare', 'chat', 'statusMentionMessage',
+  'pollResultSnapshotMessage', 'encEventResponseMessage', 'secretEncryptedMessage', 'stickerSyncRmrMessage', 'botFeedbackMessage',
+])
+/** The words of a message kind we don't otherwise draw (invites, events, business buttons and lists, picked replies). */
+function otherText(c) {
+  const s = (v) => (typeof v === 'string' && v.trim() ? v.trim() : '')
+  const join = (...xs) => xs.map(s).filter(Boolean).join('\n')
+  if (c.groupInviteMessage) return join(`👥 Group invite: ${s(c.groupInviteMessage.groupName) || 'a group'}`, c.groupInviteMessage.caption)
+  if (c.eventMessage) return join(`📅 Event: ${s(c.eventMessage.name) || 'untitled'}`, c.eventMessage.description, c.eventMessage.location?.name)
+  if (c.scheduledCallCreationMessage) return `📞 Scheduled call: ${s(c.scheduledCallCreationMessage.title) || 'call'}`
+  if (c.buttonsMessage) return join(c.buttonsMessage.contentText, c.buttonsMessage.footerText)
+  if (c.templateMessage) { const t = c.templateMessage.hydratedTemplate || c.templateMessage.hydratedFourRowTemplate || c.templateMessage.fourRowTemplate || {}; return join(t.hydratedTitleText, t.hydratedContentText || t.content?.namespace, t.hydratedFooterText) }
+  if (c.listMessage) return join(c.listMessage.title, c.listMessage.description, c.listMessage.footerText)
+  if (c.interactiveMessage) return join(c.interactiveMessage.header?.title, c.interactiveMessage.body?.text, c.interactiveMessage.footer?.text)
+  if (c.buttonsResponseMessage) return s(c.buttonsResponseMessage.selectedDisplayText)
+  if (c.listResponseMessage) return join(c.listResponseMessage.title, c.listResponseMessage.description)
+  if (c.templateButtonReplyMessage) return s(c.templateButtonReplyMessage.selectedDisplayText)
+  if (c.interactiveResponseMessage) return s(c.interactiveResponseMessage.body?.text)
+  if (c.requestPhoneNumberMessage) return '📱 Asked for your phone number'
+  if (c.extendedTextMessage && !s(c.extendedTextMessage.text)) return s(c.extendedTextMessage.matchedText) || s(c.extendedTextMessage.canonicalUrl)
+  return ''
 }

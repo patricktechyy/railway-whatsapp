@@ -270,6 +270,8 @@ export class Store {
       this.messages.set(msg.jid, list)
     }
     const i = list.findIndex((m) => m.id === msg.id)
+    // the real message taking the place of its "waiting for this message" bubble counts as new
+    const wasWaiting = i >= 0 && list[i].waiting && !msg.waiting
     const isNew = i < 0
     if (isNew) list.push(msg)
     else {
@@ -281,6 +283,7 @@ export class Store {
       // a re-sync of the original must not undo a delete or an edit
       if (old.deleted) Object.assign(list[i], { deleted: true, text: '', rm: undefined, quote: undefined })
       else if (old.edited) Object.assign(list[i], { edited: true, text: old.text })
+      if (wasWaiting) { delete list[i].waiting; delete list[i].gaveUp }
     }
     // a reply says who wrote the message it quotes: fill in a group message that came without its sender
     if (isGroup(msg.jid) && msg.quote?.sender) this.fillSenders(list, [msg])
@@ -297,7 +300,7 @@ export class Store {
       chat.t = msg.ts
       chat.preview = previewOf(msg, this)
     }
-    if (bumpUnread && isNew && !msg.fromMe) chat.unread = (chat.unread || 0) + 1
+    if (bumpUnread && (isNew || wasWaiting) && !msg.fromMe) chat.unread = (chat.unread || 0) + 1
     this.dirty = true
     return msg
   }
@@ -509,6 +512,7 @@ export class Store {
       ts: m.ts,
       type: m.type,
       text: m.text,
+      gaveUp: m.gaveUp || undefined,
       media: !!m.rm,
       fileName: m.fileName,
       dur: m.dur || undefined,
