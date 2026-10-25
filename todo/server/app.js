@@ -10,6 +10,7 @@ import { LocalLink } from './local.js'
 import { handleInbox, taskMessage, stripTodo, isTodoCommand } from './whatsapp.js'
 import { Buddy, BUDDY_DEFAULTS, plain, COMMANDS as BUDDY_COMMANDS } from './buddy.js'
 import { askBuddy, aiStatus, DEFAULT_MODEL } from './ai.js'
+import { AiUsage } from './aiusage.js'
 import { todayIn } from './tz.js'
 import { Holidays, COUNTRIES, countryForTz } from './holidays.js'
 import { Assignments, progressOf } from './assign.js'
@@ -70,6 +71,8 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
     return u && sessions.has(u) ? u : null
   }
   // Buddy's optional AI: a free Groq key from the main admin (or GROQ_API_KEY in Railway). It only proposes; you confirm.
+  // How much of Groq's free tier it uses (main admin's AI card), counted in the main admin's days.
+  const aiUsage = new AiUsage(dataDir, { tz: () => tzOf(ENV_ADMIN) })
   const aiConfig = () => {
     const a = link.settings().ai || {}
     const key = String(process.env.GROQ_API_KEY || a.key || '').trim()
@@ -84,8 +87,9 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
     model: aiStatus.model || process.env.GROQ_MODEL || s.ai?.model || DEFAULT_MODEL,
     // how the last try went (so a problem shows here, not only in Groq's logs)
     last: aiStatus.at ? { at: aiStatus.at, ok: aiStatus.ok, error: aiStatus.error, ms: aiStatus.ms, switchedFrom: aiStatus.switchedFrom } : null,
+    usage: aiUsage.view((u) => nameOf(u)),
   })
-  const buddy = new Buddy(dataDir, store, link, { brand, onTaskChange: (t) => toldAdmin(t), getBot: botUser, planner: { study, exams }, nameOf: (u) => nameOf(u), ai: aiConfig })
+  const buddy = new Buddy(dataDir, store, link, { brand, onTaskChange: (t) => toldAdmin(t), getBot: botUser, planner: { study, exams }, nameOf: (u) => nameOf(u), ai: aiConfig, trackAi: (u, x) => aiUsage.record(u, x) })
   buddy.start(tickMs)
   new Reminders(dataDir, store, push, link, buddy).start(tickMs)
   // the second bot in Buddy's chat: "-reminder 30m buy milk". Its reminders aren't tasks.
@@ -359,7 +363,7 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
       const today = todayIn(tzOf(c.u))
       const started = Date.now()
       try {
-        const out = await askBuddy({ ...cfg, text: 'push maths to friday 3pm', name: 'Sam', now: `${today}, 10:00 AM`, tasks: ['K7 · Maths worksheet · Today', 'B3 · Read Books · Today, 10:00 PM'] })
+        const out = await askBuddy({ ...cfg, track: (x) => aiUsage.record('(test)', x), text: 'push maths to friday 3pm', name: 'Sam', now: `${today}, 10:00 AM`, tasks: ['K7 · Maths worksheet · Today', 'B3 · Read Books · Today, 10:00 PM'] })
         const command = out.commands[0] || null
         return json(res, { ok: !!(command || out.reply), command, reply: out.reply, model: aiStatus.model, ms: Date.now() - started, ai: aiView(link.settings()) })
       } catch (e) {

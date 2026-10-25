@@ -258,7 +258,7 @@ export class Buddy {
    * `onTaskChange(task)` is called after Buddy changes a task (so e.g. the admin's progress view
    * updates when you finish a task they gave you). `ai()` → { key, model } or null (the admin's Groq key).
    */
-  constructor(dataDir, store, link, { brand = 'your todolist', onTaskChange = () => {}, getBot = () => String(process.env.BOT_USER || process.env.WA_BOT_USER || '').trim().toLowerCase() || null, planner = null, nameOf = null, ai = () => null, propose = askBuddy } = {}) {
+  constructor(dataDir, store, link, { brand = 'your todolist', onTaskChange = () => {}, getBot = () => String(process.env.BOT_USER || process.env.WA_BOT_USER || '').trim().toLowerCase() || null, planner = null, nameOf = null, ai = () => null, propose = askBuddy, trackAi = null } = {}) {
     this.store = store
     this.link = link
     this.brand = brand
@@ -271,6 +271,7 @@ export class Buddy {
     this.nameOf = nameOf // (u) => their name (the profile's, or their Whats Up account's)
     this.aiConfig = ai
     this.propose = propose
+    this.trackAi = trackAi // (u, { ok, model, usage, limits, error, ms }) after each request to the AI
     this.recentTaps = new Map() // a tap reported twice (two ways WhatsApp delivers votes) only counts once
     this.outgoing = new Map() // "session|text" of messages Buddy is sending right now
   }
@@ -1379,7 +1380,7 @@ export class Buddy {
     const history = (s.talk || []).filter((x) => x.role && now - x.at < TALK_TTL).map(({ role, content }) => ({ role, content }))
     let out
     try {
-      out = await this.propose({ key: ai.key, model: ai.model, text: body, name, now: `${weekday} ${today}, ${time12(hmIn(tz, now))}`, tasks, exams, finished, current: cur && !cur.done ? `${this.codeOf(u, cur)} · ${cut(cur.title, 80)}` : null, history })
+      out = await this.propose({ key: ai.key, model: ai.model, text: body, name, now: `${weekday} ${today}, ${time12(hmIn(tz, now))}`, tasks, exams, finished, current: cur && !cur.done ? `${this.codeOf(u, cur)} · ${cut(cur.title, 80)}` : null, history, track: (x) => this.trackAi?.(u, x) })
     } catch (e) { console.warn(`[buddy] AI didn't answer: ${e.message}`); return null }
     if (typeof out === 'string') out = { reply: null, commands: [out] }
     // codes are for commands; in the reply it says the task's name (“*D6 – buy eartips*” → “*buy eartips*”)

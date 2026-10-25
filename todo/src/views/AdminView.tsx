@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react'
 import { api } from '../api'
 import { Switch } from '../components/Switch'
 import { toast } from '../components/Toast'
@@ -38,7 +38,7 @@ interface Settings {
   botFromEnv: boolean
   accounts: Account[]
   /** Buddy's AI (only the main admin gets this) */
-  ai?: { on: boolean; fromEnv: boolean; keySet: boolean; keyEnd: string; model: string; last: { at: number; ok: boolean; error: string | null; ms: number; switchedFrom: string | null } | null }
+  ai?: { on: boolean; fromEnv: boolean; keySet: boolean; keyEnd: string; model: string; last: { at: number; ok: boolean; error: string | null; ms: number; switchedFrom: string | null } | null; usage?: AiUsage }
 }
 interface Overview { people: number; active7: number; open: number; overdue: number; doneWeek: number; notifications: number; assignments: number; assignedOpen: number; examRequests: number; groups: number }
 type St = 'todo' | 'doing' | 'done' | 'removed'
@@ -631,6 +631,68 @@ function AnnounceTab({ people, settings, to, setTo, onChanged }: { people: Perso
 }
 
 // ----------------------------------------------------------------- whatsapp
+type AiUsage = {
+  free: { requestsPerDay: number; tokensPerDay: number; tokensPerMinute: number }
+  last24h: { requests: number; failed: number; tokens: number; avgPerAnswer: number | null; answersLeft: number | null }
+  lastMinute: { tokens: number }
+  groq: { requestsPerDay: number | null; requestsLeft: number | null; requestsReset: string | null; tokensPerMinute: number | null; tokensLeft: number | null; at: number; model: string | null } | null
+  lastError: { at: number; error: string } | null
+  people: { who: string; name: string; requests: number; tokens: number }[]
+  days: { day: string; requests: number; failed: number; tokens: number; counted: number }[]
+}
+const num = (n: number) => n.toLocaleString()
+const resetText = (s: string | null) => (s ? s.replace(/(\d+)\.\d+s/, '$1s').replace(/(\d)([hm])/g, '$1$2 ') : '')
+
+/** One bar: what's used out of a limit. Turns red past 85%. */
+function UsageMeter({ label, used, of, unit, note }: { label: string; used: number; of: number; unit: string; note?: string }) {
+  const pct = Math.min(100, of ? (used / of) * 100 : 0)
+  return (
+    <li>
+      <div className="progress-top"><span className="progress-name">{label}</span><span className="progress-num">{num(used)} / {num(of)} {unit}</span></div>
+      <div className="meter-bar" role="meter" aria-valuemin={0} aria-valuemax={of} aria-valuenow={used} aria-label={label}><span style={{ width: `${pct}%`, '--c': pct > 85 ? 'var(--danger, #c22f35)' : 'var(--leaf)' } as CSSProperties} /></div>
+      {note && <small className="muted">{note}</small>}
+    </li>
+  )
+}
+
+/** How much of Groq's free tier the AI is using: the last 24 hours, Groq's own count, the last 14 days, and who. */
+function AiUsageView({ u }: { u: AiUsage }) {
+  const day = u.last24h
+  const g = u.groq
+  const max = Math.max(u.free.tokensPerDay, ...u.days.map((d) => d.counted))
+  const label = (k: string) => new Date(`${k}T12:00:00`).toLocaleDateString([], { day: 'numeric', month: 'short' })
+  return (
+    <div className="ai-usage">
+      <h3>Usage</h3>
+      <ul className="progress-list">
+        <UsageMeter label="Tokens, last 24 hours" used={day.tokens} of={u.free.tokensPerDay} unit="tokens"
+          note={day.avgPerAnswer ? `About ${num(day.avgPerAnswer)} tokens per answer, so room for about ${num(day.answersLeft || 0)} more.` : 'No AI answers in the last 24 hours.'} />
+        {g?.requestsPerDay != null && g.requestsLeft != null
+          ? <UsageMeter label="Requests today (Groq’s count)" used={g.requestsPerDay - g.requestsLeft} of={g.requestsPerDay} unit="requests"
+              note={`Groq said ${num(g.requestsLeft)} left, ${ago(g.at).toLowerCase()}${g.requestsReset ? `, back to full in ${resetText(g.requestsReset)}` : ''}.`} />
+          : <UsageMeter label="Requests, last 24 hours" used={day.requests} of={u.free.requestsPerDay} unit="requests" />}
+        {u.lastMinute.tokens > 0 && <UsageMeter label="This minute" used={u.lastMinute.tokens} of={u.free.tokensPerMinute} unit="tokens" note="Groq also limits each minute. Past it, answers wait a few seconds." />}
+      </ul>
+      {day.failed > 0 && <p className="help warn-text">{day.failed} request{day.failed === 1 ? '' : 's'} failed in the last 24 hours{u.lastError ? `. The last one (${ago(u.lastError.at).toLowerCase()}): ${u.lastError.error}` : ''}.</p>}
+      <div className="ai-days" role="img" aria-label="Tokens per day, last 14 days">
+        <i className="ai-days-limit">{num(u.free.tokensPerDay)} a day</i>
+        {u.days.map((d) => (
+          <span key={d.day} className={d.counted / u.free.tokensPerDay > 0.85 ? 'hot' : ''} style={{ height: `${Math.max(d.counted ? 4 : 0, (d.counted / max) * 100)}%` }} title={`${label(d.day)}: ${num(d.counted)} tokens, ${d.requests} request${d.requests === 1 ? '' : 's'}${d.failed ? `, ${d.failed} failed` : ''}`} />
+        ))}
+      </div>
+      <div className="ai-days-axis muted"><span>{label(u.days[0].day)}</span><span>Tokens per day, last 14 days</span><span>Today</span></div>
+      {u.people.length > 0 && (
+        <>
+          <h4>Who used it, last 24 hours</h4>
+          <ul className="ai-people">
+            {u.people.map((p) => <li key={p.who}><span>{p.name}</span><span className="muted">{p.requests} time{p.requests === 1 ? '' : 's'} · {num(p.tokens)} tokens</span></li>)}
+          </ul>
+        </>
+      )}
+    </div>
+  )
+}
+
 /**
  * Buddy's optional AI (main admin only): a free Groq key. With it, people can text Buddy like a
  * person; it answers, and anything that changes a task is confirmed with a tap.
@@ -650,6 +712,15 @@ function BuddyAiCard({ ai, onSaved }: { ai: NonNullable<Settings['ai']>; onSaved
     setBusy(false)
   }
   const last = ai.last
+  // keep the usage fresh while the card is open
+  useEffect(() => {
+    if (!ai.keySet) return
+    const id = window.setInterval(async () => {
+      if (document.hidden) return
+      try { const r = await api<Settings>('/admin/settings'); if (r.ai) onSaved(r.ai) } catch {}
+    }, 30000)
+    return () => window.clearInterval(id)
+  }, [ai.keySet]) // eslint-disable-line react-hooks/exhaustive-deps
   const save = async (patch: { key?: string; on?: boolean }) => {
     setBusy(true)
     try {
@@ -687,6 +758,7 @@ function BuddyAiCard({ ai, onSaved }: { ai: NonNullable<Settings['ai']>; onSaved
           {test && <span className="help test-result">{test}</span>}
         </div>
       )}
+      {ai.keySet && ai.usage && <AiUsageView u={ai.usage} />}
       <ol className="bot-guide">
         <li>Sign in at <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer">console.groq.com/keys</a> (free, no card) and create an API key.</li>
         <li>Paste it above and hit <b>Test AI</b>. The free tier covers roughly 80 to 120 AI answers a day, shared by everyone (commands, taps, “thanks” and “ok” don’t use it). If it’s used up, Buddy falls back to commands and taps until the next day.</li>

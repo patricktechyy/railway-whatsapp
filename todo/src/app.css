@@ -2040,3 +2040,20 @@ h3 > .ico, .blocks-check span > .ico { margin-right: 7px; color: var(--muted); }
 .st-focus-btns { display: flex; align-items: center; gap: 6px; }
 .ok-text { color: var(--ok, #15803d); }
 .feature-list li small.ok-text, .feature-list li small.warn-text { display: block; margin-top: 2px; }
+
+/* Buddy's AI: usage on the admin card */
+.ai-usage { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
+.ai-usage h3 { margin: 0; font-size: var(--t-sm); }
+.ai-usage h4 { margin: 18px 0 6px; font-size: var(--t-xs); color: var(--muted); font-weight: 600; }
+.ai-usage .progress-list small { display: block; margin-top: 6px; font-size: var(--t-xs); }
+.ai-usage .warn-text { margin: 12px 0 0; }
+.ai-days { position: relative; display: flex; align-items: flex-end; gap: 3px; height: 64px; margin-top: 26px; padding-bottom: 1px; border-top: 1px dashed var(--line); border-bottom: 1px solid var(--line); }
+.ai-days-limit { position: absolute; right: 0; top: -18px; font-style: normal; font-size: var(--t-xs); color: var(--muted); }
+.ai-usage .progress-num { white-space: nowrap; }
+.ai-days span { flex: 1; min-width: 0; background: color-mix(in srgb, var(--leaf) 70%, transparent); border-radius: 3px 3px 0 0; }
+.ai-days span.hot { background: var(--danger, #c22f35); }
+.ai-days-axis { display: flex; justify-content: space-between; gap: 8px; margin-top: 4px; font-size: var(--t-xs); }
+.ai-people { list-style: none; margin: 0; padding: 0; font-size: var(--t-sm); }
+.ai-people li { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-top: 1px solid var(--line); }
+.ai-people li:first-child { border-top: 0; }
+.ai-people .muted { font-variant-numeric: tabular-nums; white-space: nowrap; }

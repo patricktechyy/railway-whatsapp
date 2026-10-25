@@ -1,3 +1,4 @@
+import { limitsOf } from './aiusage.js'
 /**
  * Buddy's optional AI, so you can talk to Buddy like a person: "when is the eartips thing?",
  * "push maths to friday and tick off bio", "thanks!". It answers in a short message and can
@@ -61,9 +62,9 @@ Answering:
 - Only use codes that are in "tasks". Never write a command inside "reply".`
 
 class AiError extends Error {
-  constructor(message, { status = 0, code = '', modelGone = false, noJsonMode = false } = {}) {
+  constructor(message, { status = 0, code = '', modelGone = false, noJsonMode = false, limits = null } = {}) {
     super(message)
-    Object.assign(this, { status, code, modelGone, noJsonMode })
+    Object.assign(this, { status, code, modelGone, noJsonMode, limits })
   }
 }
 
@@ -81,19 +82,25 @@ async function chat({ base, key, model, messages, jsonMode, signal }) {
       messages,
     }),
   })
+  const limits = limitsOf(r.headers)
   if (!r.ok) {
     let err = {}
     try { err = (await r.json())?.error || {} } catch {}
     const msg = String(err.message || '')
     const code = String(err.code || err.type || '')
-    throw new AiError(r.status === 429 ? 'daily limit reached' : `HTTP ${r.status}${code ? ` ${code}` : ''}${msg ? `: ${msg.slice(0, 160)}` : ''}`, {
+    // 429: Groq says which limit ("… on tokens per minute (TPM) …", "… requests per day (RPD) …")
+    const wait = msg.match(/try again in ((?:\d+(?:\.\d+)?[hms])+)/i)?.[1] || (limits.retryAfter ? `${limits.retryAfter}s` : null)
+    const perMinute = /per minute|\b(TPM|RPM)\b/i.test(msg) || (!/per day|\b(TPD|RPD)\b/i.test(msg) && limits.retryAfter !== null && limits.retryAfter < 120)
+    const limitText = perMinute ? `per-minute limit reached${wait ? `, free again in ${wait}` : ''}` : `daily limit reached${wait ? `, free again in ${wait}` : ''}`
+    throw new AiError(r.status === 429 ? limitText : `HTTP ${r.status}${code ? ` ${code}` : ''}${msg ? `: ${msg.slice(0, 160)}` : ''}`, {
       status: r.status,
       code,
+      limits,
       modelGone: r.status === 404 || /model_not_found|model_decommissioned|decommissioned|does not exist|not found/i.test(`${code} ${msg}`),
       noJsonMode: r.status === 400 && /response_format|json/i.test(msg),
     })
   }
-  return r.json()
+  return { data: await r.json(), limits }
 }
 
 /** The models Groq has right now, the best one for this first. */
@@ -123,7 +130,7 @@ export function answerOf(content) {
  * Ask the AI what to say back and which commands to run (or propose).
  * Returns { reply, commands }. Throws (with a readable message) when Groq can't be used.
  */
-export async function askBuddy({ key, model = null, text, name = '', tasks = [], exams = [], finished = [], now = '', current = null, history = [], timeoutMs = 12000, base = process.env.GROQ_BASE_URL || 'https://api.groq.com/openai/v1' }) {
+export async function askBuddy({ key, model = null, text, name = '', tasks = [], exams = [], finished = [], now = '', current = null, history = [], track = null, timeoutMs = 12000, base = process.env.GROQ_BASE_URL || 'https://api.groq.com/openai/v1' }) {
   if (!key || !text) return { reply: null, commands: [] }
   base = base.replace(/\/$/, '')
   const ctrl = new AbortController()
@@ -138,12 +145,16 @@ export async function askBuddy({ key, model = null, text, name = '', tasks = [],
   let jsonMode = true
   try {
     for (let attempt = 0; ; attempt++) {
+      const t0 = Date.now()
       try {
-        const data = await chat({ base, key, model: use, messages, jsonMode, signal: ctrl.signal })
+        const { data, limits } = await chat({ base, key, model: use, messages, jsonMode, signal: ctrl.signal })
         const out = answerOf(data?.choices?.[0]?.message?.content)
         Object.assign(aiStatus, { at: Date.now(), ok: true, model: use, error: null, ms: Date.now() - started })
+        try { track?.({ ok: true, model: use, usage: data?.usage || null, limits, ms: Date.now() - t0 }) } catch {}
         return out
       } catch (e) {
+        // every request counts towards Groq's limits, the failed ones too
+        try { track?.({ ok: false, model: use, usage: null, limits: e?.limits || null, error: e?.name === 'AbortError' ? 'no answer in time' : e?.message, ms: Date.now() - t0 }) } catch {}
         if (attempt >= 2 || !(e instanceof AiError)) throw e
         if (e.noJsonMode && jsonMode) { jsonMode = false; continue }
         if (e.modelGone) {
