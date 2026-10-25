@@ -44,10 +44,22 @@ const FLOW_TTL = { bot: 10 * 60e3, self: 5 * 60e3 } // how long Buddy waits for 
 const LAST_TTL = 2 * 3600e3 // "/done" with no code means the task Buddy last wrote about, for this long
 const AI_READ_ONLY = new Set(['today', 'tomorrow', 'week', 'overdue', 'task', 'study', 'exams', 'help', 'menu'])
 const AI_ALLOWED = new Set([...AI_READ_ONLY, 'add', 'done', 'start', 'step', 'snooze', 'move', 'rename', 'delete', 'undo'])
-const SHOWS_ITSELF = new Set(['today', 'tomorrow', 'week', 'overdue', 'task']) // AI read-only commands worth showing as well as its words (lists and cards have tap menus)
+const SHOWS_ITSELF = new Set(['today', 'tomorrow', 'week', 'overdue']) // AI read-only commands worth showing as well as its words (lists and cards have tap menus)
 const TALK_TTL = 30 * 60e3 // the AI sees the chat's last few messages from this long ago
 const TYPED_TTL = 15 * 60e3 // "yes" typed this soon after a question answers it
 const DONE_EMOJI = new Set(['👍', '👍🏻', '👍🏼', '👍🏽', '👍🏾', '👍🏿', '✅', '✔️', '☑️', '👌', '👌🏻', '👌🏼', '👌🏽', '👌🏾', '👌🏿'])
+// "any tasks tomorrow?", "what's on today", "anything overdue": just the list, no AI needed (and no AI mix-ups)
+const LIST_DAYS = [['today', /\b(today|tdy|tonight|hari ini)\b/], ['tomorrow', /\b(tomorrow|tmr|tmrw|tomorow|tommorow|besok)\b/], ['week', /\b(this week|the week|next 7 days|minggu ini)\b/], ['overdue', /\b(overdue|late|missed)\b/]]
+const NOT_A_LIST = /\b(exams?|papers?|tests?|study\w*|revis\w*|move|push|shift|resched\w*|done|finish\w*|complete\w*|delete|remove|add|remind\w*|snooze|rename|start\w*|tick|cancel|when|why|how|which|who|next|after|lusa)\b|\d/
+const LIST_WORDS = /\b(tasks?|to ?dos?|todos?|anything|stuff|things?|plans?|schedule|agenda|on|due|have)\b/
+/** 'today' | 'tomorrow' | 'week' | 'overdue' when a message just asks for that list, else null. */
+export function listAsk(text) {
+  const t = String(text || '').toLowerCase().replace(/[’']/g, '')
+  if (t.length > 120 || NOT_A_LIST.test(t) || !LIST_WORDS.test(t)) return null
+  const days = LIST_DAYS.filter(([, re]) => re.test(t))
+  return days.length === 1 ? days[0][0] : null
+}
+
 // Small talk Buddy answers by itself (no AI needed): "thanks" gets a reply, "ok" / "bet" a 👍.
 const THANKS = /\b(thanks?|thank ?you|thx|thnx|tq|ty|tysm|makasih|terima ?kasih|appreciate)/i
 const CHAT_WORDS = new Set(('ok okay oke okey okie okk k kk kay sip siap mantap nice cool great noted alright alr aight ight bet gotcha got it ' +
@@ -505,7 +517,9 @@ export class Buddy {
     const next = steps.find((s) => !s.done)
     const code = this.codeOf(u, t)
     if (style === 'short') return [`⏰ *${t.title}* · ${code}${due ? `\n${due}` : ''}`, next ? `next: ${next.title}` : null].filter(Boolean).join('\n')
-    const lines = [head ?? `${say(style, 'hello', { name })}, ${why === 'assigned' ? 'someone gave you a task.' : say(style, 'nudge').toLowerCase().replace(/:$/, '…')}`, '', `📝 *${t.title}* · ${code}`]
+    // head '': just the card (when you asked for it), no greeting and no blank lines above it
+    const top = head ?? `${say(style, 'hello', { name })}, ${why === 'assigned' ? 'someone gave you a task.' : say(style, 'nudge').toLowerCase().replace(/:$/, '…')}`
+    const lines = [...(top ? [top, ''] : []), `📝 *${t.title}* · ${code}`]
     if (due) lines.push(`📅 ${due}`)
     const meta = [
       t.priority === 3 && '🚩 High priority', t.priority === 2 && '🚩 Medium priority',
@@ -1059,6 +1073,12 @@ export class Buddy {
     const talk = smallTalk(body)
     if (talk === 'thanks') return [{ text: THANKS_BACK[Math.floor(Math.random() * THANKS_BACK.length)].replace('{name}', this.ctx(u, now).name) }]
     if (talk === 'ack') return id ? [{ react: '👍', to: id }] : []
+    // a plain "any tasks tomorrow?": the list, straight away
+    const ask = listAsk(body)
+    if (ask) {
+      if (this.ai) this.remember(u, 'user', body, now)
+      return this.runCommand(u, BY_NAME.get(ask), '', ctx)
+    }
     // anything else: the AI (if the admin set one up) answers, and proposes what to change
     const ai = this.ai
     if (ai) {
@@ -1422,14 +1442,13 @@ export class Buddy {
     // what the answer is about: the one task it acts on, or the one open task it names
     const named = reply ? open.filter((t) => t.title.length > 2 && reply.toLowerCase().includes(t.title.toLowerCase())) : []
     const one = [...read, ...change].length === 1 ? (read[0] || change[0]).t : named.length === 1 ? named[0] : null
-    // One answer, not two: a list with tasks in it (it has a tap menu) stands in for the AI's words;
-    // an empty list, or exams / the study plan it already answered in words, isn't sent as well.
+    // One answer, not two: a task list (even an empty one, "Today: nothing open") stands in for the
+    // AI's words, which were only ever a lead-in ("here's today:"); exams / the study plan it already
+    // answered in words aren't sent as well.
     const shown = []
     for (const x of read.slice(0, 3)) {
       if (reply && !SHOWS_ITSELF.has(x.p.cmd.name)) continue
-      const r = await this.runCommand(u, x.p.cmd, x.p.args, ctx)
-      if (reply && !r.some((i) => i?.menu)) continue
-      shown.push(...r)
+      shown.push(...(await this.runCommand(u, x.p.cmd, x.p.args, ctx)))
     }
     // with a Yes/No question for the changes, "Move Maths to Fri 3 PM?" in words as well is one too many
     const sayIt = reply && !shown.length && !(change.length && /\?\s*\S{0,3}$/.test(reply))

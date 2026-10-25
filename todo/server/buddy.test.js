@@ -9,6 +9,7 @@ import { zonedTime, todayIn } from './tz.js'
 import { Reminders } from './reminders.js'
 
 const TZ = 'Asia/Singapore'
+const addDays = (k, n) => { const [y, m, d] = k.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10) }
 /** A stand-in for the WhatsApp link: remembers what would have been sent. */
 function setup({ features = {}, bot = '' } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'buddy-'))
@@ -378,7 +379,7 @@ test('the AI (if the admin set one up) proposes; you confirm with a tap. Lists j
   r = await buddy.tap('gavin', mm.id, ['✅ Yes, do it'], { now })
   assert.match(texts(r), /Moved \*Maths worksheet\* to \w{3} \d+ \w{3}, 3:00 PM/)
   answer = '/today'
-  r = await buddy.run('gavin', 'what do i have today', { now })
+  r = await buddy.run('gavin', 'hows my day looking', { now })
   assert.match(texts(r), /📋 \*Today\*/)
   answer = '/done Q9' // a code that doesn't exist
   r = await buddy.run('gavin', 'done with physics', { now })
@@ -386,6 +387,28 @@ test('the AI (if the admin set one up) proposes; you confirm with a tap. Lists j
   answer = new Error('daily limit reached')
   r = await buddy.run('gavin', 'blah blah', { now: now + 5 * 60e3 })
   assert.match(texts(r), /didn’t get that one/)
+  buddy.aiConfig = () => null
+})
+
+test('“any tasks tomorrow?” is just the list (no AI); a task card asked for has no blank lines on top', async () => {
+  const { listAsk } = await import('./buddy.js')
+  assert.equal(listAsk('oh my thats alot, any task to do tomorrow'), 'tomorrow')
+  assert.equal(listAsk('whats on today'), 'today')
+  assert.equal(listAsk('any exams tomorrow?'), null)
+  assert.equal(listAsk('move maths to tomorrow'), null)
+  assert.equal(listAsk('the day after tomorrow anything?'), null)
+  const { store, buddy } = setup()
+  const today = todayIn(TZ)
+  const now = zonedTime(today, '10:00', TZ)
+  const t = store.addTask('gavin', { title: 'Maths worksheet', due: addDays(today, 1) })
+  let asked = 0
+  buddy.aiConfig = () => ({ key: 'gsk_test', model: 'x' })
+  buddy.propose = async () => { asked++; return { reply: 'x', commands: [] } }
+  let r = await buddy.run('gavin', 'any tasks tomorrow?', { now })
+  assert.match(texts(r), /📋 \*Tomorrow\*/)
+  assert.equal(asked, 0)
+  r = await buddy.run('gavin', `task ${buddy.codeOf('gavin', t)}`, { now })
+  assert.match(r[0].text, /^📝 \*Maths worksheet\*/)
   buddy.aiConfig = () => null
 })
 
