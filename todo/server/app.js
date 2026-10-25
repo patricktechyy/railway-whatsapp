@@ -77,7 +77,8 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
     enabled: () => !!link.enabled('reminders'),
     send: async ({ user, chat, text }) => {
       const bot = botUser()
-      if (chat?.via === 'bot' && chat.jid && bot && bot !== user) {
+      // only to the number that is still theirs, and only if they still use Buddy's number (else their own chat)
+      if (chat?.via === 'bot' && chat.jid && bot && bot !== user && buddy.viaBot(user) && (await buddy.jidOf(user)) === chat.jid) {
         try { return await link.call('send', { username: bot, jid: chat.jid, text: plain(text) }) }
         catch (e) { console.warn(`[quickremind] bot couldn't send to ${user} (${e.message}); using "Message yourself"`) }
       }
