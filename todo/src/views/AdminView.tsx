@@ -689,7 +689,7 @@ function BuddyAiCard({ ai, onSaved }: { ai: NonNullable<Settings['ai']>; onSaved
       )}
       <ol className="bot-guide">
         <li>Sign in at <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer">console.groq.com/keys</a> (free, no card) and create an API key.</li>
-        <li>Paste it above and hit <b>Test AI</b>. The free tier covers roughly 100 to 150 AI answers a day, shared by everyone (commands, taps, “thanks” and “ok” don’t use it). If it’s used up, Buddy falls back to commands and taps until the next day.</li>
+        <li>Paste it above and hit <b>Test AI</b>. The free tier covers roughly 80 to 120 AI answers a day, shared by everyone (commands, taps, “thanks” and “ok” don’t use it). If it’s used up, Buddy falls back to commands and taps until the next day.</li>
       </ol>
     </section>
   )

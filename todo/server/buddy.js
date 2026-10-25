@@ -62,8 +62,8 @@ export function smallTalk(text) {
   if (words.length === 1 && /^(no|yes|ya|yeah|yea|yep|yup|sure|it|i|a|is|so|that)$/.test(words[0])) return null // an answer to something, not small talk
   return THANKS.test(t) ? 'thanks' : 'ack'
 }
-const YES = /^(y|ya|yah|yes|yess|yep|yup|yeah|yea|sure|ok|okay|oke|okie|k|kk|do it|go|go ahead|confirm|yes please|pls|please|iya|iyaa|betul|boleh|sip|gas|👍|✅|👌)[\s.!]*$/iu
-const NO = /^(n|no|nope|nah|nahh|no thanks|cancel|dont|don't|do not|tidak|ngga|nggak|gak|ga|enggak|jangan|tak|❌|👎)[\s.!]*$/iu
+const YES = /^(y|ya|yah|yes|yess|yep|yup|yeah|yea|sure|ok|okay|oke|okie|k|kk|do it|go|go ahead|confirm|yes please|pls|please|iya|iyaa|betul|boleh|sip|gas|👍|✅|👌)[\s.!?]*$/iu
+const NO = /^(n|no|nope|nah|nahh|no thanks|cancel|dont|don't|do not|tidak|ngga|nggak|gak|ga|enggak|jangan|tak|❌|👎)[\s.!?]*$/iu
 const normLabel = (s) => String(s || '').toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim()
 const THANKS_BACK = ['Anytime! 🙌', 'You got it 😊', 'No problem!', 'Anytime, {name}!', 'Happy to help 🙂']
 
@@ -200,7 +200,7 @@ export const COMMANDS = [
   { name: 'undo', aliases: ['restore'], usage: '/undo', about: 'Bring back the task you last deleted', group: 'Change tasks' },
   { name: 'study', aliases: ['belajar', 'plan'], usage: '/study [tomorrow]', about: 'Your study plan', group: 'Study' },
   { name: 'topic', aliases: ['tick', 'studied', 'centang'], usage: '/topic <number>', about: 'Tick a study topic off (the number from /study)', example: '/topic 2', group: 'Study' },
-  { name: 'exams', aliases: ['exam', 'ujian'], usage: '/exams', about: 'Your next exams', group: 'Study' },
+  { name: 'exams', aliases: ['exam', 'ujian'], usage: '/exams [day]', about: 'Your next exams, or just one day’s', example: '/exams fri', group: 'Study' },
   { name: 'clear', usage: '/clear completed | reminders | messages', about: 'Tidy up: finished tasks, all WhatsApp reminders, or my recent messages', example: '/clear completed', group: 'Other' },
   { name: 'menu', aliases: ['hi', 'hello', 'hey', 'halo', 'hai', 'yo', 'start-menu'], usage: '/menu', about: 'The main menu', group: 'Other' },
   { name: 'cancel', aliases: ['stop', 'batal'], usage: '/cancel', about: 'Stop what I’m waiting for', group: 'Other' },
@@ -403,6 +403,7 @@ export class Buddy {
           try { result = await this.link.call('send', { ...to, text }) } finally { setTimeout(() => this.outgoing.delete(mark), 10e3).unref?.() }
         }
         this.trackSent(u, result, { session: ch.session, jid: result?.jid || ch.jid, kind: item.kind || (item.menu ? 'menu' : 'buddy'), about: item.about })
+        if (!item.menu && !item.fromAi && item.text && (item.about || item.talk)) { try { this.noteSent(u, item) } catch {} }
         return result
       } catch (e) {
         last = e
@@ -642,21 +643,53 @@ export class Buddy {
     return (this.planner?.exams?.examsFor(u) || []).filter((e) => e.date >= from && e.date < to)
       .sort((a, b) => a.date.localeCompare(b.date) || (a.start || '').localeCompare(b.start || ''))
   }
-  examLine(e, today) {
-    const end = e.start && e.minutes ? (() => { const [h, m] = e.start.split(':').map(Number); const t = h * 60 + m + e.minutes; return `${String(Math.floor(t / 60) % 24).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}` })() : null
-    const when = e.start ? `${time12(e.start)}${end ? `–${time12(end)}` : ''}` : ''
-    return `📝 *${e.subject}${e.paper ? ` ${e.paper}` : ''}*${today && e.date !== today ? ` · ${dayLabel(e.date, today)}` : ''}${when ? ` · ${when}` : ''}${e.venue ? ` · ${e.venue}` : ''}`
+  /** "8:00–9:45 AM" (or "11:00 AM–12:45 PM"). */
+  examTime(e) {
+    if (!e.start) return ''
+    const a = time12(e.start)
+    if (!e.minutes) return a
+    const [h, m] = e.start.split(':').map(Number)
+    const t = h * 60 + m + e.minutes
+    const z = time12(`${String(Math.floor(t / 60) % 24).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`)
+    return a.slice(-2) === z.slice(-2) ? `${a.slice(0, -3)}–${z}` : `${a}–${z}`
+  }
+  examName(e) { return `${e.subject}${e.paper ? ` ${e.paper}` : ''}` }
+  /** One exam on one line. `mark`: what starts the line (📝 where it sits among other kinds of lines, • in a list). */
+  examLine(e, today, { mark = '📝', venue = true } = {}) {
+    const when = this.examTime(e)
+    return `${mark} *${this.examName(e)}*${today && e.date !== today ? ` · ${dayLabel(e.date, today)}` : ''}${when ? ` · ${when}` : ''}${venue && e.venue ? ` · ${e.venue}` : ''}`
+  }
+  /** Exams grouped by day: the day once, then a plain line per paper. One shared venue goes at the end. */
+  examBlock(list, today) {
+    const venues = new Set(list.map((e) => e.venue || ''))
+    const shared = venues.size === 1 ? [...venues][0] : ''
+    const out = []
+    let day = null
+    for (const e of list) {
+      if (e.date !== day) { day = e.date; out.push('', `*${dayLabel(e.date, today)}*`) }
+      const when = this.examTime(e)
+      out.push(`• ${this.examName(e)}${when ? ` · ${when}` : ''}${!shared && e.venue ? ` · ${e.venue}` : ''}`)
+    }
+    if (shared) out.push('', `_All at ${shared}_`)
+    return out
   }
   examMessage(u, list, now = Date.now()) {
     const { style, name } = this.ctx(u, now)
-    if (style === 'short') return [`📝 Exam${list.length > 1 ? 's' : ''} tomorrow`, ...list.map((e) => this.examLine(e))].join('\n')
-    return [`${say(style, 'hello', { name })}, exam${list.length > 1 ? 's' : ''} tomorrow:`, '', ...list.map((e) => this.examLine(e)), '', 'Pack what you need tonight and get some sleep. Good luck! 🍀'].join('\n')
+    if (style === 'short') return [`📝 Exam${list.length > 1 ? 's' : ''} tomorrow`, ...list.map((e) => this.examLine(e, null, { mark: '•' }))].join('\n')
+    return [`${say(style, 'hello', { name })}, exam${list.length > 1 ? 's' : ''} tomorrow:`, '', ...list.map((e) => this.examLine(e, null, { mark: '•' })), '', 'Pack what you need tonight and get some sleep. Good luck! 🍀'].join('\n')
   }
-  upcomingExams(u, now = Date.now()) {
+  /** The next 3 weeks of exams, or one day's (`date`). */
+  upcomingExams(u, now = Date.now(), date = null) {
     const { today } = this.ctx(u, now)
+    if (date) {
+      const list = this.examsOn(u, date)
+      const label = date === today ? 'today' : date === addDaysKey(today, 1) ? 'tomorrow' : `on ${dayLabel(date, today)}`
+      if (!list.length) return `📝 No exams ${label}.`
+      return [`📝 *${list.length === 1 ? 'Your exam' : `Your ${list.length} exams`} ${label}*`, '', ...list.map((e) => this.examLine(e, null, { mark: '•' }))].join('\n')
+    }
     const list = this.examsFrom(u, today, 21)
     if (!list.length) return '📝 No exams in the next 3 weeks.'
-    return [`📝 *Your next exams* (${list.length})`, ...list.slice(0, 15).map((e) => this.examLine(e, today)), list.length > 15 ? `…and ${list.length - 15} more` : null].filter(Boolean).join('\n')
+    return [`📝 *Your next exams* (${list.length})`, ...this.examBlock(list.slice(0, 15), today), list.length > 15 ? `…and ${list.length - 15} more` : null].filter((x) => x !== null).join('\n')
   }
 
   plan(u) { try { return this.planner?.study?.get(u) || null } catch { return null } }
@@ -698,7 +731,7 @@ export class Buddy {
     this.saveState()
     const head = style === 'short' ? `📚 Study ${when}` : `📚 ${say(style, 'hello', { name })}, here’s your study plan for ${when}:`
     const exams = this.examsOn(u, date)
-    return [head, ...(exams.length ? ['', ...exams.map((e) => this.examLine(e))] : []), '', ...lines].join('\n')
+    return [head, ...(exams.length ? ['', ...exams.map((e) => this.examLine(e, null, { mark: '📝' }))] : []), '', ...lines].join('\n')
   }
   /** The study plan, then "tap a topic when you've done it" (topics not done yet, up to 12). */
   studyItems(u, date, now = Date.now(), { kind = 'study' } = {}) {
@@ -996,6 +1029,7 @@ export class Buddy {
         this.saveState()
         if (p.cmd.name === 'cancel') return [{ text: 'Okay, cancelled.' }]
       }
+      if (chat === 'bot' && this.ai) this.remember(u, 'user', String(text).trim(), now) // so the AI follows along
       return this.runCommand(u, p.cmd, p.args, ctx)
     }
     if (p?.unknown) {
@@ -1052,12 +1086,20 @@ export class Buddy {
     return i >= 0 ? { id, option: m.options[i] } : null
   }
 
-  /** The chat so far (for the AI): what you said and what Buddy said, the last half hour. */
-  remember(u, who, text, now = Date.now()) {
-    if (!text) return
+  /** The chat so far, for the AI: what you said, what it said, what Buddy sent (the last half hour). */
+  remember(u, role, content, now = Date.now()) {
+    if (!content) return
     const s = this.st(u)
-    s.talk = [...(s.talk || []).filter((x) => now - x.at < TALK_TTL), { who, text: cut(String(text).replace(/\s+/g, ' '), 300), at: now }].slice(-10)
+    s.talk = [...(s.talk || []).filter((x) => x.role && now - x.at < TALK_TTL), { role, content: cut(String(content), 600), at: now }].slice(-14)
     this.saveState()
+  }
+  /** A message Buddy sent by itself (a reminder, a list, a result): part of the conversation too. */
+  noteSent(u, item, now = Date.now()) {
+    if (item.about?.list?.length) {
+      const titles = item.about.list.map((id) => this.taskById(u, id)).filter(Boolean).slice(0, 11).map((t, i) => `${i + 1}. ${cut(t.title, 50)}`)
+      return this.remember(u, 'assistant', `[Buddy sent a list] ${String(item.text).split('\n')[0]} ${titles.join('; ')}`, now)
+    }
+    this.remember(u, 'assistant', `[Buddy sent] ${cut(String(item.text).replace(/\s+/g, ' '), 220)}`, now)
   }
 
   /** A command the AI proposed, in plain words: “Move “Maths” to fri 30 oct, 3:00 PM”. */
@@ -1085,6 +1127,7 @@ export class Buddy {
     if (!a) return true
     if (cmd.name === 'add' || cmd.name === 'help' || cmd.name === 'clear' || cmd.name === 'topic' || cmd.name === 'rename') return cmd.name !== 'rename' || CODE_RE.test(a.split(/\s+/)[0])
     if (cmd.name === 'study') return /^(tomorrow|tmr|besok)$/i.test(a)
+    if (cmd.name === 'exams') return !!this.whenOf(u, a, now, { strict: true })?.due
     if (!cmd.task) return false
     const first = a.split(/\s+/)[0]
     if ((CODE_RE.test(first) && this.taskOfCode(u, first)) || /^#\d{1,2}$/.test(first) || (/^\d{1,2}$/.test(first) && a.split(/\s+/).length === 1)) return true
@@ -1135,7 +1178,11 @@ export class Buddy {
         const n = args.match(/^#?\(?(\d{1,2})\)?$/)
         return n ? [{ text: this.tickTopic(u, Number(n[1])) }] : usage()
       }
-      case 'exams': return [{ text: this.upcomingExams(u, now) }]
+      case 'exams': {
+        if (!args) return [{ text: this.upcomingExams(u, now) }]
+        const w = this.whenOf(u, args, now, { strict: true })
+        return w?.due ? [{ text: this.upcomingExams(u, now, w.due) }] : usage(`I can’t read “${cut(args, 30)}” as a day.`)
+      }
       case 'clear': {
         const what = args.toLowerCase()
         if (/^(completed|done|finished)$/.test(what)) { const r = this.store.clearCompleted(u); return [{ text: r.removed ? `🧹 Cleared ${r.removed} finished task${r.removed === 1 ? '' : 's'}.` : 'Nothing finished to clear.' }] }
@@ -1242,14 +1289,14 @@ export class Buddy {
       return []
     }
     if (m.kind === 'ai') {
-      if (v === 'no') { this.remember(u, 'buddy', '(they said no; nothing changed)', now); return [{ text: 'Okay, nothing changed.' }] }
+      this.remember(u, 'user', v === 'no' ? '(tapped ❌ No)' : '(tapped ✅ Yes)', now)
+      if (v === 'no') return [{ text: 'Okay, nothing changed.', talk: true }]
       const out = []
       for (const c of m.commands || (m.command ? [m.command] : [])) {
         const p = parseCommand(c, 'bot')
         if (p?.cmd) out.push(...(await this.runCommand(u, p.cmd, p.args, ctx)))
       }
-      this.remember(u, 'buddy', out.filter((x) => x.text).map((x) => x.text).join(' / '), now)
-      return out
+      return out.map((x) => (x.menu ? x : { ...x, talk: true }))
     }
     if (m.kind === 'pick') {
       const t = this.taskById(u, v)
@@ -1322,17 +1369,23 @@ export class Buddy {
       if (t.notes) o.push(`notes: ${cut(String(t.notes).replace(/\s+/g, ' '), 80)}`)
       return o.join(' · ')
     })
+    // their exams (next 3 weeks), so "any exams this friday?" gets a straight answer
+    const exams = this.examsFrom(u, today, 21).slice(0, 20).map((e) => [this.examName(e), dayLabel(e.date, today), this.examTime(e), e.venue].filter(Boolean).join(' · '))
     const finished = doc.tasks.filter((t) => t.done && t.doneAt && now - t.doneAt < 3 * 864e5).sort((a, b) => b.doneAt - a.doneAt).slice(0, 10)
       .map((t) => `${cut(t.title, 80)} · ${dayLabel(todayIn(tz, t.doneAt), today)}, ${time12(hmIn(tz, t.doneAt))}`)
-    const cur = this.taskById(u, ctx.task || (now - (s.lastAt || 0) < LAST_TTL ? s.last : null))
+    // only a WhatsApp reply says for sure which task; otherwise the conversation does
+    const cur = this.taskById(u, ctx.task)
     const weekday = new Intl.DateTimeFormat('en-US', { weekday: 'long', timeZone: tz }).format(new Date(now))
-    const recent = (s.talk || []).filter((x) => now - x.at < TALK_TTL).map((x) => `${x.who === 'me' ? name : 'Buddy'}: ${x.text}`)
+    const history = (s.talk || []).filter((x) => x.role && now - x.at < TALK_TTL).map(({ role, content }) => ({ role, content }))
     let out
     try {
-      out = await this.propose({ key: ai.key, model: ai.model, text: body, name, now: `${weekday} ${today}, ${time12(hmIn(tz, now))}`, tasks, finished, current: cur && !cur.done ? this.codeOf(u, cur) : null, recent })
+      out = await this.propose({ key: ai.key, model: ai.model, text: body, name, now: `${weekday} ${today}, ${time12(hmIn(tz, now))}`, tasks, exams, finished, current: cur && !cur.done ? `${this.codeOf(u, cur)} · ${cut(cur.title, 80)}` : null, history })
     } catch (e) { console.warn(`[buddy] AI didn't answer: ${e.message}`); return null }
     if (typeof out === 'string') out = { reply: null, commands: [out] }
-    const reply = out?.reply ? String(out.reply).trim() : null
+    // codes are for commands; in the reply it says the task's name (“*D6 – buy eartips*” → “*buy eartips*”)
+    const codes = Object.keys(s.tc).filter((c) => this.taskOfCode(u, c))
+    let reply = out?.reply ? String(out.reply).trim() : null
+    if (reply && codes.length) reply = reply.replace(new RegExp(`\\(?\\b(?:${codes.join('|')})\\b\\)?\\s*(?:[–—·:|-]\\s*)?`, 'g'), '').replace(/ {2,}/g, ' ').trim() || null
     // keep only commands that are real and safe: known command, real code, a day/time it can read
     const read = [], change = []
     for (const c of out?.commands || []) {
@@ -1353,17 +1406,19 @@ export class Buddy {
       if (AI_READ_ONLY.has(p.cmd.name)) { if (!read.some((y) => y.shown === x.shown)) read.push(x) } else if (!change.some((y) => y.shown === x.shown)) change.push(x)
     }
     if (!reply && !read.length && !change.length) return null
-    this.remember(u, 'me', body, now)
+    this.remember(u, 'user', body, now)
     const items = []
-    const one = [...read, ...change].length === 1 ? (read[0] || change[0]).t : null
-    if (reply) items.push({ text: reply, ...(one ? { about: { task: one.id } } : {}) })
+    // what the answer is about: the one task it acts on, or the one open task it names
+    const named = reply ? open.filter((t) => t.title.length > 2 && reply.toLowerCase().includes(t.title.toLowerCase())) : []
+    const one = [...read, ...change].length === 1 ? (read[0] || change[0]).t : named.length === 1 ? named[0] : null
+    if (reply) items.push({ text: reply, fromAi: true, ...(one ? { about: { task: one.id } } : {}) })
     for (const x of read.slice(0, 3)) items.push(...(await this.runCommand(u, x.p.cmd, x.p.args, ctx)))
     if (change.length) {
       const lines = change.map((x) => this.describe(u, x.p, x.t, now))
       const title = lines.length === 1 ? `${lines[0]}?` : `Do these?\n${lines.map((l, i) => `${i + 1}. ${l}`).join('\n')}`
       items.push(this.menu(cut(title, 250), [[lines.length === 1 ? '✅ Yes, do it' : `✅ Yes, all ${lines.length}`, 'yes'], ['❌ No', 'no']], { kind: 'ai', commands: change.map((x) => x.shown) }, 'menu', one ? { task: one.id } : null))
     }
-    this.remember(u, 'buddy', [reply, ...change.map((x) => `(asked: ${this.describe(u, x.p, x.t, now)}?)`), ...read.map((x) => `(showed ${x.shown})`)].filter(Boolean).join(' '), now)
+    this.remember(u, 'assistant', JSON.stringify({ reply, commands: [...read, ...change].map((x) => x.shown) }), now)
     return items
   }
 
