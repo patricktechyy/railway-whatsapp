@@ -89,6 +89,17 @@ export class LocalLink {
         throw new HttpError(e.status || 502, `WhatsApp couldn’t send the menu: ${e.message}`)
       }
     }
+    if (endpoint === 'react') {
+      if (s.status !== 'connected' || !s.sock) throw new HttpError(503, `WhatsApp for “${s.label || p.username}” isn’t connected (${s.status})`)
+      const jid = p.jid || s.me?.jid
+      if (!jid || !p.id) throw new HttpError(400, 'jid and id required')
+      try {
+        await s.react(jid, String(p.id), String(p.emoji || '👍').slice(0, 16))
+        return { ok: true }
+      } catch (e) {
+        throw new HttpError(e.status || 502, `WhatsApp couldn’t react: ${e.message}`)
+      }
+    }
     if (endpoint === 'delete-message') {
       if (s.status !== 'connected' || !s.sock) {
         throw new HttpError(503, `WhatsApp for “${s.label || p.username}” isn’t connected (${s.status})`)

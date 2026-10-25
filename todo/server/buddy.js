@@ -4,7 +4,7 @@ import { zonedTime, todayIn } from './tz.js'
 import { parseQuickAdd } from './quickadd.js'
 import { dayLabel, dueText, time12 } from './whatsapp.js'
 import { describeRepeat } from './repeat.js'
-import { proposeCommand } from './ai.js'
+import { askBuddy } from './ai.js'
 
 /**
  * WhatsApp Buddy 🤖: the todolist's bot in WhatsApp. It never guesses.
@@ -16,8 +16,10 @@ import { proposeCommand } from './ai.js'
  *  • Every task has a short code (K7) that never changes, so a command can't hit the
  *    wrong task. Replying to Buddy's message about a task, or a tap, also says which one.
  *  • React 👍 to a reminder to tick it off.
- *  • Optional: the admin can give it a free Groq key. Then a plain sentence ("push maths
- *    to friday") becomes a proposed command that you confirm with a tap.
+ *  • Optional: the admin can give it a free Groq key. Then you can text it like a person
+ *    ("when's the eartips thing?", "push maths to friday and tick off bio") and it answers;
+ *    anything that changes a task still waits for your tap.
+ *  • "yes" / "no" typed after a question works like tapping it; "thanks" gets a reply, "ok" a 👍.
  *
  * Buddy writes from the bot's number when the admin picked one and you chose it, else in
  * your own "Message yourself" chat (where commands need the "/", since you also write notes there).
@@ -41,9 +43,29 @@ const MENU_TTL = 7 * 24 * 3600e3 // a tap on a menu older than a week does nothi
 const FLOW_TTL = { bot: 10 * 60e3, self: 5 * 60e3 } // how long Buddy waits for a typed answer
 const LAST_TTL = 2 * 3600e3 // "/done" with no code means the task Buddy last wrote about, for this long
 const AI_READ_ONLY = new Set(['today', 'tomorrow', 'week', 'overdue', 'task', 'study', 'exams', 'help', 'menu'])
-const AI_ALLOWED = new Set([...AI_READ_ONLY, 'add', 'done', 'start', 'step', 'snooze', 'move', 'rename', 'delete'])
+const AI_ALLOWED = new Set([...AI_READ_ONLY, 'add', 'done', 'start', 'step', 'snooze', 'move', 'rename', 'delete', 'undo'])
+const TALK_TTL = 30 * 60e3 // the AI sees the chat's last few messages from this long ago
+const TYPED_TTL = 15 * 60e3 // "yes" typed this soon after a question answers it
 const DONE_EMOJI = new Set(['👍', '👍🏻', '👍🏼', '👍🏽', '👍🏾', '👍🏿', '✅', '✔️', '☑️', '👌', '👌🏻', '👌🏼', '👌🏽', '👌🏾', '👌🏿'])
-const SMALL_TALK = /^(thanks?|thank you|thx|ty|tq|ok(ay)?|oke|okey|k|sip|siap|mantap|nice|cool|great|noted|alright|terima ?kasih|makasih|👍|🙏|❤️|😊|🙂|👌)[\s.!]*$/i
+// Small talk Buddy answers by itself (no AI needed): "thanks" gets a reply, "ok" / "bet" a 👍.
+const THANKS = /\b(thanks?|thank ?you|thx|thnx|tq|ty|tysm|makasih|terima ?kasih|appreciate)/i
+const CHAT_WORDS = new Set(('ok okay oke okey okie okk k kk kay sip siap mantap nice cool great noted alright alr aight ight bet gotcha got it ' +
+  'sure yep yup ya yeah yea yes lol haha hahaha hehe wkwk wkwkwk np no problem good sounds perfect awesome will do roger fine ah oh i see oic mhm ' +
+  'thats that is so much very you thank thanks thx thnx tq ty tysm makasih terima kasih banyak bro sis buddy man dude lah la sia bestie appreciate ' +
+  'it a lot love ur the best amazing legend nice one sweet ok lah okie dokie cheers ta').split(' '))
+/** 'thanks', 'ack' (ok, bet, 👍) or null (something else). */
+export function smallTalk(text) {
+  const t = String(text || '').toLowerCase()
+  const words = t.replace(/[^\p{L}\p{N}\s']/gu, ' ').replace(/'/g, '').split(/\s+/).filter(Boolean)
+  if (!words.length) return /\p{Extended_Pictographic}/u.test(t) ? 'ack' : null // just emoji
+  if (words.length > 8 || !words.every((w) => CHAT_WORDS.has(w))) return null
+  if (words.length === 1 && /^(no|yes|ya|yeah|yea|yep|yup|sure|it|i|a|is|so|that)$/.test(words[0])) return null // an answer to something, not small talk
+  return THANKS.test(t) ? 'thanks' : 'ack'
+}
+const YES = /^(y|ya|yah|yes|yess|yep|yup|yeah|yea|sure|ok|okay|oke|okie|k|kk|do it|go|go ahead|confirm|yes please|pls|please|iya|iyaa|betul|boleh|sip|gas|👍|✅|👌)[\s.!]*$/iu
+const NO = /^(n|no|nope|nah|nahh|no thanks|cancel|dont|don't|do not|tidak|ngga|nggak|gak|ga|enggak|jangan|tak|❌|👎)[\s.!]*$/iu
+const normLabel = (s) => String(s || '').toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim()
+const THANKS_BACK = ['Anytime! 🙌', 'You got it 😊', 'No problem!', 'Anytime, {name}!', 'Happy to help 🙂']
 
 // ------------------------------------------------------------------ voices
 const VOICE = {
@@ -236,7 +258,7 @@ export class Buddy {
    * `onTaskChange(task)` is called after Buddy changes a task (so e.g. the admin's progress view
    * updates when you finish a task they gave you). `ai()` → { key, model } or null (the admin's Groq key).
    */
-  constructor(dataDir, store, link, { brand = 'your todolist', onTaskChange = () => {}, getBot = () => String(process.env.BOT_USER || process.env.WA_BOT_USER || '').trim().toLowerCase() || null, planner = null, nameOf = null, ai = () => null, propose = proposeCommand } = {}) {
+  constructor(dataDir, store, link, { brand = 'your todolist', onTaskChange = () => {}, getBot = () => String(process.env.BOT_USER || process.env.WA_BOT_USER || '').trim().toLowerCase() || null, planner = null, nameOf = null, ai = () => null, propose = askBuddy } = {}) {
     this.store = store
     this.link = link
     this.brand = brand
@@ -361,6 +383,11 @@ export class Buddy {
         const viaBot = ch.session === this.botUser
         const to = { username: ch.session, ...(ch.jid ? { jid: ch.jid } : {}) }
         let result
+        if (item.react) {
+          if (!item.to) return null
+          await this.link.call('react', { ...to, jid: ch.jid || item.jid, id: item.to, emoji: item.react })
+          return null
+        }
         if (item.menu) {
           result = await this.link.call('poll', { ...to, name: cut(viaBot ? plain(item.menu.title) : item.menu.title, 250), options: item.menu.options })
           if (result?.id) {
@@ -824,6 +851,11 @@ export class Buddy {
   }
   /** Move one task to a new day and/or time. Its WhatsApp message and bell go off at the new time. */
   moveTo(u, task, when, now = Date.now()) {
+    const { due, time } = this.moveTarget(u, task, when, now)
+    return this.setWhen(u, task, due, time, now)
+  }
+  /** Where a move would put the task (without moving it). */
+  moveTarget(u, task, when, now = Date.now()) {
     const { tz, today } = this.ctx(u, now)
     const time = when.timeGiven ? when.time : task.time || null
     let due
@@ -833,7 +865,7 @@ export class Buddy {
       due = task.due && task.due > today ? task.due : today
       if (time && due === today && zonedTime(due, time, tz) <= now) due = addDaysKey(today, 1)
     }
-    return this.setWhen(u, task, due, time, now)
+    return { due, time }
   }
   setWhen(u, task, due, time, now = Date.now()) {
     const { today } = this.ctx(u, now)
@@ -946,7 +978,7 @@ export class Buddy {
    * Everything that comes in from WhatsApp goes through here. Returns the messages to send back
    * (texts and tap menus). `chat`: 'bot' or 'self'. `quote`: the message it replies to.
    */
-  async run(u, text, { chat = 'bot', quote = null, now = Date.now() } = {}) {
+  async run(u, text, { chat = 'bot', quote = null, now = Date.now(), id = null } = {}) {
     const s = this.st(u)
     const ctx = { chat, now, ...this.fromQuote(u, quote) }
     const p = parseCommand(text, chat)
@@ -976,25 +1008,75 @@ export class Buddy {
     }
     if (chat !== 'bot') return [] // a note in your own chat: not for Buddy
     const body = String(text || '').trim()
-    if (!body || SMALL_TALK.test(body)) return []
-    // a plain sentence: the AI (if the admin set one up) proposes a command, which you confirm
+    if (!body) return []
+    // "yes" / "no" (or an option's words) typed right after a question: the same as tapping it
+    const typed = this.typedAnswer(u, body, now)
+    if (typed) return this.tap(u, typed.id, [typed.option], { now })
+    // thanks / ok: answered like a person would (a reply, or a 👍 on your message)
+    const talk = smallTalk(body)
+    if (talk === 'thanks') return [{ text: THANKS_BACK[Math.floor(Math.random() * THANKS_BACK.length)].replace('{name}', this.ctx(u, now).name) }]
+    if (talk === 'ack') return id ? [{ react: '👍', to: id }] : []
+    // anything else: the AI (if the admin set one up) answers, and proposes what to change
     const ai = this.ai
     if (ai) {
       const items = await this.aiItems(u, body, ctx, ai)
       if (items) return items
     }
+    const sorry = ai ? '🤖 Sorry, my brain didn’t get that one just now.' : null
     // a reply to my message about a task: what you can do with it (always answered: you're clearly talking to me)
     const about = this.taskById(u, ctx.task)
-    if (about) return [{ text: `🤖 I don’t guess what that means. Tap what to do with *${about.title}*, or send *help*.`, about: { task: about.id } }, this.taskMenu(u, about)]
+    if (about) return [{ text: `${sorry || '🤖 I don’t guess what that means.'} Tap what to do with *${about.title}*, or send *help*.`, about: { task: about.id } }, this.taskMenu(u, about)]
     // otherwise: say what works, and offer to add it as a task (not every time: once in a while)
     const quiet = now - (s.unknownAt || 0) < 2 * 60e3
     s.unknownAt = now
     this.saveState()
-    if (quiet) return [{ text: 'That’s not a command. Tap a menu, or send *help*.' }]
+    if (quiet) return [{ text: sorry ? `${sorry} Try again in a bit, or send *help*.` : 'That’s not a command. Tap a menu, or send *help*.' }]
     return [
-      { text: '🤖 I only understand commands and taps, so I don’t guess.\nTap below, or send *help* for all commands.' },
+      { text: `${sorry || '🤖 I only understand commands and taps, so I don’t guess.'}\nTap below, or send *help* for all commands.` },
       this.mainMenu([[`➕ Add “${cut(body, 40)}” as a task`, `addText:${body.slice(0, 300)}`]]),
     ]
+  }
+
+  /** A typed answer to Buddy's latest question ("yes", "no", or an option's words): { id, option } or null. */
+  typedAnswer(u, text, now = Date.now()) {
+    const s = this.st(u)
+    let id = null, m = null
+    for (const [k, v] of Object.entries(s.menus)) if (!m || v.at > m.at) { id = k; m = v }
+    if (!m || m.answered || now - m.at > TYPED_TTL) return null
+    const t = normLabel(text)
+    let i = t ? m.options.findIndex((o) => normLabel(o) === t) : -1
+    if (i < 0 && Array.isArray(m.values)) {
+      if (YES.test(text.trim())) i = m.values.indexOf('yes')
+      else if (NO.test(text.trim())) i = m.values.indexOf('no')
+    }
+    return i >= 0 ? { id, option: m.options[i] } : null
+  }
+
+  /** The chat so far (for the AI): what you said and what Buddy said, the last half hour. */
+  remember(u, who, text, now = Date.now()) {
+    if (!text) return
+    const s = this.st(u)
+    s.talk = [...(s.talk || []).filter((x) => now - x.at < TALK_TTL), { who, text: cut(String(text).replace(/\s+/g, ' '), 300), at: now }].slice(-10)
+    this.saveState()
+  }
+
+  /** A command the AI proposed, in plain words: “Move “Maths” to fri 30 oct, 3:00 PM”. */
+  describe(u, p, t, now = Date.now()) {
+    const { tz, today } = this.ctx(u, now)
+    const rest = p.args.split(/\s+/).slice(1).join(' ')
+    const q = t ? `“${cut(t.title, 50)}”` : 'it'
+    switch (p.cmd.name) {
+      case 'add': return `Add “${cut(p.args, 80)}”`
+      case 'done': return `Tick off ${q}`
+      case 'start': return `Start ${q}`
+      case 'step': return `Tick the next step of ${q}`
+      case 'snooze': return `Remind you about ${q} again ${whenText(snoozeUntil(rest || 'later', tz, now) || now + 3600e3, tz, now)}`
+      case 'move': { const w = this.whenOf(u, rest, now, { strict: true }); const to = w && this.moveTarget(u, t, w, now); return to?.due ? `Move ${q} to ${lower1(dueText(to, today))}` : `Move ${q} to ${rest}` }
+      case 'rename': return `Rename ${q} to “${cut(rest, 60)}”`
+      case 'delete': return `Delete ${q}`
+      case 'undo': return 'Bring back the task you deleted last'
+    }
+    return `/${p.cmd.name} ${p.args}`.trim()
   }
 
   /** A command word without the "/" (bot chat): does the rest of the message fit it exactly? */
@@ -1134,6 +1216,7 @@ export class Buddy {
     if (!menu || now - menu.at > MENU_TTL || !choice) return []
     const i = menu.options.indexOf(choice)
     if (i < 0) return []
+    if (!menu.answered) { menu.answered = now; this.saveState() }
     // the same tap reported twice (WhatsApp sends votes two ways) counts once
     const key = `${u}|${pollId}|${choice}`
     if (now - (this.recentTaps.get(key) || 0) < 15e3) return []
@@ -1159,9 +1242,14 @@ export class Buddy {
       return []
     }
     if (m.kind === 'ai') {
-      if (v === 'no') return [{ text: 'Okay, nothing changed. Send *help* for all commands.' }]
-      const p = parseCommand(m.command, 'bot')
-      return p?.cmd ? this.runCommand(u, p.cmd, p.args, ctx) : []
+      if (v === 'no') { this.remember(u, 'buddy', '(they said no; nothing changed)', now); return [{ text: 'Okay, nothing changed.' }] }
+      const out = []
+      for (const c of m.commands || (m.command ? [m.command] : [])) {
+        const p = parseCommand(c, 'bot')
+        if (p?.cmd) out.push(...(await this.runCommand(u, p.cmd, p.args, ctx)))
+      }
+      this.remember(u, 'buddy', out.filter((x) => x.text).map((x) => x.text).join(' / '), now)
+      return out
     }
     if (m.kind === 'pick') {
       const t = this.taskById(u, v)
@@ -1212,26 +1300,71 @@ export class Buddy {
     return [{ text: this.doneText(u, t, now), about: { task: t.id } }]
   }
 
-  /** The AI's guess, as a proposal to confirm with a tap (a list or a lookup just runs). Null: no proposal. */
+  /**
+   * The AI's answer: what it says back, lists it shows straight away, and changes it proposes
+   * (one menu: "Yes, do it" / "No"). Null: no usable answer (Buddy falls back to commands and taps).
+   */
   async aiItems(u, body, ctx, ai) {
     const { now } = ctx
-    const { tz, today } = this.ctx(u, now)
-    const tasks = this.store.snapshot(u).tasks.filter((t) => !t.done).slice(0, 60)
-      .map((t) => ({ code: this.codeOf(u, t), title: t.title, due: t.due || null, time: t.time || null }))
-    const current = this.taskById(u, ctx.task || (now - (this.st(u).lastAt || 0) < LAST_TTL ? this.st(u).last : null))
-    let command = null
+    const { tz, today, name, doc } = this.ctx(u, now)
+    const s = this.st(u)
+    const when = (t) => (t.due ? `${t.due} ${t.time || ''}` : '9999')
+    const open = doc.tasks.filter((t) => !t.done).sort((a, b) => when(a).localeCompare(when(b))).slice(0, 40)
+    // one short line per task (fewer tokens: Groq's free tier counts them)
+    const tasks = open.map((t) => {
+      const o = [this.codeOf(u, t), cut(t.title, 80)]
+      if (t.due) o.push(dueText(t, today) || dayLabel(t.due, today))
+      if (t.due && t.due < today) o.push('overdue')
+      if (t.status === 'doing') o.push('started')
+      const steps = t.subtasks || []
+      if (steps.length) o.push(`steps ${steps.filter((x) => x.done).length}/${steps.length}`)
+      if (t.priority >= 2) o.push('important')
+      if (t.notes) o.push(`notes: ${cut(String(t.notes).replace(/\s+/g, ' '), 80)}`)
+      return o.join(' · ')
+    })
+    const finished = doc.tasks.filter((t) => t.done && t.doneAt && now - t.doneAt < 3 * 864e5).sort((a, b) => b.doneAt - a.doneAt).slice(0, 10)
+      .map((t) => `${cut(t.title, 80)} · ${dayLabel(todayIn(tz, t.doneAt), today)}, ${time12(hmIn(tz, t.doneAt))}`)
+    const cur = this.taskById(u, ctx.task || (now - (s.lastAt || 0) < LAST_TTL ? s.last : null))
+    const weekday = new Intl.DateTimeFormat('en-US', { weekday: 'long', timeZone: tz }).format(new Date(now))
+    const recent = (s.talk || []).filter((x) => now - x.at < TALK_TTL).map((x) => `${x.who === 'me' ? name : 'Buddy'}: ${x.text}`)
+    let out
     try {
-      command = await this.propose({ key: ai.key, model: ai.model, text: body, tasks, today, now: `${today} ${hmIn(tz, now)}`, current: current ? this.codeOf(u, current) : null })
+      out = await this.propose({ key: ai.key, model: ai.model, text: body, name, now: `${weekday} ${today}, ${time12(hmIn(tz, now))}`, tasks, finished, current: cur && !cur.done ? this.codeOf(u, cur) : null, recent })
     } catch (e) { console.warn(`[buddy] AI didn't answer: ${e.message}`); return null }
-    const p = command && parseCommand(command, 'bot')
-    if (!p?.cmd || !AI_ALLOWED.has(p.cmd.name)) return null
-    // a code it names must be real
-    const first = p.args.split(/\s+/)[0]
-    if (p.cmd.task && CODE_RE.test(first) && !this.taskOfCode(u, first)) return null
-    if (AI_READ_ONLY.has(p.cmd.name)) return this.runCommand(u, p.cmd, p.args, ctx)
-    const t = p.cmd.task && CODE_RE.test(first) ? this.taskOfCode(u, first) : null
-    const shown = `/${p.cmd.name}${p.args ? ` ${p.args}` : ''}`
-    return [this.menu(`🤖 Did you mean: ${cut(shown, 120)}${t ? ` (${cut(t.title, 60)})` : ''}?`, [['✅ Yes, do it', 'yes'], ['❌ No', 'no']], { kind: 'ai', command: shown })]
+    if (typeof out === 'string') out = { reply: null, commands: [out] }
+    const reply = out?.reply ? String(out.reply).trim() : null
+    // keep only commands that are real and safe: known command, real code, a day/time it can read
+    const read = [], change = []
+    for (const c of out?.commands || []) {
+      const p = parseCommand(c, 'bot')
+      if (!p?.cmd || !AI_ALLOWED.has(p.cmd.name)) continue
+      const parts = p.args.split(/\s+/).filter(Boolean)
+      const rest = parts.slice(1).join(' ')
+      let t = null
+      if (p.cmd.task) {
+        t = CODE_RE.test(parts[0] || '') ? this.taskOfCode(u, parts[0]) : null
+        if (!t) continue
+        if (p.cmd.name === 'move' && !this.whenOf(u, rest, now, { strict: true })) continue
+        if (p.cmd.name === 'snooze' && rest && !snoozeUntil(rest, tz, now)) continue
+        if (p.cmd.name === 'rename' && !rest) continue
+      }
+      if (p.cmd.name === 'add' && !p.args) continue
+      const x = { p, t, shown: `/${p.cmd.name}${p.args ? ` ${p.args}` : ''}` }
+      if (AI_READ_ONLY.has(p.cmd.name)) { if (!read.some((y) => y.shown === x.shown)) read.push(x) } else if (!change.some((y) => y.shown === x.shown)) change.push(x)
+    }
+    if (!reply && !read.length && !change.length) return null
+    this.remember(u, 'me', body, now)
+    const items = []
+    const one = [...read, ...change].length === 1 ? (read[0] || change[0]).t : null
+    if (reply) items.push({ text: reply, ...(one ? { about: { task: one.id } } : {}) })
+    for (const x of read.slice(0, 3)) items.push(...(await this.runCommand(u, x.p.cmd, x.p.args, ctx)))
+    if (change.length) {
+      const lines = change.map((x) => this.describe(u, x.p, x.t, now))
+      const title = lines.length === 1 ? `${lines[0]}?` : `Do these?\n${lines.map((l, i) => `${i + 1}. ${l}`).join('\n')}`
+      items.push(this.menu(cut(title, 250), [[lines.length === 1 ? '✅ Yes, do it' : `✅ Yes, all ${lines.length}`, 'yes'], ['❌ No', 'no']], { kind: 'ai', commands: change.map((x) => x.shown) }, 'menu', one ? { task: one.id } : null))
+    }
+    this.remember(u, 'buddy', [reply, ...change.map((x) => `(asked: ${this.describe(u, x.p, x.t, now)}?)`), ...read.map((x) => `(showed ${x.shown})`)].filter(Boolean).join(' '), now)
+    return items
   }
 
   // ----------------------------------------------- exam + study reminders

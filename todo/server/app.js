@@ -9,7 +9,7 @@ import { Reminders } from './reminders.js'
 import { LocalLink } from './local.js'
 import { handleInbox, taskMessage, stripTodo, isTodoCommand } from './whatsapp.js'
 import { Buddy, BUDDY_DEFAULTS, plain, COMMANDS as BUDDY_COMMANDS } from './buddy.js'
-import { proposeCommand, aiStatus, DEFAULT_MODEL } from './ai.js'
+import { askBuddy, aiStatus, DEFAULT_MODEL } from './ai.js'
 import { todayIn } from './tz.js'
 import { Holidays, COUNTRIES, countryForTz } from './holidays.js'
 import { Assignments, progressOf } from './assign.js'
@@ -359,8 +359,9 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
       const today = todayIn(tzOf(c.u))
       const started = Date.now()
       try {
-        const command = await proposeCommand({ ...cfg, text: 'push maths to friday 3pm', today, now: `${today} 10:00`, tasks: [{ code: 'K7', title: 'Maths worksheet', due: today, time: null }, { code: 'B3', title: 'Read Books', due: today, time: '22:00' }] })
-        return json(res, { ok: !!command, command, model: aiStatus.model, ms: Date.now() - started, ai: aiView(link.settings()) })
+        const out = await askBuddy({ ...cfg, text: 'push maths to friday 3pm', name: 'Sam', now: `${today}, 10:00 AM`, tasks: ['K7 · Maths worksheet · Today', 'B3 · Read Books · Today, 10:00 PM'] })
+        const command = out.commands[0] || null
+        return json(res, { ok: !!(command || out.reply), command, reply: out.reply, model: aiStatus.model, ms: Date.now() - started, ai: aiView(link.settings()) })
       } catch (e) {
         return json(res, { ok: false, error: e.message, model: aiStatus.model, ms: Date.now() - started, ai: aiView(link.settings()) })
       }
@@ -808,7 +809,7 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
         return
       }
       let items
-      try { items = await buddy.run(u, msg.text, { chat: 'bot', quote: msg.quote }) } catch (e) { items = [{ text: `⚠️ ${e.message}` }] }
+      try { items = await buddy.run(u, msg.text, { chat: 'bot', quote: msg.quote, id: msg.id }) } catch (e) { items = [{ text: `⚠️ ${e.message}` }] }
       return answer(u, items, channel)
     }
 

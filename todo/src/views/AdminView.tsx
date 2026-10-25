@@ -632,8 +632,8 @@ function AnnounceTab({ people, settings, to, setTo, onChanged }: { people: Perso
 
 // ----------------------------------------------------------------- whatsapp
 /**
- * Buddy's optional AI (main admin only): a free Groq key. With it, a plain sentence to Buddy
- * ("push maths to friday") becomes a proposed command that the person confirms with a tap.
+ * Buddy's optional AI (main admin only): a free Groq key. With it, people can text Buddy like a
+ * person; it answers, and anything that changes a task is confirmed with a tap.
  */
 function BuddyAiCard({ ai, onSaved }: { ai: NonNullable<Settings['ai']>; onSaved: (ai: NonNullable<Settings['ai']>) => void }) {
   const [key, setKey] = useState('')
@@ -643,9 +643,9 @@ function BuddyAiCard({ ai, onSaved }: { ai: NonNullable<Settings['ai']>; onSaved
     setBusy(true)
     setTest('Asking Groq…')
     try {
-      const r = await api<{ ok: boolean; command?: string | null; error?: string; model: string; ms: number; ai: NonNullable<Settings['ai']> }>('/admin/ai-test', 'POST', {})
+      const r = await api<{ ok: boolean; command?: string | null; reply?: string | null; error?: string; model: string; ms: number; ai: NonNullable<Settings['ai']> }>('/admin/ai-test', 'POST', {})
       onSaved(r.ai)
-      setTest(r.ok ? `Works (${r.model}, ${(r.ms / 1000).toFixed(1)} s). “push maths to friday 3pm” → ${r.command}` : r.error ? `Didn’t work: ${r.error}` : `Groq answered (${r.model}) but didn’t give a command. Try again; if it keeps happening, tell your developer.`)
+      setTest(r.ok ? `Works (${r.model}, ${(r.ms / 1000).toFixed(1)} s). “push maths to friday 3pm” → ${[r.reply, r.command].filter(Boolean).join(' · ')}` : r.error ? `Didn’t work: ${r.error}` : `Groq answered (${r.model}) but said nothing useful. Try again; if it keeps happening, tell your developer.`)
     } catch (e: any) { setTest(e.message) }
     setBusy(false)
   }
@@ -663,12 +663,12 @@ function BuddyAiCard({ ai, onSaved }: { ai: NonNullable<Settings['ai']>; onSaved
     <section className="card admin-narrow">
       <h2>Buddy’s AI <small className="muted">optional</small></h2>
       <p className="help">
-        Without it, Buddy only understands commands and taps. With a free <b>Groq</b> key, a plain sentence like “push maths to friday” becomes a proposed command, and Buddy asks the person to confirm with a tap.
-        Groq sees only that message and the person’s task codes, titles and dates, nothing else.
+        Without it, Buddy only understands commands and taps. With a free <b>Groq</b> key, people can text Buddy like a person (“when’s the eartips thing?”, “push maths to friday and tick off bio”) and it answers. Anything that changes a task still waits for their tap.
+        Groq sees that message, the last few messages with Buddy, and the person’s open tasks (titles, dates, notes) and what they finished in the last few days, nothing else.
       </p>
       <ul className="feature-list">
         <li>
-          <span><b>Use AI for plain sentences</b><small>{ai.keySet ? (ai.fromEnv ? `Key from GROQ_API_KEY in Railway · ${ai.model}` : `Key saved (ends …${ai.keyEnd}) · ${ai.model}`) : 'No key yet'}</small>
+          <span><b>Let people talk to Buddy normally</b><small>{ai.keySet ? (ai.fromEnv ? `Key from GROQ_API_KEY in Railway · ${ai.model}` : `Key saved (ends …${ai.keyEnd}) · ${ai.model}`) : 'No key yet'}</small>
             {last && <small className={last.ok ? 'ok-text' : 'warn-text'}>{last.ok ? `Last used ${new Date(last.at).toLocaleString([], { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}: worked` : `Last try ${new Date(last.at).toLocaleString([], { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}: ${last.error}`}{last.switchedFrom ? ` (Groq retired ${last.switchedFrom}, switched to ${ai.model})` : ''}</small>}
           </span>
           <Switch on={ai.on && ai.keySet} label="Use AI" onChange={(on) => (ai.keySet ? save({ on }) : toast('Add a key first'))} />
@@ -689,7 +689,7 @@ function BuddyAiCard({ ai, onSaved }: { ai: NonNullable<Settings['ai']>; onSaved
       )}
       <ol className="bot-guide">
         <li>Sign in at <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer">console.groq.com/keys</a> (free, no card) and create an API key.</li>
-        <li>Paste it above and hit <b>Test AI</b>. The free tier allows about 1,000 messages a day; if it’s ever used up, Buddy simply falls back to commands and taps until the next day.</li>
+        <li>Paste it above and hit <b>Test AI</b>. The free tier covers roughly 100 to 150 AI answers a day, shared by everyone (commands, taps, “thanks” and “ok” don’t use it). If it’s used up, Buddy falls back to commands and taps until the next day.</li>
       </ol>
     </section>
   )

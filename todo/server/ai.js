@@ -1,8 +1,10 @@
 /**
- * Buddy's optional AI: turns a plain sentence ("push maths to friday") into one of Buddy's
- * commands ("/move K3 fri"). It only proposes: Buddy shows it and you confirm with a tap
- * (a list just runs). Uses Groq's free API (an OpenAI-style chat endpoint). It sees that one
- * message, your open tasks' codes, titles and dates, and today's date. Nothing else.
+ * Buddy's optional AI, so you can talk to Buddy like a person: "when is the eartips thing?",
+ * "push maths to friday and tick off bio", "thanks!". It answers in a short message and can
+ * propose commands ("/move K3 fri"); anything that changes a task waits for your tap (a list
+ * just runs). Uses Groq's free API (an OpenAI-style chat endpoint). It sees your message, the
+ * last few messages of your chat with Buddy, your open tasks (code, title, when, notes) and what
+ * you finished in the last few days. Nothing else.
  * No key, an error, a timeout or the daily limit: Buddy carries on without it.
  *
  * Groq retires models now and then (llama-3.1-8b-instant went in August 2026). When the model
@@ -19,23 +21,37 @@ const NOT_CHAT = /whisper|tts|orpheus|guard|safeguard|compound|embed|playai|dist
 export const aiStatus = { at: 0, ok: null, model: null, error: null, switchedFrom: null, ms: 0 }
 let picked = null // the model we switched to after the configured one was gone
 
-const SYSTEM = `You turn a WhatsApp message into ONE command for a to-do bot. Reply with JSON only, exactly {"command": "..."} or {"command": null}.
+const SYSTEM = `You are Buddy, a friendly to-do assistant inside WhatsApp. Talk like a helpful friend texting back: short, warm, natural, in the same language and tone the person uses (English, Malay, Indonesian, Singlish, slang are all fine).
 
-Commands (codes look like K7; dates/times in plain words like "fri 3pm", "tomorrow", "6pm", "25 oct"):
-/today | /tomorrow | /week | /overdue | /study | /exams | /help
-/task <code> - show one task
-/add <task words> [day] [time] - a NEW task; keep the user's words for the task, add the day/time they said
-/done <code> | /start <code> | /step <code> - tick off / start / tick next step
-/snooze <code> <when> - remind again later, e.g. "/snooze K7 30m", "/snooze K7 tonight"
-/move <code> <day and/or time> - reschedule, e.g. "/move K7 fri 3pm"
+You get JSON with: "message" (what they just sent), "name", "now" (their local date, weekday and time), "current" (the task code you were just talking about, if any), "recent" (the last few messages of this chat), "tasks" (their open tasks, one per line: "code · title · when · flags/notes") and "finished" ("title · when it was done", the last few days).
+
+Reply with JSON only: {"reply": "...", "commands": ["..."]}
+- "reply": what you say back, 1-2 short sentences (max ~240 characters). WhatsApp *bold* is fine, at most one emoji. Never empty.
+- "commands": [] or up to 5 bot commands to run. Read-only ones run straight away; ones that change tasks are shown to the person to confirm with a tap first.
+
+Commands (task codes look like K7; days/times in plain words like "fri 3pm", "tomorrow", "6pm", "25 oct", "30m"):
+/today /tomorrow /week /overdue - show that list (read-only)
+/task <code> - show one task with its buttons (read-only)
+/study /exams /help - read-only
+/add <task words> [day] [time] - a NEW task, e.g. "/add buy eartips sat 2pm"
+/done <code> | /start <code> | /step <code> (tick the next step)
+/snooze <code> <when> - remind again later
+/move <code> <day and/or time> - reschedule
 /rename <code> <new name>
 /delete <code>
+/undo - bring back the task deleted last
 
-Rules:
-- Questions about what's on ("anything tomorrow?", "what do I have today") are the list commands.
-- Use only codes from the task list given. Pick the task whose title the message clearly means. If the message says "it"/"that" and "current" is given, use that code.
-- If it's unclear which task, or the message isn't about tasks (greetings, chat, other topics), reply {"command": null}.
-- Never invent a code. Never combine two commands. No explanations.`
+How to answer:
+- Questions you can answer from the data ("when is X?", "what's next?", "how many left today?", "did I finish Y?"): answer in "reply" using the "when" text exactly as given. Never make up dates, times or tasks. Add /task <code> only if they want to see or change that one task.
+- "What do I have today/tomorrow/this week?": a short reply plus the list command (/today, /tomorrow, /week, /overdue).
+- Asked to change something: put the commands in "commands" and phrase "reply" as checking with them ("Move *Maths* to Fri 3 PM?"), never as already done, because nothing happens until they tap Yes.
+- Several things at once ("move maths to fri and tick off bio"): one command each.
+- "it"/"that"/"this one" means "current", or the task "recent" was about.
+- Can't tell which task they mean: ask in "reply" which one (name the likely ones), no commands.
+- A task they ask about that isn't in the list: say you can't find it, and offer to add it with /add.
+- Something to remember or do that's new ("remind me to call mum at 8"): /add it.
+- Small talk, thanks, feelings: just a kind short reply, no commands. Off-topic questions: a brief friendly answer is fine, then you can steer back to their tasks.
+- Use only codes that appear in "tasks". Never invent a code. Never put a command inside "reply".`
 
 class AiError extends Error {
   constructor(message, { status = 0, code = '', modelGone = false, noJsonMode = false } = {}) {
@@ -52,7 +68,7 @@ async function chat({ base, key, model, messages, jsonMode, signal }) {
     body: JSON.stringify({
       model,
       temperature: 0,
-      max_completion_tokens: 1024, // reasoning models think first; the answer itself is tiny
+      max_completion_tokens: 1500, // reasoning models think first; the answer itself is short
       ...(/gpt-oss/i.test(model) ? { reasoning_effort: 'low', include_reasoning: false } : {}),
       ...(jsonMode ? { response_format: { type: 'json_object' } } : {}),
       messages,
@@ -81,27 +97,34 @@ async function findModel(base, key, signal, not) {
   return PREFERRED_MODELS.find((m) => ids.includes(m)) || ids.find((id) => !NOT_CHAT.test(id)) || null
 }
 
-/** The command in a reply: plain JSON, or JSON wrapped in ```json fences or other words. */
-function commandOf(content) {
+/** The answer in a reply: plain JSON, or JSON wrapped in ```json fences or other words. */
+export function answerOf(content) {
   const text = String(content || '').trim()
   let out = null
   try { out = JSON.parse(text) } catch {
     const m = text.match(/\{[\s\S]*\}/)
     if (m) { try { out = JSON.parse(m[0]) } catch {} }
   }
-  const cmd = typeof out?.command === 'string' ? out.command.trim() : null
-  return cmd && cmd.startsWith('/') && cmd.length <= 200 && !cmd.includes('\n') ? cmd : null
+  if (!out || typeof out !== 'object') return { reply: null, commands: [] }
+  const list = Array.isArray(out.commands) ? out.commands : typeof out.command === 'string' ? [out.command] : []
+  const commands = list.filter((c) => typeof c === 'string').map((c) => c.trim()).filter((c) => c.startsWith('/') && c.length <= 200 && !c.includes('\n')).slice(0, 5)
+  const reply = typeof out.reply === 'string' && out.reply.trim() ? out.reply.trim().slice(0, 600) : null
+  return { reply, commands }
 }
 
-export async function proposeCommand({ key, model = null, text, tasks = [], today, now, current = null, timeoutMs = 9000, base = process.env.GROQ_BASE_URL || 'https://api.groq.com/openai/v1' }) {
-  if (!key || !text) return null
+/**
+ * Ask the AI what to say back and which commands to run (or propose).
+ * Returns { reply, commands }. Throws (with a readable message) when Groq can't be used.
+ */
+export async function askBuddy({ key, model = null, text, name = '', tasks = [], finished = [], now = '', current = null, recent = [], timeoutMs = 9000, base = process.env.GROQ_BASE_URL || 'https://api.groq.com/openai/v1' }) {
+  if (!key || !text) return { reply: null, commands: [] }
   base = base.replace(/\/$/, '')
   const ctrl = new AbortController()
   const timer = setTimeout(() => ctrl.abort(), timeoutMs)
   const started = Date.now()
   const messages = [
     { role: 'system', content: SYSTEM },
-    { role: 'user', content: JSON.stringify({ message: String(text).slice(0, 300), today, now, current, tasks: tasks.slice(0, 60) }) },
+    { role: 'user', content: JSON.stringify({ message: String(text).slice(0, 500), name, now, current, recent: recent.slice(-8), tasks: tasks.slice(0, 40), finished: finished.slice(0, 10) }) },
   ]
   let use = picked || model || DEFAULT_MODEL
   let jsonMode = true
@@ -109,9 +132,9 @@ export async function proposeCommand({ key, model = null, text, tasks = [], toda
     for (let attempt = 0; ; attempt++) {
       try {
         const data = await chat({ base, key, model: use, messages, jsonMode, signal: ctrl.signal })
-        const cmd = commandOf(data?.choices?.[0]?.message?.content)
+        const out = answerOf(data?.choices?.[0]?.message?.content)
         Object.assign(aiStatus, { at: Date.now(), ok: true, model: use, error: null, ms: Date.now() - started })
-        return cmd
+        return out
       } catch (e) {
         if (attempt >= 2 || !(e instanceof AiError)) throw e
         if (e.noJsonMode && jsonMode) { jsonMode = false; continue }

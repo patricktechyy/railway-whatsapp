@@ -241,7 +241,7 @@ test('/add, then commands with a code or with none (the task I just wrote about)
   assert.equal(menuIn(r)?.meta.kind, 'pick')
 })
 
-test('unknown things: a “/word” gets a suggestion; a sentence gets the menu with “add it”; thanks gets nothing; notes in your own chat get nothing', async () => {
+test('unknown things: a “/word” gets a suggestion; a sentence gets the menu with “add it”; thanks gets a reply; notes in your own chat get nothing', async () => {
   const { buddy } = setup()
   let r = await buddy.run('gavin', '/dne')
   assert.match(texts(r), /don’t know \*\/dne\*\. Did you mean \*\/done\*/)
@@ -250,7 +250,8 @@ test('unknown things: a “/word” gets a suggestion; a sentence gets the menu 
   assert.equal(menuIn(r).options[0], '➕ Add “finished the bio homework” as a task')
   r = await buddy.run('gavin', 'another thing', { chat: 'bot' })
   assert.equal(menuIn(r), undefined, 'not a menu every time')
-  assert.deepEqual(await buddy.run('gavin', 'thanks!', { chat: 'bot' }), [])
+  assert.match(texts(await buddy.run('gavin', 'thanks!', { chat: 'bot' })), /Anytime|You got it|No problem|Happy to help/)
+  assert.deepEqual(await buddy.run('gavin', 'ok', { chat: 'bot' }), []) // no message id to react to: nothing
   assert.deepEqual(await buddy.run('gavin', 'buy eggs', { chat: 'self' }), [])
 })
 
@@ -370,9 +371,9 @@ test('the AI (if the admin set one up) proposes; you confirm with a tap. Lists j
   buddy.aiConfig = () => ({ key: 'gsk_test', model: 'x' })
   buddy.propose = async (q) => { seen = q; if (answer instanceof Error) throw answer; return answer }
   let r = await buddy.run('gavin', 'push maths to friday 3pm', { now })
-  assert.ok(seen.tasks.some((t) => t.code === code && t.title === 'Maths worksheet'), 'it sees codes and titles')
+  assert.ok(seen.tasks.includes(`${code} · Maths worksheet · Today`), 'it sees codes, titles and when')
   const mm = await sendMenu(buddy, sent, r)
-  assert.match(mm.name, new RegExp(`Did you mean: /move ${code} fri 3pm \\(Maths worksheet\\)`))
+  assert.match(mm.name, /^Move “Maths worksheet” to \w{3} \d+ \w{3}, 3:00 PM\?$/)
   assert.equal(store.snapshot('gavin').tasks.find((x) => x.id === m.id).time, null, 'nothing changes before you confirm')
   r = await buddy.tap('gavin', mm.id, ['✅ Yes, do it'], { now })
   assert.match(texts(r), /Moved \*Maths worksheet\* to \w{3} \d+ \w{3}, 3:00 PM/)
@@ -381,9 +382,34 @@ test('the AI (if the admin set one up) proposes; you confirm with a tap. Lists j
   assert.match(texts(r), /📋 \*Today\*/)
   answer = '/done Q9' // a code that doesn't exist
   r = await buddy.run('gavin', 'done with physics', { now })
-  assert.match(texts(r), /I only understand commands|not a command/)
+  assert.match(texts(r), /didn’t get that one/)
   answer = new Error('daily limit reached')
   r = await buddy.run('gavin', 'blah blah', { now: now + 5 * 60e3 })
-  assert.match(texts(r), /I only understand commands/)
+  assert.match(texts(r), /didn’t get that one/)
   buddy.aiConfig = () => null
+})
+
+test('small talk and typed answers, like a person', async () => {
+  const { smallTalk } = await import('./buddy.js')
+  assert.equal(smallTalk('aight bet thanks'), 'thanks')
+  assert.equal(smallTalk('thank you so much!!'), 'thanks')
+  assert.equal(smallTalk('ok cool'), 'ack')
+  assert.equal(smallTalk('👍'), 'ack')
+  assert.equal(smallTalk('no'), null)
+  assert.equal(smallTalk('ok move maths to friday'), null)
+  assert.equal(smallTalk('is there anything tomorrow'), null)
+  const { store, buddy, sent } = setup()
+  const today = todayIn(TZ)
+  const now = zonedTime(today, '10:00', TZ)
+  const m = store.addTask('gavin', { title: 'Maths worksheet', due: today })
+  let r = await buddy.run('gavin', 'delete ' + buddy.codeOf('gavin', m), { now })
+  await sendMenu(buddy, sent, r)
+  r = await buddy.run('gavin', 'yes', { now: now + 60e3 })
+  assert.match(texts(r), /Deleted \*Maths worksheet\*/)
+  r = await buddy.run('gavin', 'yes', { now: now + 2 * 60e3 }) // already answered: not a second delete
+  assert.doesNotMatch(texts(r), /Deleted/)
+  r = await buddy.run('gavin', 'thanks!', { now })
+  assert.match(texts(r), /Anytime|You got it|No problem|Happy to help/)
+  r = await buddy.run('gavin', 'ok', { now, id: 'M1' })
+  assert.deepEqual(r, [{ react: '👍', to: 'M1' }])
 })
