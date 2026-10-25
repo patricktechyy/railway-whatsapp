@@ -44,6 +44,7 @@ const FLOW_TTL = { bot: 10 * 60e3, self: 5 * 60e3 } // how long Buddy waits for 
 const LAST_TTL = 2 * 3600e3 // "/done" with no code means the task Buddy last wrote about, for this long
 const AI_READ_ONLY = new Set(['today', 'tomorrow', 'week', 'overdue', 'task', 'study', 'exams', 'help', 'menu'])
 const AI_ALLOWED = new Set([...AI_READ_ONLY, 'add', 'done', 'start', 'step', 'snooze', 'move', 'rename', 'delete', 'undo'])
+const SHOWS_ITSELF = new Set(['today', 'tomorrow', 'week', 'overdue', 'task']) // AI read-only commands worth showing as well as its words (lists and cards have tap menus)
 const TALK_TTL = 30 * 60e3 // the AI sees the chat's last few messages from this long ago
 const TYPED_TTL = 15 * 60e3 // "yes" typed this soon after a question answers it
 const DONE_EMOJI = new Set(['👍', '👍🏻', '👍🏼', '👍🏽', '👍🏾', '👍🏿', '✅', '✔️', '☑️', '👌', '👌🏻', '👌🏼', '👌🏽', '👌🏾', '👌🏿'])
@@ -114,6 +115,13 @@ const addDaysKey = (k, n) => { const [y, m, d] = k.split('-').map(Number); retur
 const weekdayOf = (k) => { const [y, m, d] = k.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d)).getUTCDay() }
 const ago = (min) => (min < 60 ? `${min} min` : min < 48 * 60 ? `${Math.round(min / 60)} h` : `${Math.round(min / 1440)} days`)
 const cut = (s, n) => (String(s).length > n ? String(s).slice(0, n - 1).trimEnd() + '…' : String(s))
+/** "Tue 27 Oct", with "(today)", "(tomorrow)" or "(yesterday)" when it is: dates the AI can't misread. */
+const dayAbs = (k, today) => {
+  const [y, m, d] = k.split('-').map(Number)
+  const s = new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }).replace(',', '')
+  const rel = k === today ? ' (today)' : k === addDaysKey(today, 1) ? ' (tomorrow)' : k === addDaysKey(today, 2) ? ' (day after tomorrow)' : k === addDaysKey(today, -1) ? ' (yesterday)' : ''
+  return s + rel
+}
 const lower1 = (s) => s.replace(/^(Today|Tomorrow|Tonight|Yesterday)/, (x) => x.toLowerCase())
 
 /** "in 25 min", "now", "2 h late", "tomorrow" … for the due line. */
@@ -1361,7 +1369,7 @@ export class Buddy {
     // one short line per task (fewer tokens: Groq's free tier counts them)
     const tasks = open.map((t) => {
       const o = [this.codeOf(u, t), cut(t.title, 80)]
-      if (t.due) o.push(dueText(t, today) || dayLabel(t.due, today))
+      if (t.due) o.push(`${dayAbs(t.due, today)}${t.time ? `, ${time12(t.time)}` : ''}`)
       if (t.due && t.due < today) o.push('overdue')
       if (t.status === 'doing') o.push('started')
       const steps = t.subtasks || []
@@ -1371,16 +1379,18 @@ export class Buddy {
       return o.join(' · ')
     })
     // their exams (next 3 weeks), so "any exams this friday?" gets a straight answer
-    const exams = this.examsFrom(u, today, 21).slice(0, 20).map((e) => [this.examName(e), dayLabel(e.date, today), this.examTime(e), e.venue].filter(Boolean).join(' · '))
+    const exams = this.examsFrom(u, today, 21).slice(0, 20).map((e) => [this.examName(e), dayAbs(e.date, today), this.examTime(e), e.venue].filter(Boolean).join(' · '))
+    // the next two weeks spelled out, so "the day after", "this friday" or "next week" never needs date maths
+    const calendar = Array.from({ length: 15 }, (_, i) => dayAbs(addDaysKey(today, i), today))
     const finished = doc.tasks.filter((t) => t.done && t.doneAt && now - t.doneAt < 3 * 864e5).sort((a, b) => b.doneAt - a.doneAt).slice(0, 10)
-      .map((t) => `${cut(t.title, 80)} · ${dayLabel(todayIn(tz, t.doneAt), today)}, ${time12(hmIn(tz, t.doneAt))}`)
+      .map((t) => `${cut(t.title, 80)} · ${dayAbs(todayIn(tz, t.doneAt), today)}, ${time12(hmIn(tz, t.doneAt))}`)
     // only a WhatsApp reply says for sure which task; otherwise the conversation does
     const cur = this.taskById(u, ctx.task)
     const weekday = new Intl.DateTimeFormat('en-US', { weekday: 'long', timeZone: tz }).format(new Date(now))
     const history = (s.talk || []).filter((x) => x.role && now - x.at < TALK_TTL).map(({ role, content }) => ({ role, content }))
     let out
     try {
-      out = await this.propose({ key: ai.key, model: ai.model, text: body, name, now: `${weekday} ${today}, ${time12(hmIn(tz, now))}`, tasks, exams, finished, current: cur && !cur.done ? `${this.codeOf(u, cur)} · ${cut(cur.title, 80)}` : null, history, track: (x) => this.trackAi?.(u, x) })
+      out = await this.propose({ key: ai.key, model: ai.model, text: body, name, now: `${weekday} ${today}, ${time12(hmIn(tz, now))}`, calendar, tasks, exams, finished, current: cur && !cur.done ? `${this.codeOf(u, cur)} · ${cut(cur.title, 80)}` : null, history, track: (x) => this.trackAi?.(u, x) })
     } catch (e) { console.warn(`[buddy] AI didn't answer: ${e.message}`); return null }
     if (typeof out === 'string') out = { reply: null, commands: [out] }
     // codes are for commands; in the reply it says the task's name (“*D6 – buy eartips*” → “*buy eartips*”)
@@ -1412,14 +1422,26 @@ export class Buddy {
     // what the answer is about: the one task it acts on, or the one open task it names
     const named = reply ? open.filter((t) => t.title.length > 2 && reply.toLowerCase().includes(t.title.toLowerCase())) : []
     const one = [...read, ...change].length === 1 ? (read[0] || change[0]).t : named.length === 1 ? named[0] : null
-    if (reply) items.push({ text: reply, fromAi: true, ...(one ? { about: { task: one.id } } : {}) })
-    for (const x of read.slice(0, 3)) items.push(...(await this.runCommand(u, x.p.cmd, x.p.args, ctx)))
+    // One answer, not two: a list with tasks in it (it has a tap menu) stands in for the AI's words;
+    // an empty list, or exams / the study plan it already answered in words, isn't sent as well.
+    const shown = []
+    for (const x of read.slice(0, 3)) {
+      if (reply && !SHOWS_ITSELF.has(x.p.cmd.name)) continue
+      const r = await this.runCommand(u, x.p.cmd, x.p.args, ctx)
+      if (reply && !r.some((i) => i?.menu)) continue
+      shown.push(...r)
+    }
+    // with a Yes/No question for the changes, "Move Maths to Fri 3 PM?" in words as well is one too many
+    const sayIt = reply && !shown.length && !(change.length && /\?\s*\S{0,3}$/.test(reply))
+    if (sayIt) items.push({ text: reply, fromAi: true, ...(one ? { about: { task: one.id } } : {}) })
+    items.push(...shown)
     if (change.length) {
       const lines = change.map((x) => this.describe(u, x.p, x.t, now))
       const title = lines.length === 1 ? `${lines[0]}?` : `Do these?\n${lines.map((l, i) => `${i + 1}. ${l}`).join('\n')}`
       items.push(this.menu(cut(title, 250), [[lines.length === 1 ? '✅ Yes, do it' : `✅ Yes, all ${lines.length}`, 'yes'], ['❌ No', 'no']], { kind: 'ai', commands: change.map((x) => x.shown) }, 'menu', one ? { task: one.id } : null))
     }
     this.remember(u, 'assistant', JSON.stringify({ reply, commands: [...read, ...change].map((x) => x.shown) }), now)
+    if (!items.length) return null
     return items
   }
 

@@ -371,7 +371,7 @@ test('the AI (if the admin set one up) proposes; you confirm with a tap. Lists j
   buddy.aiConfig = () => ({ key: 'gsk_test', model: 'x' })
   buddy.propose = async (q) => { seen = q; if (answer instanceof Error) throw answer; return answer }
   let r = await buddy.run('gavin', 'push maths to friday 3pm', { now })
-  assert.ok(seen.tasks.includes(`${code} · Maths worksheet · Today`), 'it sees codes, titles and when')
+  assert.ok(seen.tasks.some((x) => new RegExp(`^${code} · Maths worksheet · \\w{3} \\d+ \\w{3} \\(today\\)$`).test(x)) && seen.calendar.length === 15 && /\(today\)$/.test(seen.calendar[0]), 'it sees codes, titles, when (a real date) and the next two weeks')
   const mm = await sendMenu(buddy, sent, r)
   assert.match(mm.name, /^Move “Maths worksheet” to \w{3} \d+ \w{3}, 3:00 PM\?$/)
   assert.equal(store.snapshot('gavin').tasks.find((x) => x.id === m.id).time, null, 'nothing changes before you confirm')

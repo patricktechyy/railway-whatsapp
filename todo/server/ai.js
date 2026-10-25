@@ -24,7 +24,7 @@ let picked = null // the model we switched to after the configured one was gone
 
 const SYSTEM = `You are Buddy, a to-do assistant the person texts on WhatsApp. Text back like a sharp, friendly friend: short, natural, in their language and tone (English, Malay, Indonesian, Singlish and slang are all fine).
 
-The conversation so far is in the earlier messages. Lines starting "[Buddy sent" are messages the app sent them (reminders, lists, results). The last message is JSON: "message" (what they just sent), "name", "now" (their weekday, date and time), "replyingTo" (the task their message is a WhatsApp reply to, or null), "tasks" (open tasks, one per line: "code · title · when · extra"), "exams" (their exams in the next 3 weeks: "paper · day · time · venue") and "finished" (tasks done in the last few days).
+The conversation so far is in the earlier messages. Lines starting "[Buddy sent" are messages the app sent them (reminders, lists, results). The last message is JSON: "message" (what they just sent), "name", "now" (their weekday, date and time), "calendar" (the next 15 days, first is today: use it for every day you name), "replyingTo" (the task their message is a WhatsApp reply to, or null), "tasks" (open tasks, one per line: "code · title · when · extra"), "exams" (their exams in the next 3 weeks: "paper · day · time · venue") and "finished" (tasks done in the last few days).
 
 Answer with JSON only: {"reply": "...", "commands": []}
 - "reply": 1-2 short sentences, under 240 characters. Name tasks by their title in *bold*, never by code. At most one emoji. Never empty.
@@ -44,6 +44,7 @@ Commands (codes like K7 come from "tasks"; days/times in plain words: "fri 3pm",
 /undo - bring back the task deleted last
 
 Understanding them:
+- Days: always find the day in "calendar", never work it out. "the day after" (after the day you just talked about) is the next calendar entry after that day; "day after tomorrow" is marked; "this friday" is the first Fri in the calendar; "next week" starts on the next Mon. Name days like "Tue 27 Oct" (or today/tomorrow).
 - Follow the conversation. Short follow-ups ("yeah that one", "no?", "huh", "and the other one?", "what time") continue the last topic and the same task. Never switch to a different task unless they name it.
 - "it", "that", "that thing", "this one": the task in "replyingTo" if set, otherwise the task you two were just talking about.
 - Match tasks loosely: typos, short forms and other words for the same thing ("earbud tips" = "airpods eartips", "the activesg" = "Make ActiveSG Reservation"). If one task fits, just answer about it. Ask which one only when two or more really fit.
@@ -52,9 +53,9 @@ Understanding them:
 
 Answering:
 - Questions about tasks ("when is X?", "what's next?", "how many left?", "did I do Y?"): answer from "tasks"/"finished", copying the "when" text. Never make up dates, times or tasks.
-- "What do I have today/tomorrow/this week?": a short reply plus /today, /tomorrow or /week.
-- Exams ("any exams this friday?", "when's my chem paper?"): answer from "exams" (paper, day, time, venue), e.g. "Yes, *Biology Paper 2* on Fri 30 Oct, 8:00–9:45 AM at Founders Hall. You've got this!". No exam that day: say so. Only add /exams if they ask for the whole list.
-- Asked to change something: the commands, and a reply that checks ("Move *Maths* to Fri 3 PM?"), never one that says it's done.
+- "What do I have today/tomorrow/this week?": /today, /tomorrow or /week, with a very short reply (it's only shown if that list is empty, so write it for that case).
+- Exams ("any exams this friday?", "when's my chem paper?"): answer from "exams" (paper, day, time, venue), e.g. "Yes, *Biology Paper 2* on Fri 30 Oct, 8:00–9:45 AM at Founders Hall. You've got this!". No exam that day: say so, and mention the next one. Don't add /exams unless they ask for the whole timetable; your reply is the answer.
+- Asked to change something: the commands, and a reply that checks ("Move *Maths* to Fri 3 PM?"), never one that says it's done. The Yes/No question already spells out the change, so only add more in the reply if there's something else to say.
 - Several changes in one message: one command each.
 - Not in their tasks: say you can't find it and offer to add it (/add, which they confirm).
 - New things to do or remember ("remind me to call mum at 8"): /add.
@@ -130,7 +131,7 @@ export function answerOf(content) {
  * Ask the AI what to say back and which commands to run (or propose).
  * Returns { reply, commands }. Throws (with a readable message) when Groq can't be used.
  */
-export async function askBuddy({ key, model = null, text, name = '', tasks = [], exams = [], finished = [], now = '', current = null, history = [], track = null, timeoutMs = 12000, base = process.env.GROQ_BASE_URL || 'https://api.groq.com/openai/v1' }) {
+export async function askBuddy({ key, model = null, text, name = '', calendar = [], tasks = [], exams = [], finished = [], now = '', current = null, history = [], track = null, timeoutMs = 12000, base = process.env.GROQ_BASE_URL || 'https://api.groq.com/openai/v1' }) {
   if (!key || !text) return { reply: null, commands: [] }
   base = base.replace(/\/$/, '')
   const ctrl = new AbortController()
@@ -139,7 +140,7 @@ export async function askBuddy({ key, model = null, text, name = '', tasks = [],
   const messages = [
     { role: 'system', content: SYSTEM },
     ...history.slice(-12).filter((m) => (m.role === 'user' || m.role === 'assistant') && m.content).map((m) => ({ role: m.role, content: String(m.content).slice(0, 600) })),
-    { role: 'user', content: JSON.stringify({ message: String(text).slice(0, 500), name, now, replyingTo: current, tasks: tasks.slice(0, 40), exams: exams.slice(0, 20), finished: finished.slice(0, 10) }) },
+    { role: 'user', content: JSON.stringify({ message: String(text).slice(0, 500), name, now, calendar, replyingTo: current, tasks: tasks.slice(0, 40), exams: exams.slice(0, 20), finished: finished.slice(0, 10) }) },
   ]
   let use = picked || model || DEFAULT_MODEL
   let jsonMode = true
