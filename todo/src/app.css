@@ -2038,3 +2038,5 @@ h3 > .ico, .blocks-check span > .ico { margin-right: 7px; color: var(--muted); }
 }
 @media (prefers-reduced-motion: reduce) { .st-ring .fg, .st-b-prog i, .st-focus-bar i { transition: none; } }
 .st-focus-btns { display: flex; align-items: center; gap: 6px; }
+.ok-text { color: var(--ok, #15803d); }
+.feature-list li small.ok-text, .feature-list li small.warn-text { display: block; margin-top: 2px; }

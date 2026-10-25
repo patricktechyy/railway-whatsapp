@@ -38,7 +38,7 @@ interface Settings {
   botFromEnv: boolean
   accounts: Account[]
   /** Buddy's AI (only the main admin gets this) */
-  ai?: { on: boolean; fromEnv: boolean; keySet: boolean; keyEnd: string; model: string }
+  ai?: { on: boolean; fromEnv: boolean; keySet: boolean; keyEnd: string; model: string; last: { at: number; ok: boolean; error: string | null; ms: number; switchedFrom: string | null } | null }
 }
 interface Overview { people: number; active7: number; open: number; overdue: number; doneWeek: number; notifications: number; assignments: number; assignedOpen: number; examRequests: number; groups: number }
 type St = 'todo' | 'doing' | 'done' | 'removed'
@@ -638,6 +638,18 @@ function AnnounceTab({ people, settings, to, setTo, onChanged }: { people: Perso
 function BuddyAiCard({ ai, onSaved }: { ai: NonNullable<Settings['ai']>; onSaved: (ai: NonNullable<Settings['ai']>) => void }) {
   const [key, setKey] = useState('')
   const [busy, setBusy] = useState(false)
+  const [test, setTest] = useState('')
+  const runTest = async () => {
+    setBusy(true)
+    setTest('Asking Groq…')
+    try {
+      const r = await api<{ ok: boolean; command?: string | null; error?: string; model: string; ms: number; ai: NonNullable<Settings['ai']> }>('/admin/ai-test', 'POST', {})
+      onSaved(r.ai)
+      setTest(r.ok ? `Works (${r.model}, ${(r.ms / 1000).toFixed(1)} s). “push maths to friday 3pm” → ${r.command}` : r.error ? `Didn’t work: ${r.error}` : `Groq answered (${r.model}) but didn’t give a command. Try again; if it keeps happening, tell your developer.`)
+    } catch (e: any) { setTest(e.message) }
+    setBusy(false)
+  }
+  const last = ai.last
   const save = async (patch: { key?: string; on?: boolean }) => {
     setBusy(true)
     try {
@@ -656,7 +668,9 @@ function BuddyAiCard({ ai, onSaved }: { ai: NonNullable<Settings['ai']>; onSaved
       </p>
       <ul className="feature-list">
         <li>
-          <span><b>Use AI for plain sentences</b><small>{ai.keySet ? (ai.fromEnv ? 'Key from GROQ_API_KEY in Railway' : `Key saved (ends …${ai.keyEnd}) · ${ai.model}`) : 'No key yet'}</small></span>
+          <span><b>Use AI for plain sentences</b><small>{ai.keySet ? (ai.fromEnv ? `Key from GROQ_API_KEY in Railway · ${ai.model}` : `Key saved (ends …${ai.keyEnd}) · ${ai.model}`) : 'No key yet'}</small>
+            {last && <small className={last.ok ? 'ok-text' : 'warn-text'}>{last.ok ? `Last used ${new Date(last.at).toLocaleString([], { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}: worked` : `Last try ${new Date(last.at).toLocaleString([], { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}: ${last.error}`}{last.switchedFrom ? ` (Groq retired ${last.switchedFrom}, switched to ${ai.model})` : ''}</small>}
+          </span>
           <Switch on={ai.on && ai.keySet} label="Use AI" onChange={(on) => (ai.keySet ? save({ on }) : toast('Add a key first'))} />
         </li>
       </ul>
@@ -667,9 +681,15 @@ function BuddyAiCard({ ai, onSaved }: { ai: NonNullable<Settings['ai']>; onSaved
           {ai.keySet && <button type="button" className="btn ghost sm" disabled={busy} onClick={() => confirm('Remove the key? Buddy goes back to commands and taps only.') && save({ key: '' })}>Remove key</button>}
         </form>
       )}
+      {ai.keySet && (
+        <div className="row wrap">
+          <button type="button" className="btn ghost sm" disabled={busy || !ai.on} onClick={runTest}>Test AI</button>
+          {test && <span className="help test-result">{test}</span>}
+        </div>
+      )}
       <ol className="bot-guide">
         <li>Sign in at <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer">console.groq.com/keys</a> (free, no card) and create an API key.</li>
-        <li>Paste it above. The free tier allows thousands of messages a day; if it’s ever used up, Buddy simply falls back to commands and taps until the next day.</li>
+        <li>Paste it above and hit <b>Test AI</b>. The free tier allows about 1,000 messages a day; if it’s ever used up, Buddy simply falls back to commands and taps until the next day.</li>
       </ol>
     </section>
   )

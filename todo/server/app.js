@@ -9,6 +9,7 @@ import { Reminders } from './reminders.js'
 import { LocalLink } from './local.js'
 import { handleInbox, taskMessage, stripTodo, isTodoCommand } from './whatsapp.js'
 import { Buddy, BUDDY_DEFAULTS, plain, COMMANDS as BUDDY_COMMANDS } from './buddy.js'
+import { proposeCommand, aiStatus, DEFAULT_MODEL } from './ai.js'
 import { todayIn } from './tz.js'
 import { Holidays, COUNTRIES, countryForTz } from './holidays.js'
 import { Assignments, progressOf } from './assign.js'
@@ -73,14 +74,16 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
     const a = link.settings().ai || {}
     const key = String(process.env.GROQ_API_KEY || a.key || '').trim()
     if (!key || a.on === false) return null
-    return { key, model: String(process.env.GROQ_MODEL || a.model || 'llama-3.1-8b-instant') }
+    return { key, model: String(process.env.GROQ_MODEL || a.model || DEFAULT_MODEL) }
   }
   const aiView = (s) => ({
     on: s.ai?.on !== false,
     fromEnv: !!process.env.GROQ_API_KEY,
     keySet: !!(process.env.GROQ_API_KEY || s.ai?.key),
     keyEnd: process.env.GROQ_API_KEY ? '' : (s.ai?.key || '').slice(-4),
-    model: process.env.GROQ_MODEL || s.ai?.model || 'llama-3.1-8b-instant',
+    model: aiStatus.model || process.env.GROQ_MODEL || s.ai?.model || DEFAULT_MODEL,
+    // how the last try went (so a problem shows here, not only in Groq's logs)
+    last: aiStatus.at ? { at: aiStatus.at, ok: aiStatus.ok, error: aiStatus.error, ms: aiStatus.ms, switchedFrom: aiStatus.switchedFrom } : null,
   })
   const buddy = new Buddy(dataDir, store, link, { brand, onTaskChange: (t) => toldAdmin(t), getBot: botUser, planner: { study, exams }, nameOf: (u) => nameOf(u), ai: aiConfig })
   buddy.start(tickMs)
@@ -347,6 +350,20 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
       }
       link.saveSettings(s)
       return json(res, { ok: true, whatsapp: s.whatsapp, bot: botView(), ai: c.u === ENV_ADMIN ? aiView(s) : undefined })
+    }
+    // ---- Buddy's AI: try it now with a made-up message (main admin only)
+    if (p === '/api/admin/ai-test' && M === 'POST') {
+      if (c.u !== ENV_ADMIN) throw new HttpError(403, 'Only the main admin can test Buddy’s AI.')
+      const cfg = aiConfig()
+      if (!cfg) throw new HttpError(400, 'Add a key and switch the AI on first.')
+      const today = todayIn(tzOf(c.u))
+      const started = Date.now()
+      try {
+        const command = await proposeCommand({ ...cfg, text: 'push maths to friday 3pm', today, now: `${today} 10:00`, tasks: [{ code: 'K7', title: 'Maths worksheet', due: today, time: null }, { code: 'B3', title: 'Read Books', due: today, time: '22:00' }] })
+        return json(res, { ok: !!command, command, model: aiStatus.model, ms: Date.now() - started, ai: aiView(link.settings()) })
+      } catch (e) {
+        return json(res, { ok: false, error: e.message, model: aiStatus.model, ms: Date.now() - started, ai: aiView(link.settings()) })
+      }
     }
     // ---- check the bot: is it online, and send the admin a hello from it
     if (p === '/api/admin/test' && M === 'POST') {
