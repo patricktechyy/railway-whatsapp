@@ -1438,6 +1438,8 @@ export class Session extends EventEmitter {
     this.metrics.lastEventAt = Date.now()
     const payload = { type: 'reaction', jid, id: targetId, reactions: this.store.reactionView(m, this.me?.jid) }
     this.emit('event', payload)
+    // Buddy listens for 👍 on its messages (a separate event name: never counts as someone using the page)
+    try { this.emit('wa:react', { jid, id: targetId, emoji: reaction?.text || '', who: reactor, fromMe: !!reactorKey?.fromMe }) } catch {}
     return payload
   }
 
@@ -1948,6 +1950,11 @@ export class Session extends EventEmitter {
     else delete poll.votes[who]
     this.store.dirty = true
     this.emit('event', { type: 'message', message: this.publicMsg(poll) })
+    // Buddy's tap menus listen here (a separate event name: never counts as someone using the page)
+    try {
+      const me = this.me?.jid ? this.store.canon(this.me.jid) : null
+      this.emit('wa:vote', { jid: poll.jid, pollId: poll.id, pollFromMe: !!poll.fromMe, who, fromMe: !!me && who === me, picks: picks.map((i) => poll.poll.options[i]).filter(Boolean) })
+    } catch (e) { this.log('vote event failed:', e?.message || e) }
   }
   /** A vote (encrypted) arriving as a message: open it with the poll's secret. */
   applyPollVote(k, pu) {

@@ -37,6 +37,8 @@ interface Settings {
   bot: Bot | null
   botFromEnv: boolean
   accounts: Account[]
+  /** Buddy's AI (only the main admin gets this) */
+  ai?: { on: boolean; fromEnv: boolean; keySet: boolean; keyEnd: string; model: string }
 }
 interface Overview { people: number; active7: number; open: number; overdue: number; doneWeek: number; notifications: number; assignments: number; assignedOpen: number; examRequests: number; groups: number }
 type St = 'todo' | 'doing' | 'done' | 'removed'
@@ -629,6 +631,50 @@ function AnnounceTab({ people, settings, to, setTo, onChanged }: { people: Perso
 }
 
 // ----------------------------------------------------------------- whatsapp
+/**
+ * Buddy's optional AI (main admin only): a free Groq key. With it, a plain sentence to Buddy
+ * ("push maths to friday") becomes a proposed command that the person confirms with a tap.
+ */
+function BuddyAiCard({ ai, onSaved }: { ai: NonNullable<Settings['ai']>; onSaved: (ai: NonNullable<Settings['ai']>) => void }) {
+  const [key, setKey] = useState('')
+  const [busy, setBusy] = useState(false)
+  const save = async (patch: { key?: string; on?: boolean }) => {
+    setBusy(true)
+    try {
+      const r = await api<{ ai: NonNullable<Settings['ai']> }>('/admin/settings', 'POST', { ai: patch })
+      onSaved(r.ai)
+      if ('key' in patch) { setKey(''); toast(patch.key ? 'Key saved' : 'Key removed') }
+    } catch (e: any) { toast(e.message) }
+    setBusy(false)
+  }
+  return (
+    <section className="card admin-narrow">
+      <h2>Buddy’s AI <small className="muted">optional</small></h2>
+      <p className="help">
+        Without it, Buddy only understands commands and taps. With a free <b>Groq</b> key, a plain sentence like “push maths to friday” becomes a proposed command, and Buddy asks the person to confirm with a tap.
+        Groq sees only that message and the person’s task codes, titles and dates, nothing else.
+      </p>
+      <ul className="feature-list">
+        <li>
+          <span><b>Use AI for plain sentences</b><small>{ai.keySet ? (ai.fromEnv ? 'Key from GROQ_API_KEY in Railway' : `Key saved (ends …${ai.keyEnd}) · ${ai.model}`) : 'No key yet'}</small></span>
+          <Switch on={ai.on && ai.keySet} label="Use AI" onChange={(on) => (ai.keySet ? save({ on }) : toast('Add a key first'))} />
+        </li>
+      </ul>
+      {!ai.fromEnv && (
+        <form className="row wrap ai-key" onSubmit={(e) => { e.preventDefault(); if (key.trim()) save({ key: key.trim(), on: true }) }}>
+          <input className="input" type="password" name="groq-api-key" autoComplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true" spellCheck={false} placeholder={ai.keySet ? 'Paste a new key to replace it' : 'gsk_…'} value={key} onChange={(e) => setKey(e.target.value)} aria-label="Groq API key" />
+          <button className="btn sm" disabled={busy || !key.trim()}>Save key</button>
+          {ai.keySet && <button type="button" className="btn ghost sm" disabled={busy} onClick={() => confirm('Remove the key? Buddy goes back to commands and taps only.') && save({ key: '' })}>Remove key</button>}
+        </form>
+      )}
+      <ol className="bot-guide">
+        <li>Sign in at <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer">console.groq.com/keys</a> (free, no card) and create an API key.</li>
+        <li>Paste it above. The free tier allows thousands of messages a day; if it’s ever used up, Buddy simply falls back to commands and taps until the next day.</li>
+      </ol>
+    </section>
+  )
+}
+
 const statusText = (a: { connected?: boolean; status?: string }) =>
   a.connected ? 'Online' : a.status === 'idle' || a.status === 'qr' ? 'Not linked yet' : a.status === 'logged-out' ? 'Logged out, scan the QR again' : 'Offline, reconnecting'
 
@@ -702,6 +748,7 @@ function WhatsAppTab({ settings, setSettings, onChanged }: { settings: Settings 
           </>
         )}
       </section>
+      {settings?.ai && <BuddyAiCard ai={settings.ai} onSaved={(ai) => setSettings({ ...settings, ai })} />}
       <section className="card admin-narrow">
         <h2>WhatsApp features</h2>
         {!settings ? <p className="muted">Loading…</p> : (

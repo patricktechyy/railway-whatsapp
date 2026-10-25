@@ -4,7 +4,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { Store } from './store.js'
-import { Buddy, snoozeUntil, waInstant, waSig } from './buddy.js'
+import { Buddy, snoozeUntil, waInstant, waSig, parseCommand, CODE_RE } from './buddy.js'
 import { zonedTime, todayIn } from './tz.js'
 import { Reminders } from './reminders.js'
 
@@ -20,7 +20,7 @@ function setup({ features = {}, bot = '' } = {}) {
     call: async (ep, p) => {
       if (ep === 'status') return { phone: '+65 9123 4567' }
       sent.push({ ep, ...p })
-      if (ep === 'send') return { ok: true, id: `msg-${sent.length}`, jid: p.jid || '6591234567@s.whatsapp.net' }
+      if (ep === 'send' || ep === 'poll') return { ok: true, id: `msg-${sent.length}`, jid: p.jid || '6591234567@s.whatsapp.net' }
       if (ep === 'delete-message') return { ok: true }
       return { ok: true }
     },
@@ -103,57 +103,6 @@ test('the bot number: messages go to your phone from the bot account', async () 
   process.env.WA_BOT_USER = ''
 })
 
-test('replies: done, start, step, snooze, numbered lists, move, remind me', () => {
-  const { store, buddy, changed } = setup()
-  const today = todayIn(TZ)
-  const a = store.addTask('gavin', { title: 'Lab report', due: today, subtasks: [{ title: 'Graphs' }, { title: 'Conclusion' }] })
-  const b = store.addTask('gavin', { title: 'Water plants', due: today, repeat: { freq: 'day', interval: 1 } })
-  assert.match(buddy.command('gavin', 'done').reply, /Which one/)
-  assert.match(buddy.command('gavin', '?').reply, /1\. .*Lab report[\s\S]*2\. .*Water plants/)
-  assert.match(buddy.command('gavin', 'step 1').reply, /Ticked: _Graphs_/)
-  assert.match(buddy.command('gavin', 'start 1').reply, /Lab report/)
-  assert.equal(store.snapshot('gavin').tasks.find((t) => t.id === a.id).status, 'doing')
-  assert.match(buddy.command('gavin', 'done 2').reply, /Next one/) // a repeat says when the next one is
-  assert.match(buddy.command('gavin', 'snooze 1 2h').reply, /Lab report/)
-  assert.ok(store.snapshot('gavin').tasks.find((t) => t.id === a.id).wa.at > Date.now() + 1.9 * 3600e3)
-  assert.match(buddy.command('gavin', 'snooze 1 someday').reply, /didn’t get when/)
-  assert.match(buddy.command('gavin', 'move').reply, /Moved 1 task/)
-  assert.ok(store.snapshot('gavin').tasks.find((t) => t.id === a.id).due > today)
-  const r = buddy.command('gavin', 'remind me to call mum tomorrow 8pm')
-  assert.equal(r.task.title, 'call mum')
-  assert.deepEqual(r.task.wa, { before: 0 })
-  assert.equal(r.task.remind, 0)
-  assert.equal(buddy.command('gavin', 'buy milk tomorrow'), null) // not a command: an ordinary "add a task"
-  assert.equal(buddy.command('gavin', 'done laundry'), null)
-  assert.ok(changed.length >= 4)
-  assert.ok(b) // (water plants was finished above)
-})
-
-test('clear reminders cancels task reminders and asks WhatsApp to remove Buddy reminder text', async () => {
-  const { store, buddy, sent } = setup()
-  store.addTask('gavin', { title: 'Reminder task', wa: { at: Date.now() + 3600e3 } })
-  await buddy.send('gavin', '⏰ *Reminder task*', { kind: 'reminder' })
-  await buddy.send('gavin', 'A normal Buddy message', { kind: 'morning' })
-  const r = buddy.command('gavin', 'clear reminders')
-  assert.match(r.reply, /Cleared 1 reminder/)
-  assert.equal(store.snapshot('gavin').tasks[0].wa, null)
-  await new Promise((resolve) => setImmediate(resolve))
-  const deletes = sent.filter((x) => x.ep === 'delete-message')
-  assert.equal(deletes.length, 1)
-})
-
-test('convenience commands add, tomorrow and delete work on the same numbered-list target', () => {
-  const { store, buddy } = setup()
-  const today = todayIn(TZ)
-  const r = buddy.command('gavin', 'add buy milk tomorrow 5pm !3 #groceries')
-  assert.equal(r.task.title, 'buy milk')
-  assert.equal(r.task.priority, 3)
-  assert.equal(buddy.command('gavin', 'tomorrow').reply.includes('buy milk'), true)
-  assert.match(buddy.command('gavin', 'delete 1').reply, /Removed \*buy milk\*/)
-  assert.equal(store.snapshot('gavin').tasks.some((t) => t.title === 'buy milk'), false)
-  assert.ok(today)
-})
-
 test('plain(): messages from the bot number drop the "td" (you just reply there)', async () => {
   const { plain } = await import('./buddy.js')
   assert.equal(plain('↩️ Reply *td done* · *td start* · *td snooze 1h*'), '↩️ Reply *done* · *start* · *snooze 1h*')
@@ -193,81 +142,6 @@ test('the study plan on WhatsApp: bullets with tick numbers, a blank line betwee
   assert.equal(plan.blocks[1].topics[0].done, true)
 })
 
-test('loose messages: Buddy’s model works out what you mean', () => {
-  const { store, buddy } = setup()
-  const today = todayIn(TZ)
-  const tomorrow = new Date(Date.parse(`${today}T12:00:00Z`) + 864e5).toISOString().slice(0, 10)
-  const bio = store.addTask('gavin', { title: 'Biology homework', due: today })
-  const chem = store.addTask('gavin', { title: 'Chemistry worksheet', due: today })
-  const e1 = store.addTask('gavin', { title: 'English essay draft', due: today })
-  const e2 = store.addTask('gavin', { title: 'History essay outline', due: today })
-  const get = (id) => store.snapshot('gavin').tasks.find((t) => t.id === id)
-  const say = (t) => buddy.understand('gavin', t)
-
-  // done, by name and short forms
-  assert.match(say('finished the bio hw').reply, /Biology homework/)
-  assert.ok(get(bio.id).done)
-  // start by name
-  assert.match(say('starting chem now').reply, /Chemistry worksheet/)
-  assert.equal(get(chem.id).status, 'doing')
-  // "just did it": the one we were just talking about
-  assert.match(say('just finished it').reply, /Chemistry worksheet/)
-  assert.ok(get(chem.id).done)
-  // two essays: asks which, then a number works
-  const which = say('done with the essay').reply
-  assert.match(which, /Which one\?[\s\S]*English essay draft[\s\S]*History essay outline/)
-  assert.ok(!get(e1.id).done && !get(e2.id).done, 'asking, not guessing')
-  // move by name, to the day it names
-  assert.match(say('push the history essay to tomorrow').reply, /Moved \*History essay outline\* to tomorrow/)
-  assert.equal(get(e2.id).due, tomorrow)
-  // snooze the last one, with the time from the words
-  const before = Date.now()
-  assert.match(say('give me an hour').reply, /History essay outline/)
-  assert.ok(get(e2.id).wa.at >= before + 3590e3 && get(e2.id).wa.at <= Date.now() + 3610e3)
-  // "remind me later" is a snooze of the current one, not a task called "later"
-  const n = store.snapshot('gavin').tasks.length
-  assert.match(buddy.command('gavin', 'remind me again in 2 hours').reply, /History essay outline/)
-  assert.equal(store.snapshot('gavin').tasks.length, n, 'no new task')
-  // a name that matches nothing: says so instead of guessing
-  assert.match(say('finished the piano practice').reply, /couldn’t find a task like “piano practice”/)
-  // delete by a so-so name guess: asks first
-  assert.match(say('remove the english one').reply, /Remove \*English essay draft\*\? Reply \*td delete\*/)
-  assert.ok(get(e1.id))
-  // questions → lists; thanks → nothing; a new thing → add
-  assert.match(say('what do i have today?').reply, /Today/)
-  assert.match(say('anything tomorrow?').reply, /Tomorrow/)
-  assert.deepEqual(say('thanks!'), { chat: true, intent: 'chat' })
-  assert.equal(say('buy eggs tomorrow')?.add, true)
-  assert.equal(say('need to email the teacher')?.add, true)
-  // gibberish: not sure, so it doesn't act
-  assert.equal(say('qwzx plorb'), null)
-})
-
-test('repeats keep messaging: done → the next one goes off; a snooze doesn’t stick; old broken copies get fixed', async () => {
-  const { store, buddy, sent } = setup()
-  const today = todayIn(TZ)
-  const t = store.addTask('gavin', { title: 'Makan Pome', due: today, time: '18:00', repeat: { freq: 'day', interval: 1 }, wa: { before: 0 } })
-  // snooze it (Buddy stores what it was), then finish it
-  buddy.remember('gavin', [t.id])
-  buddy.command('gavin', 'snooze 1h')
-  assert.deepEqual(store.snapshot('gavin').tasks.find((x) => x.id === t.id).wa.base, { before: 0 })
-  store.updateTask('gavin', t.id, { status: 'done' })
-  const next = store.snapshot('gavin').tasks.find((x) => !x.done && x.title === 'Makan Pome')
-  assert.deepEqual(next.wa, { before: 0 }, 'the next one is back to “at due time”, not sent')
-  // its time comes: Buddy sends it
-  const tomorrow6 = zonedTime(next.due, '18:00', TZ)
-  await buddy.tick(tomorrow6 + 60e3)
-  assert.ok(sent.some((x) => /Makan Pome/.test(x.text)), 'tomorrow’s one goes out')
-  // a copy made by an older version: fixed time from yesterday, marked sent
-  const y = zonedTime(today, '18:00', TZ) - 864e5
-  const old = store.addTask('gavin', { title: 'Old copy', due: today, time: '18:00', repeat: { freq: 'day', interval: 1 } })
-  store.change('gavin', (doc) => { const o = doc.tasks.find((x) => x.id === old.id); o.wa = { at: y, sent: `at:${y}` }; o.createdAt = y + 3600e3; return o })
-  await buddy.tick(Date.now())
-  const fixed = store.snapshot('gavin').tasks.find((x) => x.id === old.id).wa
-  assert.deepEqual(fixed, { before: 0 }, 'back to its own time')
-  assert.ok(!fixed.sent)
-})
-
 test('a task added after its reminder time has passed doesn’t message straight away', async () => {
   const { store, buddy, sent } = setup()
   const today = todayIn(TZ)
@@ -276,44 +150,6 @@ test('a task added after its reminder time has passed doesn’t message straight
   store.change('gavin', (doc) => { doc.tasks.find((x) => x.id === t.id).createdAt = now - 60e3; return null })
   await buddy.tick(now)
   assert.ok(!sent.some((x) => /Read a book/.test(x.text || '')))
-})
-
-test('a reply quoting a reminder means that reminder’s task, not the newest one', async () => {
-  const { store, buddy, sent } = setup()
-  const now = Date.now()
-  const vit = store.addTask('gavin', { title: 'Makan Vitamin', wa: { at: now - 5 * 60e3 } })
-  store.change('gavin', (doc) => { doc.tasks.find((x) => x.id === vit.id).createdAt = now - 3600e3; return null })
-  await buddy.tick(now - 4 * 60e3)
-  const scr = store.addTask('gavin', { title: 'collect screen protector', wa: { at: now - 1000 } })
-  await buddy.tick(now)
-  const ids = sent.filter((x) => x.ep === 'send').map((x, i) => ({ text: x.text, id: `msg-${sent.indexOf(x) + 1}` }))
-  const vitMsg = ids.find((m) => m.text.includes('Makan Vitamin'))
-  assert.ok(vitMsg && ids.some((m) => m.text.includes('collect screen protector')))
-  // without a quote, "done" is the newest reminder (as before)…
-  // …but quoting the vitamin reminder ticks the vitamin
-  assert.equal(buddy.useQuoted('gavin', vitMsg.id), true)
-  const r = buddy.command('gavin', 'done')
-  assert.match(r.reply, /Makan Vitamin/)
-  const doc = store.snapshot('gavin')
-  assert.equal(doc.tasks.find((t) => t.id === vit.id).done, true)
-  assert.equal(doc.tasks.find((t) => t.id === scr.id).done, false)
-  // a message Buddy doesn't know: nothing changes
-  assert.equal(buddy.useQuoted('gavin', 'someone-elses-message'), false)
-})
-
-test('a reply quoting an older list: its numbers, not the latest list’s', () => {
-  const { store, buddy } = setup()
-  const today = todayIn(TZ)
-  store.addTask('gavin', { title: 'Alpha', due: today })
-  store.addTask('gavin', { title: 'Beta', due: today })
-  buddy.command('gavin', 'today'); buddy.noteMsg('gavin', 'list-1')
-  store.addTask('gavin', { title: 'Aardvark', due: today, priority: 3 }) // jumps to the top of the next list
-  buddy.command('gavin', 'today'); buddy.noteMsg('gavin', 'list-2')
-  const first = buddy.st('gavin').byMsg['list-1'].codes[1], newest = buddy.st('gavin').codes[1]
-  assert.notEqual(first, newest)
-  buddy.useQuoted('gavin', 'list-1')
-  const r = buddy.command('gavin', 'done 1')
-  assert.match(r.reply, new RegExp(store.snapshot('gavin').tasks.find((t) => t.id === first).title))
 })
 
 test('a task with a bell and "WhatsApp me" at the same time: one WhatsApp message, not two', async () => {
@@ -337,57 +173,217 @@ test('a task with a bell and "WhatsApp me" at the same time: one WhatsApp messag
   assert.equal(pushed.filter((n) => n.title.includes('Read Books')).length, 1) // and the bell still rings on the phone/browser
 })
 
-test('move one task to a time or a day: "move 6pm", "move 1 6pm", "move tomorrow", "move fri 3pm"', () => {
-  const { store, buddy } = setup()
-  const now = zonedTime(todayIn(TZ), '16:23', TZ)
-  const today = todayIn(TZ, now)
-  const tmr = new Date(Date.UTC(...today.split('-').map((x, i) => Number(x) - (i === 1 ? 1 : 0)))) ; tmr.setUTCDate(tmr.getUTCDate() + 1)
-  const tomorrow = tmr.toISOString().slice(0, 10)
-  const a = store.addTask('gavin', { title: 'collect screen protector', due: today, time: '12:00', wa: { at: now - 3600e3, base: { before: 0 } } })
-  const b2 = store.addTask('gavin', { title: 'Makan Pome', due: today, time: '18:00', wa: { before: 0 } })
-  buddy.command('gavin', 'today', now)
-  let r = buddy.command('gavin', 'move 1 6PM', now)
-  assert.match(r.reply, /Moved \*collect screen protector\* to today, 6:00 PM/)
-  let t = store.snapshot('gavin').tasks.find((x) => x.id === a.id)
-  assert.deepEqual([t.due, t.time, t.wa], [today, '18:00', { before: 0 }]) // the old fixed WhatsApp time is gone: it goes off at 6 PM
-  // no number: the one we were just talking about
-  r = buddy.command('gavin', 'move 7:30pm', now)
-  assert.match(r.reply, /collect screen protector\* to today, 7:30 PM/)
-  // a time already gone today: tomorrow
-  r = buddy.command('gavin', 'move 2pm', now)
-  assert.match(r.reply, /to tomorrow, 2:00 PM/)
-  t = store.snapshot('gavin').tasks.find((x) => x.id === a.id)
-  assert.deepEqual([t.due, t.time], [tomorrow, '14:00'])
-  // a day keeps the time; a day and a time sets both
-  r = buddy.command('gavin', 'move 2 tomorrow', now)
-  assert.match(r.reply, /Makan Pome\* to tomorrow, 6:00 PM/)
-  r = buddy.command('gavin', 'move 2 to fri 3pm', now)
-  t = store.snapshot('gavin').tasks.find((x) => x.id === b2.id)
-  assert.equal(t.time, '15:00'); assert.match(r.reply, /Makan Pome\* to \w{3} \d+ \w{3}, 3:00 PM/)
-  assert.match(buddy.command('gavin', 'pindah besok jam 7pm', now).reply, /to tomorrow, 7:00 PM/)
-  // "move" alone still pushes today's leftovers; a name isn't a when (the model handles "move maths to friday")
-  assert.equal(buddy.command('gavin', 'move maths to friday', now), null)
+// ---------------------------------------------------------- the new Buddy
+const texts = (items) => items.filter((x) => x.text).map((x) => x.text).join('\n---\n')
+const menuIn = (items) => items.find((x) => x.menu)?.menu
+/** Send items (so menus get their poll ids) and return the sent menu's id and options. */
+async function sendMenu(buddy, sent, items, u = 'gavin') {
+  await buddy.deliver(u, items)
+  const polls = sent.filter((x) => x.ep === 'poll')
+  const last = polls.at(-1)
+  return { id: `msg-${sent.lastIndexOf(last) + 1}`, options: last.options, name: last.name }
+}
+
+test('commands are read strictly, Discord style; "td" still works; notes in your own chat are left alone', () => {
+  const p = (t, chat) => { const r = parseCommand(t, chat); return r?.cmd ? `${r.cmd.name}|${r.args}` : r?.unknown ? `?${r.unknown}` : null }
+  assert.equal(p('done', 'bot'), 'done|')
+  assert.equal(p('Done!', 'bot'), 'done|')
+  assert.equal(p('/done K7', 'bot'), 'done|K7')
+  assert.equal(p('done K7', 'self'), null) // a note in your own chat
+  assert.equal(p('/done K7', 'self'), 'done|K7')
+  assert.equal(p('td done 2', 'self'), 'done|2')
+  assert.equal(p('td?', 'self'), 'today|')
+  assert.equal(p('td: buy milk 5pm', 'self'), 'add|buy milk 5pm')
+  assert.equal(p('/dne', 'bot'), '?dne')
+  assert.equal(p('/', 'self'), 'menu|')
+  assert.equal(p('buy milk tomorrow', 'bot'), null) // not a command: not guessed at
+  assert.equal(p('remind me to call mum 8pm', 'bot'), 'add|me to call mum 8pm')
+  assert.equal(p('tick 2', 'bot'), 'topic|2') // the old study "tick" keeps its meaning
 })
 
-test('a reply to a Buddy message it never recorded: the task comes from the quoted text', () => {
+test('task codes: short, no look-alikes, the same every time', () => {
   const { store, buddy } = setup()
+  const t = store.addTask('gavin', { title: 'Read' })
+  const c = buddy.codeOf('gavin', t)
+  assert.match(c, CODE_RE)
+  assert.ok(!/[ILO01]/.test(c))
+  assert.equal(buddy.codeOf('gavin', t), c)
+  assert.equal(buddy.taskOfCode('gavin', c.toLowerCase()).id, t.id)
+  assert.equal(buddy.taskOfCode('gavin', 'Z9'), null)
+})
+
+test('/add, then commands with a code or with none (the task I just wrote about); usage when it doesn’t fit', async () => {
+  const { store, buddy } = setup()
+  const now = zonedTime(todayIn(TZ), '10:00', TZ)
+  let r = await buddy.run('gavin', 'add buy milk tomorrow 5pm', { now })
+  const t = store.snapshot('gavin').tasks.find((x) => x.title === 'buy milk')
+  const code = buddy.codeOf('gavin', t)
+  assert.match(texts(r), new RegExp(`Added: \\*buy milk\\* · ${code}`))
+  assert.match(texts(r), /I’ll WhatsApp you at 5:00 PM/)
+  assert.deepEqual([t.time, t.wa], ['17:00', { before: 0 }])
+  assert.ok(menuIn(r).options.includes('🗑 Undo (remove it)'))
+  // no code: the one I just wrote about
+  r = await buddy.run('gavin', 'move 6pm', { now })
+  assert.match(texts(r), /Moved \*buy milk\* to tomorrow, 6:00 PM/)
+  r = await buddy.run('gavin', `/snooze ${code} 30m`, { now })
+  assert.equal(store.snapshot('gavin').tasks.find((x) => x.id === t.id).wa.at, now + 30 * 60e3)
+  r = await buddy.run('gavin', `/move ${code} purple`, { now })
+  assert.match(texts(r), /can’t read “purple”[\s\S]*Usage: `\/move \[code\] <day and\/or time>`[\s\S]*Example: `\/move K7 fri 3pm`/)
+  r = await buddy.run('gavin', `/rename ${code} buy oat milk`, { now })
+  assert.equal(store.snapshot('gavin').tasks.find((x) => x.id === t.id).title, 'buy oat milk')
+  r = await buddy.run('gavin', '/done Z9', { now })
+  assert.match(texts(r), /There’s no task \*Z9\*/)
+  r = await buddy.run('gavin', `done ${code}`, { now })
+  assert.match(texts(r), /Done: \*buy oat milk\*|buy oat milk\* ticked off/)
+  // much later, with nothing to go on: it asks which, with a menu (it never guesses)
+  store.addTask('gavin', { title: 'Another one' })
+  r = await buddy.run('gavin', 'done', { now: now + 3 * 3600e3 })
+  assert.equal(menuIn(r)?.meta.kind, 'pick')
+})
+
+test('unknown things: a “/word” gets a suggestion; a sentence gets the menu with “add it”; thanks gets nothing; notes in your own chat get nothing', async () => {
+  const { buddy } = setup()
+  let r = await buddy.run('gavin', '/dne')
+  assert.match(texts(r), /don’t know \*\/dne\*\. Did you mean \*\/done\*/)
+  r = await buddy.run('gavin', 'finished the bio homework', { chat: 'bot' })
+  assert.match(texts(r), /I only understand commands and taps/)
+  assert.equal(menuIn(r).options[0], '➕ Add “finished the bio homework” as a task')
+  r = await buddy.run('gavin', 'another thing', { chat: 'bot' })
+  assert.equal(menuIn(r), undefined, 'not a menu every time')
+  assert.deepEqual(await buddy.run('gavin', 'thanks!', { chat: 'bot' }), [])
+  assert.deepEqual(await buddy.run('gavin', 'buy eggs', { chat: 'self' }), [])
+})
+
+test('tap menus: a list → open a task → done; snooze and move menus; a typed time; delete asks first; undo', async () => {
+  const { store, buddy, sent } = setup()
   const today = todayIn(TZ)
-  const a = store.addTask('gavin', { title: 'collect screen protector', due: today, time: '12:00' })
-  const b2 = store.addTask('gavin', { title: 'Makan Pome', due: today, time: '18:00' })
-  buddy.remember('gavin', [b2.id]) // Buddy was last on Makan Pome
-  const reminder = 'Hey Patrick, reminder…\n\n📝 *collect screen protector*\n📅 Today, 12:00 PM _(now!)_\n\n↩️ Reply *done* · *start* · *snooze 1h*'
-  assert.equal(buddy.useQuoted('gavin', 'old-message-id'), false)
-  assert.equal(buddy.useQuotedText('gavin', reminder), true)
-  assert.match(buddy.command('gavin', 'done').reply, /collect screen protector/)
+  const now = zonedTime(today, '10:00', TZ)
+  const a = store.addTask('gavin', { title: 'Lab report', due: today, time: '16:00', wa: { before: 0 } })
+  store.addTask('gavin', { title: 'Water plants', due: today })
+  const list = await buddy.run('gavin', 'today', { now })
+  assert.match(texts(list), new RegExp(`Lab report · 4:00 PM · ${buddy.codeOf('gavin', a)}`))
+  let m = await sendMenu(buddy, sent, list)
+  const open = m.options.find((o) => o.includes('Lab report'))
+  let r = await buddy.tap('gavin', m.id, [open], { now })
+  assert.match(texts(r), /📝 \*Lab report\*/)
+  m = await sendMenu(buddy, sent, r)
+  assert.ok(m.options.length <= 12 && m.options.every((o) => o.length <= 30), `short options for iPhone (${m.options})`)
+  // snooze until… → in 15 minutes
+  r = await buddy.tap('gavin', m.id, ['⏰ Snooze until…'], { now })
+  const sm = await sendMenu(buddy, sent, r)
+  r = await buddy.tap('gavin', sm.id, ['In 15 minutes'], { now })
+  assert.match(texts(r), /Back at 10:15 AM|again at 10:15 AM/)
+  // move… → type a day or time → "fri 3pm"
+  r = await buddy.tap('gavin', m.id, ['📅 Move…'], { now: now + 1000 })
+  const mm = await sendMenu(buddy, sent, r)
+  assert.ok(mm.options.includes('Tomorrow 4:00 PM') && mm.options.includes('⌨️ Type a day or time…'))
+  r = await buddy.tap('gavin', mm.id, ['⌨️ Type a day or time…'], { now })
+  assert.match(texts(r), /To when\?/)
+  r = await buddy.run('gavin', 'purple', { now })
+  assert.match(texts(r), /can’t read “purple”/)
+  r = await buddy.run('gavin', 'tomorrow', { now }) // while it waits, a plain word is the answer, not the /tomorrow list
+  assert.match(texts(r), /Moved \*Lab report\* to tomorrow, 4:00 PM/)
+  // done, from the same menu
+  r = await buddy.tap('gavin', m.id, ['✅ Done'], { now: now + 2000 })
+  assert.match(texts(r), /Lab report/)
   assert.equal(store.snapshot('gavin').tasks.find((x) => x.id === a.id).done, true)
-  // a list: its numbers
-  const list = '📋 *Today* (2)\n1. ○ collect screen protector · 12:00 PM\n2. ○ Makan Pome · 6:00 PM\n\n_done 1 · start 2 · snooze 2 2h_'
-  buddy.remember('gavin', [])
-  assert.equal(buddy.useQuotedText('gavin', list), true)
-  assert.match(buddy.command('gavin', 'start 2').reply, /Makan Pome/)
-  // something that isn't about a task
-  assert.equal(buddy.useQuotedText('gavin', 'Hi there, how are you?'), false)
-  // not understood, but a reply: say which task
-  buddy.useQuotedText('gavin', '📝 *Makan Pome*')
-  assert.match(buddy.quotedHelp('gavin'), /for \*Makan Pome\*.*move 6pm/)
+  // the same tap reported twice counts once
+  assert.deepEqual(await buddy.tap('gavin', m.id, ['✅ Done'], { now: now + 3000 }), [])
+  // delete asks first; "No" keeps it, "Yes" deletes; /undo brings it back
+  const w = store.snapshot('gavin').tasks.find((x) => x.title === 'Water plants')
+  r = await buddy.run('gavin', `delete ${buddy.codeOf('gavin', w)}`, { now })
+  const dm = await sendMenu(buddy, sent, r)
+  assert.deepEqual(dm.options, ['🗑 Yes, delete it', '↩️ No, keep it'])
+  await buddy.tap('gavin', dm.id, ['↩️ No, keep it'], { now })
+  assert.ok(store.snapshot('gavin').tasks.some((x) => x.id === w.id))
+  await buddy.tap('gavin', dm.id, ['🗑 Yes, delete it'], { now })
+  assert.ok(!store.snapshot('gavin').tasks.some((x) => x.id === w.id))
+  r = await buddy.run('gavin', 'undo', { now })
+  assert.match(texts(r), /Water plants\* is back/)
+  // a menu that isn't Buddy's, or a week old, does nothing
+  assert.deepEqual(await buddy.tap('gavin', 'not-a-menu', ['✅ Done'], { now }), [])
+  assert.deepEqual(await buddy.tap('gavin', m.id, ['📅 Move…'], { now: now + 8 * 864e5 }), [])
+})
+
+test('replies and 👍: the message you reply to (or react to) says which task', async () => {
+  const { store, buddy, sent } = setup()
+  const today = todayIn(TZ)
+  const now = zonedTime(today, '10:00', TZ)
+  const a = store.addTask('gavin', { title: 'Makan Vitamin', due: today, time: '09:00' })
+  const b = store.addTask('gavin', { title: 'collect screen protector', due: today, time: '12:00' })
+  await buddy.sendTask('gavin', a, { now })
+  const cardA = `msg-${sent.findIndex((x) => /Makan Vitamin/.test(x.text || '')) + 1}`
+  await buddy.sendTask('gavin', b, { now }) // the newest is the screen protector
+  let r = await buddy.run('gavin', 'done', { quote: { id: cardA }, now })
+  assert.match(texts(r), /Makan Vitamin/)
+  assert.equal(store.snapshot('gavin').tasks.find((x) => x.id === b.id).done, false)
+  // a message Buddy never recorded: the code in the quoted text
+  r = await buddy.run('gavin', 'move 6pm', { quote: { id: 'old-one', text: `📝 *collect screen protector* · ${buddy.codeOf('gavin', b)}` }, now })
+  assert.match(texts(r), /collect screen protector\* to today, 6:00 PM/)
+  // 👍 on its card ticks it off; 👍 on a list does nothing
+  const cardB = `msg-${sent.findIndex((x) => /collect screen protector/.test(x.text || '')) + 1}`
+  r = buddy.react('gavin', cardB, '👍', { now })
+  assert.match(texts(r), /collect screen protector/)
+  assert.equal(store.snapshot('gavin').tasks.find((x) => x.id === b.id).done, true)
+  assert.deepEqual(buddy.react('gavin', cardB, '😂', { now }), [])
+})
+
+test('repeats keep messaging: done → the next one goes off; a snooze doesn’t stick; old broken copies get fixed', async () => {
+  const { store, buddy, sent } = setup()
+  const today = todayIn(TZ)
+  const t = store.addTask('gavin', { title: 'Makan Pome', due: today, time: '18:00', repeat: { freq: 'day', interval: 1 }, wa: { before: 0 } })
+  await buddy.run('gavin', `snooze ${buddy.codeOf('gavin', t)} 1h`)
+  assert.deepEqual(store.snapshot('gavin').tasks.find((x) => x.id === t.id).wa.base, { before: 0 })
+  const r = await buddy.run('gavin', `done ${buddy.codeOf('gavin', t)}`)
+  assert.match(texts(r), /🔁 Next one: Tomorrow, 6:00 PM · [A-Z]\d/)
+  const next = store.snapshot('gavin').tasks.find((x) => !x.done && x.title === 'Makan Pome')
+  assert.deepEqual(next.wa, { before: 0 }, 'the next one is back to “at due time”, not sent')
+  await buddy.tick(zonedTime(next.due, '18:00', TZ) + 60e3)
+  assert.ok(sent.some((x) => /Makan Pome/.test(x.text || '')), 'tomorrow’s one goes out')
+  assert.ok(sent.some((x) => x.ep === 'poll' && /Makan Pome/.test(x.name)), '…with its menu')
+  const y = zonedTime(today, '18:00', TZ) - 864e5
+  const old = store.addTask('gavin', { title: 'Old copy', due: today, time: '18:00', repeat: { freq: 'day', interval: 1 } })
+  store.change('gavin', (doc) => { const o = doc.tasks.find((x) => x.id === old.id); o.wa = { at: y, sent: `at:${y}` }; o.createdAt = y + 3600e3; return o })
+  await buddy.tick(Date.now())
+  const fixed = store.snapshot('gavin').tasks.find((x) => x.id === old.id).wa
+  assert.deepEqual(fixed, { before: 0 }, 'back to its own time')
+})
+
+test('clear reminders cancels task reminders and asks WhatsApp to remove Buddy’s reminder messages', async () => {
+  const { store, buddy, sent } = setup()
+  const t = store.addTask('gavin', { title: 'Call', wa: { at: Date.now() - 1000 } })
+  await buddy.tick()
+  const r = await buddy.run('gavin', 'clear reminders')
+  assert.match(texts(r), /Cleared 1 WhatsApp reminder/)
+  await new Promise((res) => setTimeout(res, 20))
+  assert.equal(store.snapshot('gavin').tasks.find((x) => x.id === t.id).wa, null)
+  assert.ok(sent.some((x) => x.ep === 'delete-message'))
+})
+
+test('the AI (if the admin set one up) proposes; you confirm with a tap. Lists just run. Bad or no answers fall back.', async () => {
+  const { store, buddy, sent } = setup()
+  const today = todayIn(TZ)
+  const now = zonedTime(today, '10:00', TZ)
+  const m = store.addTask('gavin', { title: 'Maths worksheet', due: today })
+  const code = buddy.codeOf('gavin', m)
+  let answer = `/move ${code} fri 3pm`, seen = null
+  buddy.aiConfig = () => ({ key: 'gsk_test', model: 'x' })
+  buddy.propose = async (q) => { seen = q; if (answer instanceof Error) throw answer; return answer }
+  let r = await buddy.run('gavin', 'push maths to friday 3pm', { now })
+  assert.ok(seen.tasks.some((t) => t.code === code && t.title === 'Maths worksheet'), 'it sees codes and titles')
+  const mm = await sendMenu(buddy, sent, r)
+  assert.match(mm.name, new RegExp(`Did you mean: /move ${code} fri 3pm \\(Maths worksheet\\)`))
+  assert.equal(store.snapshot('gavin').tasks.find((x) => x.id === m.id).time, null, 'nothing changes before you confirm')
+  r = await buddy.tap('gavin', mm.id, ['✅ Yes, do it'], { now })
+  assert.match(texts(r), /Moved \*Maths worksheet\* to \w{3} \d+ \w{3}, 3:00 PM/)
+  answer = '/today'
+  r = await buddy.run('gavin', 'what do i have today', { now })
+  assert.match(texts(r), /📋 \*Today\*/)
+  answer = '/done Q9' // a code that doesn't exist
+  r = await buddy.run('gavin', 'done with physics', { now })
+  assert.match(texts(r), /I only understand commands|not a command/)
+  answer = new Error('daily limit reached')
+  r = await buddy.run('gavin', 'blah blah', { now: now + 5 * 60e3 })
+  assert.match(texts(r), /I only understand commands/)
+  buddy.aiConfig = () => null
 })

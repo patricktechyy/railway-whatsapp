@@ -27,7 +27,8 @@ export class LocalLink {
   settings() {
     let s = {}
     try { s = JSON.parse(fs.readFileSync(this.file, 'utf8')) } catch {}
-    return { whatsapp: { ...DEFAULT_FEATURES, ...(s.whatsapp || {}) }, announcements: s.announcements || [], bot: typeof s.bot === 'string' ? s.bot : null }
+    const ai = s.ai && typeof s.ai === 'object' ? { on: s.ai.on !== false, key: typeof s.ai.key === 'string' ? s.ai.key : '', model: typeof s.ai.model === 'string' ? s.ai.model : '' } : null
+    return { whatsapp: { ...DEFAULT_FEATURES, ...(s.whatsapp || {}) }, announcements: s.announcements || [], bot: typeof s.bot === 'string' ? s.bot : null, ai }
   }
 
   saveSettings(next) {
@@ -73,6 +74,19 @@ export class LocalLink {
         return { ok: true, id: m?.id || null, jid: s.store.canon(jid) }
       } catch (e) {
         throw new HttpError(e.status || 502, `WhatsApp couldn’t send it: ${e.message}`)
+      }
+    }
+    if (endpoint === 'poll') {
+      if (s.status !== 'connected' || !s.sock) {
+        throw new HttpError(503, `WhatsApp for “${s.label || p.username}” isn’t connected (${s.status})`)
+      }
+      const jid = p.jid || s.me?.jid
+      if (!jid) throw new HttpError(503, 'WhatsApp is still connecting')
+      try {
+        const m = await s.sendPoll(jid, { name: String(p.name || ''), options: p.options || [], multi: false })
+        return { ok: true, id: m?.id || null, jid: s.store.canon(jid) }
+      } catch (e) {
+        throw new HttpError(e.status || 502, `WhatsApp couldn’t send the menu: ${e.message}`)
       }
     }
     if (endpoint === 'delete-message') {

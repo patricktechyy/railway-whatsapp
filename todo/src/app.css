@@ -1432,6 +1432,16 @@ body.resizing-board.y { cursor: ns-resize; } body.resizing-board.xy { cursor: nw
 .buddy-commands dd { margin: 0; color: var(--muted); }
 .buddy-commands code { white-space: nowrap; }
 @media (max-width: 640px) { .buddy-commands > div { grid-template-columns: 1fr; gap: 2px; } }
+/* Buddy's commands, Discord style: a card per group, the command in a pill, what it does beside it */
+.buddy-cmds { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+.buddy-cmds section { border: 1px solid var(--line); border-radius: var(--r-md, 12px); background: var(--surface); padding: 8px 4px; }
+.buddy-cmds h4 { margin: 2px 10px 6px; font-size: var(--t-xs, 12px); text-transform: none; color: var(--muted); font-weight: 700; }
+.buddy-cmds ul { list-style: none; margin: 0; padding: 0; }
+.buddy-cmds li { display: flex; flex-direction: column; gap: 2px; padding: 7px 10px; border-radius: 8px; }
+.buddy-cmds li:hover { background: var(--hover); }
+.buddy-cmds .cmd { align-self: flex-start; font-weight: 700; font-size: 13.5px; background: var(--field); border-radius: 6px; padding: 2px 7px; white-space: normal; overflow-wrap: anywhere; }
+.buddy-cmds .about { color: var(--muted); font-size: var(--t-sm); }
+.buddy-cmds .about code { font-size: 12px; overflow-wrap: anywhere; }
 .buddy .row .input.sm { width: auto; }
 .buddy > .linkish { align-self: flex-start; margin-top: 6px; }
 

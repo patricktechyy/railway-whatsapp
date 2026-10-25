@@ -74,7 +74,7 @@ export class Reminders {
           this.sent[`wa|${base}`] = now
           changed = true
           try {
-            if (this.buddy) await this.buddy.send(username, this.buddy.taskMessage(username, t, { now }), { kind: 'reminder', tasks: [t.id] })
+            if (this.buddy) await this.buddy.sendTask(username, t, { kind: 'reminder', now })
             else await this.link.call('send', { username, text: reminderMessage(t, todayIn(tz, now)) })
             console.log(`[reminders] ${username}: "${t.title}" → WhatsApp`)
           } catch (e) {

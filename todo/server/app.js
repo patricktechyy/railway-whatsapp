@@ -8,7 +8,7 @@ import { Push } from './push.js'
 import { Reminders } from './reminders.js'
 import { LocalLink } from './local.js'
 import { handleInbox, taskMessage, stripTodo, isTodoCommand } from './whatsapp.js'
-import { Buddy, BUDDY_DEFAULTS, plain } from './buddy.js'
+import { Buddy, BUDDY_DEFAULTS, plain, COMMANDS as BUDDY_COMMANDS } from './buddy.js'
 import { todayIn } from './tz.js'
 import { Holidays, COUNTRIES, countryForTz } from './holidays.js'
 import { Assignments, progressOf } from './assign.js'
@@ -68,7 +68,21 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
     const u = envBot || link.settings().bot
     return u && sessions.has(u) ? u : null
   }
-  const buddy = new Buddy(dataDir, store, link, { brand, onTaskChange: (t) => toldAdmin(t), getBot: botUser, planner: { study, exams }, nameOf: (u) => nameOf(u) })
+  // Buddy's optional AI: a free Groq key from the main admin (or GROQ_API_KEY in Railway). It only proposes; you confirm.
+  const aiConfig = () => {
+    const a = link.settings().ai || {}
+    const key = String(process.env.GROQ_API_KEY || a.key || '').trim()
+    if (!key || a.on === false) return null
+    return { key, model: String(process.env.GROQ_MODEL || a.model || 'llama-3.1-8b-instant') }
+  }
+  const aiView = (s) => ({
+    on: s.ai?.on !== false,
+    fromEnv: !!process.env.GROQ_API_KEY,
+    keySet: !!(process.env.GROQ_API_KEY || s.ai?.key),
+    keyEnd: process.env.GROQ_API_KEY ? '' : (s.ai?.key || '').slice(-4),
+    model: process.env.GROQ_MODEL || s.ai?.model || 'llama-3.1-8b-instant',
+  })
+  const buddy = new Buddy(dataDir, store, link, { brand, onTaskChange: (t) => toldAdmin(t), getBot: botUser, planner: { study, exams }, nameOf: (u) => nameOf(u), ai: aiConfig })
   buddy.start(tickMs)
   new Reminders(dataDir, store, push, link, buddy).start(tickMs)
   // the second bot in Buddy's chat: "-reminder 30m buy milk". Its reminders aren't tasks.
@@ -251,6 +265,8 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
       return json(res, {
         configured: true, whatsapp: s.whatsapp, announcements: s.announcements,
         bot: botView(), botFromEnv: !!envBot,
+        // Buddy's AI key: only the main admin sees (the last 4 characters of) it
+        ai: c.u === ENV_ADMIN ? aiView(s) : undefined,
         accounts: auth.users.map((u) => ({ username: u.username, name: u.name, ...link.status(u.username) })),
       })
     }
@@ -318,8 +334,19 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
         if (b && !auth.get(b)) throw new HttpError(404, 'No such Whats Up account')
         s.bot = b
       }
+      if ('ai' in body) {
+        if (c.u !== ENV_ADMIN) throw new HttpError(403, 'Only the main admin can change Buddy’s AI.')
+        const a = { ...(s.ai || { on: true, key: '', model: '' }) }
+        if ('on' in body.ai) a.on = !!body.ai.on
+        if ('key' in body.ai) {
+          const key = String(body.ai.key || '').trim()
+          if (key && !/^[A-Za-z0-9_\-]{20,200}$/.test(key)) throw new HttpError(400, 'That doesn’t look like a Groq API key (it starts with gsk_).')
+          a.key = key
+        }
+        s.ai = a
+      }
       link.saveSettings(s)
-      return json(res, { ok: true, whatsapp: s.whatsapp, bot: botView() })
+      return json(res, { ok: true, whatsapp: s.whatsapp, bot: botView(), ai: c.u === ENV_ADMIN ? aiView(s) : undefined })
     }
     // ---- check the bot: is it online, and send the admin a hello from it
     if (p === '/api/admin/test' && M === 'POST') {
@@ -389,7 +416,7 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
         // "Message yourself" chat of people who asked for WhatsApp reminders
         if (waOk && (buddy.viaBot(u) || store.snapshot(u).profile.waReminders !== false)) {
           try {
-            await buddy.send(u, `📌 *${byName} gave you a task*\n\n${taskMessage(task, { today: todayIn(tzOf(u)), brand })}`, { kind: 'assignment', tasks: [task.id] })
+            await buddy.sendTask(u, task, { head: `📌 *${byName} gave you a task*`, kind: 'assignment' })
             whatsapp++
           } catch (e) { console.warn(`[todo/assign] ${u}: WhatsApp failed: ${e.message}`) }
         }
@@ -416,7 +443,7 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
           if (body.whatsapp && link.enabled('reminders') && pr.taskId && (buddy.viaBot(u) || store.snapshot(u).profile.waReminders !== false)) {
             const task = store.snapshot(u).tasks.find((x) => x.id === pr.taskId)
             try {
-              if (task) { await buddy.send(u, `👋 *${rec.byName} is checking on this*\n\n${buddy.taskMessage(u, task)}`, { kind: 'nudge', tasks: [task.id] }); whatsapp++ }
+              if (task) { await buddy.sendTask(u, task, { head: `👋 *${rec.byName} is checking on this*`, kind: 'nudge' }); whatsapp++ }
             } catch (e) { console.warn(`[todo/nudge] ${u}: WhatsApp failed: ${e.message}`) }
           }
         }
@@ -565,6 +592,10 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
       return json(res, { settings: waNotifySettings(u), key: push.publicKey, devices: push.devices(u).map((d) => ({ endpoint: d.subscription.endpoint, wa: !!d.wa })) })
     }
 
+    // WhatsApp Buddy's commands, for the list in Settings (the same list /help sends)
+    if (p === '/api/buddy/commands' && M === 'GET') {
+      return json(res, BUDDY_COMMANDS.filter((x) => !x.hidden).map(({ name, usage, about, example, group }) => ({ name, usage, about, example: example || null, group })))
+    }
     if (M === 'GET') throw new HttpError(404, 'Not found')
     const body = M === 'DELETE' ? {} : await readJson(req)
 
@@ -617,20 +648,19 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
     if (p === '/api/buddy/test' && M === 'POST') {
       link.require('reminders')
       if (!buddy.available) throw new HttpError(403, 'Your admin has turned WhatsApp Buddy off.')
-      const kind = ['task', 'morning', 'evening', 'help', 'study', 'exams'].includes(body.kind) ? body.kind : 'task'
-      let text
-      if (kind === 'morning') text = buddy.morningMessage(u)
-      else if (kind === 'study') text = buddy.studyMessage(u, todayIn(tzOf(u)))
-      else if (kind === 'exams') text = buddy.upcomingExams(u)
-      else if (kind === 'evening') text = buddy.eveningMessage(u)
-      else if (kind === 'help') text = buddy.helpMessage(u)
+      const kind = ['task', 'morning', 'evening', 'help', 'study', 'exams', 'menu'].includes(body.kind) ? body.kind : 'task'
+      let items
+      if (kind === 'morning') items = buddy.morningItems(u)
+      else if (kind === 'study') items = buddy.studyItems(u, todayIn(tzOf(u)))
+      else if (kind === 'exams') items = [{ text: buddy.upcomingExams(u) }]
+      else if (kind === 'evening') items = buddy.eveningItems(u)
+      else if (kind === 'help') items = [{ text: buddy.helpMessage(u) }]
+      else if (kind === 'menu') items = await buddy.run(u, '/test', { chat: buddy.viaBot(u) ? 'bot' : 'self' })
       else {
         const open = store.snapshot(u).tasks.filter((t) => !t.done).sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999') || (a.time || '99').localeCompare(b.time || '99'))
-        const t = open[0] || { id: 'demo', title: 'Drink some water', notes: 'Example reminder.', due: null, time: null, priority: 1, subtasks: [], tags: [], status: 'todo' }
-        text = buddy.taskMessage(u, t)
-        if (open[0]) buddy.remember(u, [open[0].id])
+        items = open[0] ? buddy.taskItems(u, open[0], { kind: 'test' }) : [{ text: '📝 *Drink some water*\n_An example reminder. Add a task with a date and I’ll message you like this, with a menu to tap._' }]
       }
-      await buddy.send(u, text, { kind: kind === 'task' ? 'test' : kind })
+      await buddy.deliver(u, items)
       return json(res, { ok: true })
     }
     let dm = p.match(/^\/api\/days\/(\d{4}-\d{2}-\d{2})$/)
@@ -662,60 +692,68 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
     if (seen.size > 5000) seen.clear()
     return true
   }
-  const lastHelp = new Map()
-  const SMALL_TALK = /^(thanks?|thank you|thx|ty|tq|ok(ay)?|oke|okey|sip|siap|mantap|nice|cool|great|noted|alright|terima ?kasih|makasih|👍|🙏|❤️|😊|🙂|👌)[\s.!]*$/i
-
-  /** A message sent to the bot: the reply (or null to stay quiet). */
-  function botReply(u, text, quoted = false) {
-    const raw = String(text || '').trim()
-    const prefixed = isTodoCommand(raw)
-    const body = prefixed ? stripTodo(raw) : raw
-    const low = body.toLowerCase()
-    const tz = tzOf(u)
-    if (/^(hi|hello|hey|halo|hai|hallo|start|menu|yo)[\s.!]*$/.test(low)) {
-      return `👋 Hi ${nameOf(u).split(' ')[0]}, I’m Buddy from ${brand}.\n\n${buddy.helpMessage(u)}`
+  /** A WhatsApp address as a phone-number one (messages, taps and reactions can come from a hidden id, a LID). */
+  async function asPhone(s, jid) {
+    jid = s.store.canon(jid)
+    if (jid.endsWith('@lid')) {
+      try {
+        const pn = await s.sock?.signalRepository?.lidMapping?.getPNForLID?.(jid)
+        const bare = typeof pn === 'string' ? pn.replace(/:\d+(?=@)/, '') : null
+        if (bare?.endsWith('@s.whatsapp.net')) { s.store.link?.(jid, bare); jid = bare }
+      } catch {}
     }
-    let m
-    if ((m = body.match(/^(?:add|new|todo|task|tambah)\s*:?\s+(.+)$/is))) {
-      if (!link.enabled('inbox')) return 'Adding tasks from WhatsApp is turned off.'
-      return added(u, handleInbox(store, u, `todo: ${m[1]}`, { tz, brand }))
-    }
-    if (!buddy.available) return null
-    const r = buddy.command(u, body)
-    if (r) return r.reply
-    // not an exact command: Buddy's little model has a go at what it means
-    const g = buddy.understand(u, body)
-    if (g?.reply) return g.reply
-    if (g?.chat) return null
-    if (g?.add && !prefixed) {
-      if (!link.enabled('inbox')) return 'Adding tasks from WhatsApp is turned off.'
-      return added(u, handleInbox(store, u, `todo: ${body}`, { tz, brand }))
-    }
-    if (prefixed) {
-      if (!link.enabled('inbox')) return 'Adding tasks from WhatsApp is turned off.'
-      return added(u, handleInbox(store, u, raw, { tz, brand }))
-    }
-    if (SMALL_TALK.test(body)) return null
-    // a reply to one of Buddy's messages is always answered, naming the task it's about
-    if (quoted) return buddy.quotedHelp(u)
-    // don't lecture twice in a row
-    if (Date.now() - (lastHelp.get(u) || 0) < 10 * 60e3) return null
-    lastHelp.set(u, Date.now())
-    return 'Didn’t get that. Try *today*, *add* buy milk 5pm, *done*, *snooze 1h* or *help*.'
+    return jid
+  }
+  /**
+   * Who a message, tap or reaction in the bot's chat is from: a Whats Up person who picked
+   * Buddy's number. Anyone else (strangers, people who chose "Message yourself") gets nothing.
+   */
+  async function botPerson(s, who) {
+    const jid = await asPhone(s, who)
+    if (!jid.endsWith('@s.whatsapp.net')) return null
+    const u = await buddy.userOfJid(jid, people())
+    return u && buddy.viaBot(u) ? { u, jid } : null
+  }
+  /** Buddy's answer, into the chat it came from. */
+  async function answer(u, items, channel) {
+    items = await items
+    if (!items?.length) return
+    try { await buddy.deliver(u, items, channel) } catch (e) { console.warn(`[buddy] ${u}: couldn't answer: ${e.message}`) }
+  }
+  /** Someone with Buddy switched off by the admin: "add …" still adds (if the admin left that on). */
+  function inboxOnly(u, text) {
+    const m = String(text || '').trim().match(/^(?:\/|td\s*:?\s*)?(?:add|new|todo|task|tambah)\s*:?\s+(.+)$/is)
+    if (!m || !link.enabled('inbox')) return null
+    return handleInbox(store, u, `todo: ${m[1]}`, { tz: tzOf(u), brand }).reply
   }
 
-  /** A reply quoting one of Buddy's messages: Buddy turns to that message's task(s). By what it recorded when it sent it, else by the quoted text. */
-  function quotedTask(u, msg) {
-    if (!msg.quote?.id || !buddy.available) return false
-    // what Buddy recorded for that message, then what the quoted text itself names (that wins: it's what they're looking at)
-    const rec = buddy.useQuoted(u, msg.quote.id)
-    const txt = buddy.useQuotedText(u, msg.quote.text, { merge: rec })
-    return rec || txt
+  /** A tap on a poll: only Buddy's own menus, and only from the person it was sent to. */
+  async function onVote(username, s, v) {
+    if (!buddy.available || !v?.picks?.length || !v.pollFromMe) return
+    const bot = botUser()
+    if (username === bot) {
+      if (v.fromMe) return
+      const who = await botPerson(s, v.who)
+      if (!who || !buddy.menuOf(who.u, v.pollId)) return
+      return answer(who.u, buddy.tap(who.u, v.pollId, v.picks), { session: bot, jid: who.jid })
+    }
+    const self = s.me?.jid && s.store.canon(s.me.jid)
+    if (!v.fromMe || !self || s.store.canon(v.jid) !== self || !buddy.menuOf(username, v.pollId)) return
+    return answer(username, buddy.tap(username, v.pollId, v.picks), { session: username })
   }
-  /** A task just added from WhatsApp: Buddy is now on it, so "done", "move 6pm" or a reply to "Added: …" mean it. */
-  function added(u, r) {
-    if (r?.task && buddy.available) buddy.remember(u, [r.task.id])
-    return r?.reply
+  /** A reaction on one of Buddy's messages (👍 on a reminder ticks it off). */
+  async function onReact(username, s, r) {
+    if (!buddy.available || !r?.emoji || !r.id) return
+    const bot = botUser()
+    if (username === bot) {
+      if (r.fromMe) return
+      const who = await botPerson(s, r.who)
+      if (!who || !buddy.sentByBuddy(who.u, r.id)) return
+      return answer(who.u, buddy.react(who.u, r.id, r.emoji), { session: bot, jid: who.jid })
+    }
+    const self = s.me?.jid && s.store.canon(s.me.jid)
+    if (!r.fromMe || !self || s.store.canon(r.jid) !== self || !buddy.sentByBuddy(username, r.id)) return
+    return answer(username, buddy.react(username, r.id, r.emoji), { session: username })
   }
 
   async function onWhatsApp(username, s, msg) {
@@ -740,21 +778,21 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
       if (!u) return // not one of us: the bot stays quiet
       // they chose "Message yourself": the bot's number is switched off for them (it never answers)
       if (!buddy.viaBot(u)) return
-      let reply, quickOne = false
-      try {
-        quickOne = QuickReminders.wants(msg.text)
-        if (quickOne) reply = quick.command(u, msg.text, { via: 'bot', jid })
-        else {
-          // a reply to one of Buddy's messages ("done" under a reminder): that message's task
-          const quoted = quotedTask(u, msg)
-          reply = botReply(u, msg.text, quoted)
-        }
-      } catch (e) { reply = `⚠️ ${e.message}` }
-      if (reply) {
-        const r = await link.call('send', { username: bot, jid, text: plain(reply) })
-        if (!quickOne && buddy.available) buddy.noteMsg(u, r?.id) // a reply quoting this answer means what it listed
+      const channel = { session: bot, jid }
+      if (QuickReminders.wants(msg.text)) {
+        let reply
+        try { reply = quick.command(u, msg.text, { via: 'bot', jid }) } catch (e) { reply = `⚠️ ${e.message}` }
+        if (reply) await link.call('send', { username: bot, jid, text: plain(reply) })
+        return
       }
-      return
+      if (!buddy.available) {
+        const reply = inboxOnly(u, msg.text)
+        if (reply) await link.call('send', { username: bot, jid, text: plain(reply) })
+        return
+      }
+      let items
+      try { items = await buddy.run(u, msg.text, { chat: 'bot', quote: msg.quote }) } catch (e) { items = [{ text: `⚠️ ${e.message}` }] }
+      return answer(u, items, channel)
     }
 
     // ---- "td …" in your own "Message yourself" chat
@@ -766,39 +804,27 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
       if (reply) await link.call('send', { username, text: reply })
       return
     }
-    if (!msg.fromMe || !self || jid !== self || !isTodoCommand(msg.text)) return
-    if (!link.enabled('inbox') && !buddy.available) return
-    // they chose Buddy's number: "td …" in their own chat does nothing (use the bot's chat instead),
+    if (!msg.fromMe || !self || jid !== self) return
+    if (buddy.sentByBuddy(username, msg.id) || buddy.isOwnText(username, msg.text)) return // Buddy's own message coming back
+    if (!buddy.available) {
+      if (!isTodoCommand(msg.text) && !/^\s*\//.test(msg.text)) return
+      const reply = inboxOnly(username, msg.text) || (link.enabled('inbox') && isTodoCommand(msg.text) ? handleInbox(store, username, msg.text, { tz: tzOf(username), brand }).reply : null)
+      if (reply) await link.call('send', { username, text: reply })
+      return
+    }
+    // they chose Buddy's number: their own chat is just notes (use the bot's chat instead),
     // unless the bot's phone is offline, when Buddy falls back to this chat and has to hear the replies
     if (username !== bot && buddy.viaBot(username) && botView()?.connected) return
-    let reply
-    const selfBody = stripTodo(msg.text)
-    quotedTask(username, msg)
-    try {
-      const quick = selfBody.match(/^(?:add|new|todo|task|tambah)\s*:?\s+(.+)$/is)
-      if (quick) {
-        if (!link.enabled('inbox')) return
-        reply = added(username, handleInbox(store, username, `todo: ${quick[1]}`, { tz: tzOf(username), brand }))
-      } else {
-        reply = (buddy.available ? buddy.command(username, selfBody) : null)?.reply
-        if (!reply && buddy.available) {
-          const g = buddy.understand(username, selfBody)
-          if (g?.reply) reply = g.reply
-          else if (g?.chat) reply = '👍'
-        }
-      }
-      if (!reply) {
-        if (!link.enabled('inbox')) return
-        reply = added(username, handleInbox(store, username, msg.text, { tz: tzOf(username), brand }))
-      }
-    } catch (e) { reply = `⚠️ ${e.message}` }
-    const r = await link.call('send', { username, text: reply })
-    if (buddy.available) buddy.noteMsg(username, r?.id)
+    let items
+    try { items = await buddy.run(username, msg.text, { chat: 'self', quote: msg.quote }) } catch (e) { items = [{ text: `⚠️ ${e.message}` }] }
+    return answer(username, items, { session: username })
   }
 
   /** Listen to one Whats Up account's WhatsApp (call for every session, including new ones). */
   function attach(username, s) {
     s.on('wa:new', (msg) => onWhatsApp(username, s, msg).catch((e) => console.warn(`[todo/whatsapp] ${username}: ${e.message}`)))
+    s.on('wa:vote', (v) => onVote(username, s, v).catch((e) => console.warn(`[buddy] ${username}: tap failed: ${e.message}`)))
+    s.on('wa:react', (r) => onReact(username, s, r).catch((e) => console.warn(`[buddy] ${username}: reaction failed: ${e.message}`)))
     s.on('wa:new', (msg) => notifyMessage(username, s, msg).catch((e) => console.warn(`[notify] ${username}: ${e.message}`)))
   }
 

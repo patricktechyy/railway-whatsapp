@@ -326,27 +326,33 @@ const STYLES: { key: BuddyStyle; label: string; sample: string }[] = [
   { key: 'friendly', label: 'Long', sample: 'Hi Gavin, reminder…\n\n📝 *Physics lab report*\n📅 Today, 4:00 PM (in 2 h)\n☑ 1/3 steps · next: _graphs_' },
   { key: 'short', label: 'Short', sample: '⏰ *Physics lab report* · Today, 4:00 PM (in 2 h)' },
 ]
-/** "td done" → "done" for the bot's chat, where you just reply (same rules as the server's plain()). */
-const plainCmd = (c: string) => c.replace(/^td\?$/, 'today').replace(/^td:\s?/, 'add ').replace(/^td /, '')
-const COMMANDS: [string, string][] = [
-  ['td?', 'today and overdue, numbered'],
-  ['td tomorrow', 'tomorrow’s tasks'],
-  ['td upcoming', 'next 7 days'],
-  ['td overdue', 'overdue only'],
-  ['td add buy milk tomorrow 5pm', 'add a task'],
-  ['td done 2', 'complete #2 (start 2 marks it in progress)'],
-  ['td step 2', 'tick the next step of #2'],
-  ['td snooze 2 1h', 'remind about #2 in an hour'],
-  ['td move', 'push today’s unfinished tasks to tomorrow'],
-  ['td delete 2', 'delete #2 (clear completed removes all done tasks)'],
-  ['td remind me to call mum at 8pm', 'add a task with a WhatsApp reminder'],
-  ['td clear reminders', 'cancel WhatsApp reminders and clear Buddy’s recent reminder messages'],
-  ['td clear buddy', 'clear Buddy’s recent messages'],
-  ['td study', 'today’s study plan (study tomorrow for tomorrow’s)'],
-  ['td tick 2', 'tick topic #2 off (again to untick)'],
-  ['td exams', 'your next exams'],
-  ['td help', 'full command list'],
-]
+/** One of Buddy's commands, as the server lists them (the same list "/help" sends in WhatsApp). */
+interface BuddyCommand { name: string; usage: string; about: string; example: string | null; group: string }
+
+/** Buddy's commands, Discord style: grouped, each with how to write it, what it does and an example. */
+function BuddyCommands() {
+  const [list, setList] = useState<BuddyCommand[] | null>(null)
+  useEffect(() => { api<BuddyCommand[]>('/buddy/commands').then(setList).catch(() => setList([])) }, [])
+  if (!list) return <p className="help">Loading…</p>
+  const groups = [...new Set(list.map((c) => c.group))]
+  return (
+    <div className="buddy-cmds">
+      {groups.map((g) => (
+        <section key={g}>
+          <h4>{g}</h4>
+          <ul>
+            {list.filter((c) => c.group === g).map((c) => (
+              <li key={c.name}>
+                <code className="cmd">{c.usage}</code>
+                <span className="about">{c.about}{c.example && <> · <code>{c.example}</code></>}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
+    </div>
+  )
+}
 
 /** WhatsApp Buddy: its personality, the daily messages, an example on demand, and what you can answer. */
 /**
@@ -365,7 +371,7 @@ export function BuddyFromDialog({ me, onDone }: { me: Me; onDone: (via: 'self' |
           <span className="bf-radio" aria-hidden="true" />
           <span className="bf-body">
             <b>Message yourself <span className="bf-tag">Recommended</span></b>
-            <span>Private: Buddy writes in your own “Message yourself” chat, and only you can see it. Your phone doesn’t buzz for it. Reply with <code>td done</code>, <code>td snooze 1h</code>.</span>
+            <span>Private: Buddy writes in your own “Message yourself” chat, and only you can see it. Your phone doesn’t buzz for it. Tap its menus, or type commands like <code>/done</code>.</span>
           </span>
         </button>
         <button type="button" role="radio" aria-checked={via === 'bot'} className={`bf-option${via === 'bot' ? ' on' : ''}`} onClick={() => setVia('bot')}>
@@ -416,13 +422,13 @@ function BuddySetting({ me, onChange }: { me: Me; onChange: (b: BuddySettings) =
       {fromBot && bot ? (
         <p className="help buddy-intro">
           Pick <b>WhatsApp me</b> on a task and Buddy messages you from <b>its own number{bot.phone ? ` (${bot.phone})` : ''}</b>.
-          Reply in that chat with <b>done</b>, <b>snooze 1h</b> or <b>today</b>.
+          Tap the menu under its message, or type a command like <b>/today</b> or <b>/done K7</b> (in that chat the <b>/</b> is optional). React 👍 to a reminder to tick it off.
           <small className="buddy-privacy"><Icon name="unlock" /> Whoever runs that number (your admin) can read these messages and your replies. Pick <b>Message yourself</b> to keep them private.</small>
         </p>
       ) : (
         <p className="help buddy-intro">
           Pick <b>WhatsApp me</b> on a task and Buddy messages you in <b>“Message yourself”</b>.
-          Reply there with <b>td done</b> or <b>td snooze 1h</b>.
+          Tap the menu under its message, or type a command starting with <b>/</b>, like <b>/today</b> or <b>/done K7</b> (you write notes there too, so the <b>/</b> is needed). React 👍 to a reminder to tick it off.
           {bot && <small className="buddy-privacy"><Icon name="lock" /> Only you can see these messages.</small>}
         </p>
       )}
@@ -484,16 +490,18 @@ function BuddySetting({ me, onChange }: { me: Me; onChange: (b: BuddySettings) =
             <option value="evening">The evening check-in</option>
             <option value="study">Today’s study plan</option>
             <option value="exams">Your next exams</option>
+            <option value="menu">A tap menu (check taps work)</option>
             <option value="help">The command list</option>
           </Select>
           <button className="btn ghost sm" disabled={busy} onClick={test}>{busy ? 'Sending…' : 'Send me an example'}</button>
         </span>
       </div>
-      <button type="button" className="linkish" onClick={() => setHelp(!help)} aria-expanded={help}>{help ? 'Hide' : 'Show'} commands</button>
+      <button type="button" className="linkish" onClick={() => setHelp(!help)} aria-expanded={help}>{help ? 'Hide' : 'Show'} Buddy commands</button>
       {help && (
-        <dl className="buddy-commands">
-          {COMMANDS.map(([c, d]) => <div key={c}><dt><code>{fromBot ? plainCmd(c) : c}</code></dt><dd>{fromBot ? d.replace(/td (done|start)/g, '$1') : d}</dd></div>)}
-        </dl>
+        <>
+          <p className="help">Every task has a short code like <b>K7</b> (Buddy shows it). Reply to Buddy’s message about a task and you can leave the code out. <b>td</b> works instead of <b>/</b>.</p>
+          <BuddyCommands />
+        </>
       )}
     </div>
   )
