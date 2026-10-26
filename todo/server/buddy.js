@@ -44,6 +44,8 @@ const FLOW_TTL = { bot: 10 * 60e3, self: 5 * 60e3 } // how long Buddy waits for 
 const LAST_TTL = 2 * 3600e3 // "/done" with no code means the task Buddy last wrote about, for this long
 const AI_READ_ONLY = new Set(['today', 'tomorrow', 'week', 'overdue', 'task', 'study', 'exams', 'help', 'menu'])
 const AI_ALLOWED = new Set([...AI_READ_ONLY, 'add', 'done', 'start', 'step', 'snooze', 'move', 'rename', 'delete', 'undo'])
+// "Done! Moved it to 9:30 PM", "I've added…": the AI saying it did something (it can't: only a tap does)
+const CLAIMS_DONE = /^(done|all set|ok(ay)?,? done)\b|\b(i[’']?ve|i have|i)\s+(just\s+)?(moved|added|deleted|removed|renamed|snoozed|ticked|marked|rescheduled|changed|updated|created|set)\b|\b(moved|rescheduled|snoozed|renamed|deleted)\s+(it|that)\b|\b(has|have) been (moved|added|deleted|renamed|snoozed|rescheduled|changed|updated)\b/i
 const SHOWS_ITSELF = new Set(['today', 'tomorrow', 'week', 'overdue']) // AI read-only commands worth showing as well as its words (lists and cards have tap menus)
 const TALK_TTL = 30 * 60e3 // the AI sees the chat's last few messages from this long ago
 const TYPED_TTL = 15 * 60e3 // "yes" typed this soon after a question answers it
@@ -1469,22 +1471,33 @@ export class Buddy {
     if (reply && codes.length) reply = reply.replace(new RegExp(`\\(?\\b(?:${codes.join('|')})\\b\\)?\\s*(?:[–—·:|-]\\s*)?`, 'g'), '').replace(/ {2,}/g, ' ').trim() || null
     // keep only commands that are real and safe: known command, real code, a day/time it can read
     const read = [], change = []
+    let dropped = 0 // changes it asked for that Buddy couldn't check (a made-up code, a time it can't read)
     for (const c of out?.commands || []) {
       const p = parseCommand(c, 'bot')
       if (!p?.cmd || !AI_ALLOWED.has(p.cmd.name)) continue
+      const before = read.length + change.length
+      const keep = (() => {
       const parts = p.args.split(/\s+/).filter(Boolean)
       const rest = parts.slice(1).join(' ')
       let t = null
       if (p.cmd.task) {
         t = CODE_RE.test(parts[0] || '') ? this.taskOfCode(u, parts[0]) : null
-        if (!t) continue
-        if (p.cmd.name === 'move' && !this.whenOf(u, rest, now, { strict: true })) continue
-        if (p.cmd.name === 'snooze' && rest && !snoozeUntil(rest, tz, now)) continue
-        if (p.cmd.name === 'rename' && !rest) continue
+        if (!t) return false
+        if (p.cmd.name === 'move' && !this.whenOf(u, rest, now, { strict: true })) return false
+        if (p.cmd.name === 'snooze' && rest && !snoozeUntil(rest, tz, now)) return false
+        if (p.cmd.name === 'rename' && !rest) return false
       }
-      if (p.cmd.name === 'add' && !p.args) continue
+      if (p.cmd.name === 'add' && !p.args) return false
       const x = { p, t, shown: `/${p.cmd.name}${p.args ? ` ${p.args}` : ''}` }
       if (AI_READ_ONLY.has(p.cmd.name)) { if (!read.some((y) => y.shown === x.shown)) read.push(x) } else if (!change.some((y) => y.shown === x.shown)) change.push(x)
+      return true
+      })()
+      if (!keep && read.length + change.length === before && !AI_READ_ONLY.has(p.cmd.name)) dropped++
+    }
+    // Honest about changes: nothing has happened until a tap on Yes, so words that say it's done
+    // ("Done! Moved it"), or ask about a change Buddy couldn't put in a Yes/No question, never go out.
+    if (reply && !change.length && (dropped || CLAIMS_DONE.test(reply))) {
+      reply = `🤖 I couldn’t work that change out${dropped ? '' : ' for sure'}, so nothing changed. Could you say it another way, like *move maths to fri 3pm*?`
     }
     if (!reply && !read.length && !change.length) return null
     this.remember(u, 'user', body, now)
@@ -1500,8 +1513,9 @@ export class Buddy {
       if (reply && !SHOWS_ITSELF.has(x.p.cmd.name)) continue
       shown.push(...(await this.runCommand(u, x.p.cmd, x.p.args, ctx)))
     }
-    // with a Yes/No question for the changes, "Move Maths to Fri 3 PM?" in words as well is one too many
-    const sayIt = reply && !shown.length && !(change.length && /\?\s*\S{0,3}$/.test(reply))
+    // with a Yes/No question for the changes, the AI's words go: the question already says it all
+    // (and its words might say "Done!" before anything is)
+    const sayIt = reply && !shown.length && !change.length
     if (sayIt) items.push({ text: reply, fromAi: true, ...(one ? { about: { task: one.id } } : {}) })
     items.push(...shown)
     if (change.length) {
