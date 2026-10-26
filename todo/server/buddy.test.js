@@ -412,6 +412,36 @@ test('“any tasks tomorrow?” is just the list (no AI); a task card asked for 
   buddy.aiConfig = () => null
 })
 
+test('the AI double-checks a new task when day/time words are left in its name, and reads times Buddy can’t', async () => {
+  const { store, buddy } = setup()
+  const today = todayIn(TZ)
+  const now = zonedTime(today, '10:00', TZ)
+  const asked = []
+  buddy.read = async (q) => { asked.push(q); return q.mode === 'add' ? { title: 'learn maintaining air quality', date: null, time: '21:30' } : { date: addDays(today, 2), time: '19:00' } }
+  // no AI: Buddy's own reading
+  let r = await buddy.run('gavin', 'add learn maintaining air quality 9.30', { now })
+  assert.equal(asked.length, 0)
+  assert.match(texts(r), /Added: \*learn maintaining air quality 9\.30\*/)
+  buddy.aiConfig = () => ({ key: 'gsk_test', model: 'x' })
+  r = await buddy.run('gavin', 'add learn maintaining air quality 9.30', { now })
+  assert.equal(asked.at(-1).mode, 'add')
+  assert.ok(asked.at(-1).calendar[1].endsWith(`= ${addDays(today, 1)}`), 'it gets the next days with their dates')
+  assert.match(texts(r), /Added: \*learn maintaining air quality\* · [A-Z][2-9]\n📅 Today, 9:30 PM[\s\S]*Day\/time read by AI/)
+  // nothing left over: no AI call
+  const n = asked.length
+  r = await buddy.run('gavin', 'add buy 2 eggs', { now })
+  assert.equal(asked.length, n)
+  assert.match(texts(r), /Added: \*buy 2 eggs\*/)
+  // "/move K7 next tues evening": Buddy can't read it, the AI can
+  const t = store.addTask('gavin', { title: 'Maths worksheet', due: today })
+  r = await buddy.run('gavin', `/move ${buddy.codeOf('gavin', t)} the evening after tomorrow`, { now })
+  assert.equal(asked.at(-1).mode, 'when')
+  const moved = store.snapshot('gavin').tasks.find((x) => x.id === t.id)
+  assert.equal(moved.due, addDays(today, 2))
+  assert.equal(moved.time, '19:00')
+  buddy.aiConfig = () => null
+})
+
 test('small talk and typed answers, like a person', async () => {
   const { smallTalk } = await import('./buddy.js')
   assert.equal(smallTalk('aight bet thanks'), 'thanks')

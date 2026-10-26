@@ -119,9 +119,10 @@ export function parseQuickAdd(input, lists, today = localToday()) {
   if (out.duration) out.hints.push(`Takes ${out.duration % 60 ? (out.duration >= 60 ? `${Math.floor(out.duration / 60)} h ${out.duration % 60} min` : `${out.duration} min`) : `${out.duration / 60} h`}`)
 
   // time first, so "tonight" can default it
-  take(/\s(?:at\s)?(\d{1,2})(?::(\d{2}))?\s?(am|pm)(?=\s)/i, (m) => {
+  // "9pm", "9:30pm", "9.30PM" (a dot is how many people type it), "9.30 p.m."
+  take(/\s(?:at\s)?(\d{1,2})(?:[:.](\d{2}))?\s?([ap])\.?m\.?(?=\s)/i, (m) => {
     let h = Number(m[1]) % 12
-    if (m[3].toLowerCase() === 'pm') h += 12
+    if (m[3].toLowerCase() === 'p') h += 12
     const min = Number(m[2] || 0)
     if (Number(m[1]) > 12 || min > 59) return false
     out.time = `${pad(h)}:${pad(min)}`

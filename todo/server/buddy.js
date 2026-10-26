@@ -4,7 +4,7 @@ import { zonedTime, todayIn } from './tz.js'
 import { parseQuickAdd } from './quickadd.js'
 import { dayLabel, dueText, time12 } from './whatsapp.js'
 import { describeRepeat } from './repeat.js'
-import { askBuddy } from './ai.js'
+import { askBuddy, readWhen } from './ai.js'
 
 /**
  * WhatsApp Buddy 🤖: the todolist's bot in WhatsApp. It never guesses.
@@ -59,6 +59,11 @@ export function listAsk(text) {
   const days = LIST_DAYS.filter(([, re]) => re.test(t))
   return days.length === 1 ? days[0][0] : null
 }
+
+// Words about when that Buddy's own reading left in a new task's name ("learn x 9.30PM", "meet sam at 5",
+// "dinner next tues"): a sign it missed the day or time, so the AI (if there is one) checks it.
+const WHEN_LEFT = /\d{1,2}\s?[:.]\s?\d{2}|\b\d{1,2}\s?(am|pm|a\.m|p\.m)\b|\b\d{3,4}\s?(am|pm)\b|\b(at|by|jam|pukul|before|until|till)\s+\d|\b(mon|tues?|wed|weds|thu|thur|thurs|fri|sat|sun)(day)?\b|\b(jan|feb|mar|apr|jun|jul|aug|sept?|oct|nov|dec)[a-z]*\b|\b(today|tonight|tmr|tmrw|tomorrow|tomorow|tommorow|tdy|noon|midday|morning|afternoon|evening|night|weekend|next week|this week|pagi|siang|sore|malam|besok|lusa|minggu depan)\b|\bin\s+\d+\s*(m|min|mins|minutes?|h|hrs?|hours?|d|days?|weeks?)\b/i
+export const whenLeftIn = (title) => WHEN_LEFT.test(String(title || ''))
 
 // Small talk Buddy answers by itself (no AI needed): "thanks" gets a reply, "ok" / "bet" a 👍.
 const THANKS = /\b(thanks?|thank ?you|thx|thnx|tq|ty|tysm|makasih|terima ?kasih|appreciate)/i
@@ -278,7 +283,7 @@ export class Buddy {
    * `onTaskChange(task)` is called after Buddy changes a task (so e.g. the admin's progress view
    * updates when you finish a task they gave you). `ai()` → { key, model } or null (the admin's Groq key).
    */
-  constructor(dataDir, store, link, { brand = 'your todolist', onTaskChange = () => {}, getBot = () => String(process.env.BOT_USER || process.env.WA_BOT_USER || '').trim().toLowerCase() || null, planner = null, nameOf = null, ai = () => null, propose = askBuddy, trackAi = null } = {}) {
+  constructor(dataDir, store, link, { brand = 'your todolist', onTaskChange = () => {}, getBot = () => String(process.env.BOT_USER || process.env.WA_BOT_USER || '').trim().toLowerCase() || null, planner = null, nameOf = null, ai = () => null, propose = askBuddy, read = readWhen, trackAi = null } = {}) {
     this.store = store
     this.link = link
     this.brand = brand
@@ -291,6 +296,7 @@ export class Buddy {
     this.nameOf = nameOf // (u) => their name (the profile's, or their Whats Up account's)
     this.aiConfig = ai
     this.propose = propose
+    this.read = read // the AI checking Buddy's own reading of a day/time
     this.trackAi = trackAi // (u, { ok, model, usage, limits, error, ms }) after each request to the AI
     this.recentTaps = new Map() // a tap reported twice (two ways WhatsApp delivers votes) only counts once
     this.outgoing = new Map() // "session|text" of messages Buddy is sending right now
@@ -967,13 +973,56 @@ export class Buddy {
     this.saveState()
     return `🗑 Deleted *${task.title}*.\n_Wrong one? Send *${this.slash(u)}undo* to bring it back._`
   }
+  /** The next 15 days for the AI, with their dates: "Tue 27 Oct (tomorrow) = 2026-10-27". */
+  aiCalendar(u, now = Date.now()) {
+    const { today } = this.ctx(u, now)
+    return Array.from({ length: 15 }, (_, i) => { const k = addDaysKey(today, i); return `${dayAbs(k, today)} = ${k}` })
+  }
+  /** The AI's reading of a new task or of a day/time (null: no AI, or it couldn't). */
+  async aiRead(u, text, mode, now = Date.now()) {
+    const ai = this.ai
+    if (!ai || !text) return null
+    const { tz, today } = this.ctx(u, now)
+    const weekday = new Intl.DateTimeFormat('en-US', { weekday: 'long', timeZone: tz }).format(new Date(now))
+    try {
+      return await this.read({ key: ai.key, model: ai.model, text, mode, calendar: this.aiCalendar(u, now), now: `${weekday} ${today}, ${hmIn(tz, now)}`, track: (x) => this.trackAi?.(u, x) })
+    } catch (e) { console.warn(`[buddy] AI couldn't read “${cut(text, 40)}”: ${e.message}`); return null }
+  }
+  /** A day/time Buddy couldn't read itself, read by the AI, in whenOf's shape (null: no). */
+  async aiWhenOf(u, text, now = Date.now()) {
+    const r = await this.aiRead(u, text, 'when', now)
+    const { today } = this.ctx(u, now)
+    if (!r || (!r.date && !r.time) || (r.date && (r.date < today || r.date > addDaysKey(today, 730)))) return null
+    return { due: r.date || null, time: r.time || null, dayGiven: !!r.date, timeGiven: !!r.time, byAi: true }
+  }
+  /** A snooze time the AI read ("next tues evening"): ms, or null. */
+  async aiInstant(u, text, now = Date.now()) {
+    const w = await this.aiWhenOf(u, text, now)
+    if (!w) return null
+    const { tz, today } = this.ctx(u, now)
+    let at = zonedTime(w.due || today, w.time || '09:00', tz)
+    if (at <= now && !w.dayGiven && w.time) at = zonedTime(addDaysKey(today, 1), w.time, tz)
+    return at > now && at - now <= 30 * 864e5 ? at : null
+  }
+
   /** A new task from "/add …" (or a tap on "Add …"). With a day or time, Buddy also WhatsApps you then. */
-  addItems(u, text, now = Date.now()) {
+  async addItems(u, text, now = Date.now()) {
     const { doc, tz, today } = this.ctx(u, now)
     const raw = String(text || '').replace(/^\s*me\s+(?:to\s+)?/i, '') // "/remind me to call mum 8pm"
     const parsed = parseQuickAdd(` ${raw.replace(/\bbesok\b/gi, 'tomorrow')} `, doc.lists, today)
     if (!parsed.title) return [{ text: `⚠️ Add what?\nUsage: \`${this.slash(u)}add <task> [day] [time]\`\nExample: \`${this.slash(u)}add buy milk tomorrow 5pm\`` }]
     const { hints: _h, ...fields } = parsed
+    // the AI double-checks when Buddy's reading left day/time words in the name ("… 9.30PM")
+    let checked = false
+    if (whenLeftIn(parsed.title)) {
+      const r = await this.aiRead(u, raw, 'add', now)
+      if (r && (r.date || r.time)) {
+        if (r.date && r.date >= addDaysKey(today, -1) && r.date <= addDaysKey(today, 730)) fields.due = r.date
+        if (r.time) { fields.time = r.time; fields.due ||= today }
+        if (r.title && r.title.length <= raw.length) fields.title = r.title
+        checked = true
+      }
+    }
     // "at 8pm" when it's already past 8pm today (and you didn't say today) means tomorrow
     if (fields.time && fields.due === today && zonedTime(today, fields.time, tz) <= now && !/\b(today|tonight|hari ini)\b/i.test(raw)) fields.due = addDaysKey(today, 1)
     if (fields.time) fields.remind = 0
@@ -984,6 +1033,7 @@ export class Buddy {
     const lines = [`✅ Added: *${task.title}* · ${code}`]
     if (task.due) lines.push(`📅 ${dueText(task, today)}`, `💬 I’ll WhatsApp you ${task.time ? `at ${time12(task.time)}` : 'that day at 9:00 AM'}`)
     else lines.push('_No date, so no reminder._')
+    if (checked) lines.push('_🤖 Day/time read by AI_')
     return [
       { text: lines.join('\n'), about: { task: task.id } },
       this.menu('Anything to change?', [['📅 Change day/time…', 'moveMenu'], ['💬 Change my reminder…', 'waMenu'], ['✏️ Rename…', 'rename'], ['🗑 Undo (remove it)', 'remove']], { kind: 'task', task: task.id }, 'menu', { task: task.id }),
@@ -1238,13 +1288,13 @@ export class Buddy {
         return [{ text: say(this.ctx(u, now).style, 'start', { title: t.title }), about: { task: t.id } }]
       case 'step': return [{ text: this.stepText(u, t), about: { task: t.id } }]
       case 'snooze': {
-        const at = snoozeUntil(rest, this.ctx(u, now).tz, now)
+        const at = snoozeUntil(rest, this.ctx(u, now).tz, now) || (rest ? await this.aiInstant(u, rest, now) : null)
         if (!at) return usage(`I can’t read “${cut(rest, 30)}” as a time. Try 30m, 2h, 6pm, tonight or tomorrow.`)
         return [{ text: this.snoozeTo(u, t, at, now), about: { task: t.id } }]
       }
       case 'move': {
         if (!rest) return [this.moveMenu(u, t, now)]
-        const when = this.whenOf(u, rest, now, { strict: true })
+        const when = this.whenOf(u, rest, now, { strict: true }) || await this.aiWhenOf(u, rest, now)
         if (!when) return usage(`I can’t read “${cut(rest, 30)}” as a day or time.`)
         return [{ text: this.moveTo(u, t, when, now), about: { task: t.id } }]
       }
@@ -1259,11 +1309,11 @@ export class Buddy {
   }
 
   /** A typed answer to what Buddy asked ("Type a time…", "What's the task?", "What should it be called?"). */
-  runFlow(u, flow, text, ctx) {
+  async runFlow(u, flow, text, ctx) {
     const s = this.st(u)
     const { now } = ctx
     const done = (items) => { s.flow = null; this.saveState(); return items }
-    if (flow.kind === 'add') return done(this.addItems(u, text, now))
+    if (flow.kind === 'add') return done(await this.addItems(u, text, now))
     const t = this.taskById(u, flow.task)
     if (!t) return done([{ text: 'That task is gone.' }])
     if (flow.kind === 'rename') {
@@ -1272,12 +1322,12 @@ export class Buddy {
       return done([{ text: `✏️ Renamed to *${text.slice(0, 200)}*.`, about: { task: t.id } }])
     }
     if (flow.kind === 'snooze') {
-      const at = snoozeUntil(text, this.ctx(u, now).tz, now)
+      const at = snoozeUntil(text, this.ctx(u, now).tz, now) || await this.aiInstant(u, text, now)
       if (!at) return [{ text: `⚠️ I can’t read “${cut(text, 30)}” as a time. Try *30m*, *2h*, *6pm*, *tonight* or *tomorrow*, or ${this.slash(u)}cancel.` }]
       return done([{ text: this.snoozeTo(u, t, at, now), about: { task: t.id } }])
     }
     if (flow.kind === 'move') {
-      const when = this.whenOf(u, text, now, { strict: true })
+      const when = this.whenOf(u, text, now, { strict: true }) || await this.aiWhenOf(u, text, now)
       if (!when) return [{ text: `⚠️ I can’t read “${cut(text, 30)}” as a day or time. Try *6pm*, *tomorrow*, *fri 3pm* or *25 oct*, or ${this.slash(u)}cancel.` }]
       return done([{ text: this.moveTo(u, t, when, now), about: { task: t.id } }])
     }

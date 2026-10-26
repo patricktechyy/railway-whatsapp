@@ -70,7 +70,7 @@ class AiError extends Error {
   }
 }
 
-async function chat({ base, key, model, messages, jsonMode, signal }) {
+async function chat({ base, key, model, messages, jsonMode, signal, maxTokens = 1500 }) {
   const r = await fetch(`${base}/chat/completions`, {
     method: 'POST',
     signal,
@@ -78,7 +78,7 @@ async function chat({ base, key, model, messages, jsonMode, signal }) {
     body: JSON.stringify({
       model,
       temperature: 0,
-      max_completion_tokens: 1500, // reasoning models think first; the answer itself is short
+      max_completion_tokens: maxTokens, // reasoning models think first; the answer itself is short
       ...(/gpt-oss/i.test(model) ? { reasoning_effort: 'low', include_reasoning: false } : {}),
       ...(jsonMode ? { response_format: { type: 'json_object' } } : {}),
       messages,
@@ -129,31 +129,24 @@ export function answerOf(content) {
 }
 
 /**
- * Ask the AI what to say back and which commands to run (or propose).
- * Returns { reply, commands }. Throws (with a readable message) when Groq can't be used.
+ * One request to Groq, with its fallbacks: a retired model is swapped for a current one, a model
+ * without JSON mode is asked without it. Returns the reply's text. Throws a readable Error.
  */
-export async function askBuddy({ key, model = null, text, name = '', calendar = [], tasks = [], exams = [], finished = [], now = '', current = null, history = [], track = null, timeoutMs = 12000, base = process.env.GROQ_BASE_URL || 'https://api.groq.com/openai/v1' }) {
-  if (!key || !text) return { reply: null, commands: [] }
+async function complete({ key, model, messages, track, timeoutMs, base, maxTokens = 1500 }) {
   base = base.replace(/\/$/, '')
   const ctrl = new AbortController()
   const timer = setTimeout(() => ctrl.abort(), timeoutMs)
   const started = Date.now()
-  const messages = [
-    { role: 'system', content: SYSTEM },
-    ...history.slice(-12).filter((m) => (m.role === 'user' || m.role === 'assistant') && m.content).map((m) => ({ role: m.role, content: String(m.content).slice(0, 600) })),
-    { role: 'user', content: JSON.stringify({ message: String(text).slice(0, 500), name, now, calendar, replyingTo: current, tasks: tasks.slice(0, 40), exams: exams.slice(0, 20), finished: finished.slice(0, 10) }) },
-  ]
   let use = picked || model || DEFAULT_MODEL
   let jsonMode = true
   try {
     for (let attempt = 0; ; attempt++) {
       const t0 = Date.now()
       try {
-        const { data, limits } = await chat({ base, key, model: use, messages, jsonMode, signal: ctrl.signal })
-        const out = answerOf(data?.choices?.[0]?.message?.content)
+        const { data, limits } = await chat({ base, key, model: use, messages, jsonMode, signal: ctrl.signal, maxTokens })
         Object.assign(aiStatus, { at: Date.now(), ok: true, model: use, error: null, ms: Date.now() - started })
         try { track?.({ ok: true, model: use, usage: data?.usage || null, limits, ms: Date.now() - t0 }) } catch {}
-        return out
+        return data?.choices?.[0]?.message?.content || ''
       } catch (e) {
         // every request counts towards Groq's limits, the failed ones too
         try { track?.({ ok: false, model: use, usage: null, limits: e?.limits || null, error: e?.name === 'AbortError' ? 'no answer in time' : e?.message, ms: Date.now() - t0 }) } catch {}
@@ -177,4 +170,49 @@ export async function askBuddy({ key, model = null, text, name = '', calendar = 
   } finally {
     clearTimeout(timer)
   }
+}
+
+/**
+ * Ask the AI what to say back and which commands to run (or propose).
+ * Returns { reply, commands }. Throws (with a readable message) when Groq can't be used.
+ */
+export async function askBuddy({ key, model = null, text, name = '', calendar = [], tasks = [], exams = [], finished = [], now = '', current = null, history = [], track = null, timeoutMs = 12000, base = process.env.GROQ_BASE_URL || 'https://api.groq.com/openai/v1' }) {
+  if (!key || !text) return { reply: null, commands: [] }
+  const messages = [
+    { role: 'system', content: SYSTEM },
+    ...history.slice(-12).filter((m) => (m.role === 'user' || m.role === 'assistant') && m.content).map((m) => ({ role: m.role, content: String(m.content).slice(0, 600) })),
+    { role: 'user', content: JSON.stringify({ message: String(text).slice(0, 500), name, now, calendar, replyingTo: current, tasks: tasks.slice(0, 40), exams: exams.slice(0, 20), finished: finished.slice(0, 10) }) },
+  ]
+  return answerOf(await complete({ key, model, messages, track, timeoutMs, base }))
+}
+
+// ------------------------------------------------- checking Buddy's own reading
+const READ_ADD = `You check how a to-do bot read a new task. Split the message into the task and its day/time.
+Reply with JSON only: {"title": "...", "date": "YYYY-MM-DD" or null, "time": "HH:MM" (24-hour) or null}
+- "title": the person's own words for the task, minus the words that only say when (keep their spelling; don't add or rephrase).
+- Days: look them up in "calendar" (date for each of the next 15 days); never work a date out yourself. "tonight" without a time = 20:00, "noon" = 12:00, "morning" alone = 09:00, "evening" alone = 19:00.
+- "9.30PM", "930pm", "21.30", "jam 5 sore" (5 PM) are times. A number that's an amount ("2 eggs", "$12.50", "page 30") is not.
+- No day or time in it: both null. Never guess one.`
+const READ_WHEN = `You read when someone means, for a to-do bot. Reply with JSON only: {"date": "YYYY-MM-DD" or null, "time": "HH:MM" (24-hour) or null}
+- Days: look them up in "calendar" (date for each of the next 15 days); never work a date out yourself. "tonight" without a time = 20:00, "noon" = 12:00, "morning" = 09:00, "evening" = 19:00. "in 2 hours" etc.: work it out from "now".
+- Not a day or time at all: both null. Never guess.`
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/
+/**
+ * The AI's reading of a new task ("add") or of a day/time ("when"). Returns { title, date, time }
+ * (title only for "add"); anything that isn't a proper date or time comes back as null.
+ */
+export async function readWhen({ key, model = null, text, mode = 'add', calendar = [], now = '', track = null, timeoutMs = 9000, base = process.env.GROQ_BASE_URL || 'https://api.groq.com/openai/v1' }) {
+  const messages = [
+    { role: 'system', content: mode === 'add' ? READ_ADD : READ_WHEN },
+    { role: 'user', content: JSON.stringify({ message: String(text).slice(0, 300), now, calendar }) },
+  ]
+  const content = await complete({ key, model, messages, track, timeoutMs, base, maxTokens: 700 })
+  let out = null
+  try { out = JSON.parse(content) } catch { const m = String(content).match(/\{[\s\S]*\}/); if (m) { try { out = JSON.parse(m[0]) } catch {} } }
+  const date = typeof out?.date === 'string' && DATE_RE.test(out.date) ? out.date : null
+  const time = typeof out?.time === 'string' && TIME_RE.test(out.time.padStart(5, '0')) ? out.time.padStart(5, '0') : null
+  const title = typeof out?.title === 'string' ? out.title.replace(/\s+/g, ' ').trim().slice(0, 200) : null
+  return { title: title || null, date, time }
 }
