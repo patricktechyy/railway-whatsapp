@@ -407,6 +407,10 @@ test('“any tasks tomorrow?” is just the list (no AI); a task card asked for 
   let r = await buddy.run('gavin', 'any tasks tomorrow?', { now })
   assert.match(texts(r), /📋 \*Tomorrow\*/)
   assert.equal(asked, 0)
+  assert.equal(buddy.examAsk('gavin', 'whats for tomorrow\'s exam', now), addDays(today, 1))
+  assert.equal(buddy.examAsk('gavin', 'any paper today?', now), today)
+  assert.equal(buddy.examAsk('gavin', 'when is my next exam', now), null)
+  assert.equal(buddy.examAsk('gavin', 'how about the day after?', now), null)
   r = await buddy.run('gavin', `task ${buddy.codeOf('gavin', t)}`, { now })
   assert.match(r[0].text, /^📝 \*Maths worksheet\*/)
   buddy.aiConfig = () => null

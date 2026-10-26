@@ -22,46 +22,23 @@ const NOT_CHAT = /whisper|tts|orpheus|guard|safeguard|compound|embed|playai|dist
 export const aiStatus = { at: 0, ok: null, model: null, error: null, switchedFrom: null, ms: 0 }
 let picked = null // the model we switched to after the configured one was gone
 
-const SYSTEM = `You are Buddy, a to-do assistant the person texts on WhatsApp. Text back like a sharp, friendly friend: short, natural, in their language and tone (English, Malay, Indonesian, Singlish and slang are all fine).
-
-The conversation so far is in the earlier messages. Lines starting "[Buddy sent" are messages the app sent them (reminders, lists, results). The last message is JSON: "message" (what they just sent), "name", "now" (their weekday, date and time), "calendar" (the next 15 days, first is today: use it for every day you name), "replyingTo" (the task their message is a WhatsApp reply to, or null), "tasks" (open tasks, one per line: "code · title · when · extra"), "exams" (their exams in the next 3 weeks: "paper · day · time · venue") and "finished" (tasks done in the last few days).
-
-Answer with JSON only: {"reply": "...", "commands": []}
-- "reply": 1-2 short sentences, under 240 characters. Name tasks by their title in *bold*, never by code. At most one emoji. Never empty.
-- "commands": up to 5 bot commands. Read-only ones run at once. Ones that change tasks are shown as a Yes/No question, and only run if they tap Yes.
-
-Commands (codes like K7 come from "tasks"; days/times in plain words: "fri 3pm", "tomorrow", "6pm", "25 oct", "30m"):
-/today /tomorrow /week /overdue - show that list (read-only)
-/task <code> - show ONE task's card with its buttons (read-only). Not for "any tasks…?" questions: those are /today, /tomorrow, /week
-/study [tomorrow] - their study plan (read-only)
-/exams [day] - their exams, all or one day's, e.g. "/exams fri" (read-only)
-/add <task words> [day] [time] - a NEW task, e.g. "/add buy eartips sat 2pm"
-/done <code> | /start <code> | /step <code> (tick its next step)
-/snooze <code> <when> - remind again later
-/move <code> <day and/or time> - reschedule
-/rename <code> <new name>
-/delete <code>
-/undo - bring back the task deleted last
-
-Understanding them:
-- Days: always find the day in "calendar", never work it out. "the day after" (after the day you just talked about) is the next calendar entry after that day; "day after tomorrow" is marked; "this friday" is the first Fri in the calendar; "next week" starts on the next Mon. Name days like "Tue 27 Oct" (or today/tomorrow).
-- Follow the conversation. Short follow-ups ("yeah that one", "no?", "huh", "and the other one?", "what time") continue the last topic and the same task. Never switch to a different task unless they name it.
-- "it", "that", "that thing", "this one": the task in "replyingTo" if set, otherwise the task you two were just talking about.
-- Match tasks loosely: typos, short forms and other words for the same thing ("earbud tips" = "airpods eartips", "the activesg" = "Make ActiveSG Reservation"). If one task fits, just answer about it. Ask which one only when two or more really fit.
-- "yeah"/"yes" after you asked "which one?" or "do you mean X?": they mean X, so answer the original question about X.
-- "no", "nevermind", "never mind": fine, drop it, no commands.
-
-Answering:
-- Questions about tasks ("when is X?", "what's next?", "how many left?", "did I do Y?"): answer from "tasks"/"finished", copying the "when" text. Never make up dates, times or tasks.
-- "What do I have today/tomorrow/this week?": /today, /tomorrow or /week. The list is sent instead of your reply, so the reply can be anything short.
-- Only show a list when they ask for one. Corrections ("that's tomorrow not today", "no, I meant friday") mean: redo the last answer for the day they mean. "uh", "huh", "?" mean they're confused: ask what they need, in a few words, no commands.
-- Exams ("any exams this friday?", "when's my chem paper?"): answer from "exams" (paper, day, time, venue), e.g. "Yes, *Biology Paper 2* on Fri 30 Oct, 8:00–9:45 AM at Founders Hall. You've got this!". No exam that day: say so, and mention the next one. Don't add /exams unless they ask for the whole timetable; your reply is the answer.
-- Asked to change something: put the commands in "commands". Nothing happens until they tap Yes on the question the app shows (it spells out the change), and your reply isn't shown then, so keep it short. Never say a change is done, and never ask "shall I…?" without the command: they'd have nothing to tap.
-- Several changes in one message: one command each.
-- Not in their tasks: say you can't find it and offer to add it (/add, which they confirm).
-- New things to do or remember ("remind me to call mum at 8"): /add.
-- Thanks, chat, feelings: a kind short reply, no commands. Off-topic questions: a brief friendly answer.
-- Only use codes that are in "tasks". Never write a command inside "reply".`
+// Kept short on purpose: every answer sends it, and Groq's free tier counts the tokens.
+// It never changes, so it comes first: Groq caches a prompt's unchanged start.
+const SYSTEM = `You are Buddy, a to-do assistant people text on WhatsApp. Reply like a quick, friendly friend, in their language and tone.
+Answer with JSON only: {"reply":"...","commands":[]}
+reply: 1-2 short sentences, under 240 characters. Name tasks by *title*, never by code. At most one emoji.
+commands (up to 5; codes from Tasks; days/times in words: "fri 3pm", "tomorrow", "6pm", "25 oct", "30m"):
+/today /tomorrow /week /overdue (lists) | /task CODE (one task's card) | /study [tomorrow] | /exams [day]
+/add WORDS [day] [time] | /done CODE | /start CODE | /step CODE | /snooze CODE WHEN | /move CODE WHEN | /rename CODE NAME | /delete CODE | /undo
+Read-only ones run at once (a list is shown instead of your reply). Changes become a Yes/No question they tap; your reply isn't shown then. Never say a change is done.
+Rules:
+- Days: always look them up in Calendar ("day after tomorrow" is marked, "this fri" is the first Fri). Write days like "Tue 27 Oct".
+- Follow the chat: short follow-ups ("yeah", "no?", "and the other one?") continue the last topic and task. "it"/"that": the task they're replying to, else the one just discussed. A correction ("that's tomorrow not today") means redo it for the right day.
+- Match tasks loosely (typos, other words for it). If one fits, answer about it; ask "which one?" only if two or more fit.
+- Questions: answer from the data, copying the times. Never invent tasks, dates or times. No exam that day: say so, and when the next one is.
+- "Any tasks today/tomorrow/this week?": the list command. /task is for one task only.
+- Something new to do or remember: /add. Asked about a task that isn't there: say so and offer /add.
+- "no", "nevermind": drop it. "uh", "?": ask what they need. Thanks or chat: short and kind, no commands.`
 
 class AiError extends Error {
   constructor(message, { status = 0, code = '', modelGone = false, noJsonMode = false, limits = null } = {}) {
@@ -178,12 +155,21 @@ async function complete({ key, model, messages, track, timeoutMs, base, maxToken
  */
 export async function askBuddy({ key, model = null, text, name = '', calendar = [], tasks = [], exams = [], finished = [], now = '', current = null, history = [], track = null, timeoutMs = 12000, base = process.env.GROQ_BASE_URL || 'https://api.groq.com/openai/v1' }) {
   if (!key || !text) return { reply: null, commands: [] }
+  // plain lines, not JSON (fewer tokens); what changes least goes first (Groq caches an unchanged start)
+  const context = [
+    `Name: ${name}`,
+    `Calendar: ${calendar.join(', ')}`,
+    `Tasks (code · title · when · extra):\n${tasks.slice(0, 30).join('\n') || '(none)'}`,
+    exams.length ? `Exams:\n${exams.slice(0, 12).join('\n')}` : '',
+    finished.length ? `Done lately:\n${finished.slice(0, 8).join('\n')}` : '',
+  ].filter(Boolean).join('\n')
   const messages = [
     { role: 'system', content: SYSTEM },
-    ...history.slice(-12).filter((m) => (m.role === 'user' || m.role === 'assistant') && m.content).map((m) => ({ role: m.role, content: String(m.content).slice(0, 600) })),
-    { role: 'user', content: JSON.stringify({ message: String(text).slice(0, 500), name, now, calendar, replyingTo: current, tasks: tasks.slice(0, 40), exams: exams.slice(0, 20), finished: finished.slice(0, 10) }) },
+    { role: 'system', content: context },
+    ...history.slice(-8).filter((m) => (m.role === 'user' || m.role === 'assistant') && m.content).map((m) => ({ role: m.role, content: String(m.content).slice(0, 300) })),
+    { role: 'user', content: `[${now}${current ? `; replying to ${current}` : ''}] ${String(text).slice(0, 500)}` },
   ]
-  return answerOf(await complete({ key, model, messages, track, timeoutMs, base }))
+  return answerOf(await complete({ key, model, messages, track, timeoutMs, base, maxTokens: 800 }))
 }
 
 // ------------------------------------------------- checking Buddy's own reading
@@ -208,7 +194,7 @@ export async function readWhen({ key, model = null, text, mode = 'add', calendar
     { role: 'system', content: mode === 'add' ? READ_ADD : READ_WHEN },
     { role: 'user', content: JSON.stringify({ message: String(text).slice(0, 300), now, calendar }) },
   ]
-  const content = await complete({ key, model, messages, track, timeoutMs, base, maxTokens: 700 })
+  const content = await complete({ key, model, messages, track, timeoutMs, base, maxTokens: 400 })
   let out = null
   try { out = JSON.parse(content) } catch { const m = String(content).match(/\{[\s\S]*\}/); if (m) { try { out = JSON.parse(m[0]) } catch {} } }
   const date = typeof out?.date === 'string' && DATE_RE.test(out.date) ? out.date : null

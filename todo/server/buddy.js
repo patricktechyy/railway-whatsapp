@@ -1131,6 +1131,12 @@ export class Buddy {
       if (this.ai) this.remember(u, 'user', body, now)
       return this.runCommand(u, BY_NAME.get(ask), '', ctx)
     }
+    // "any exams this friday?", "whats for tomorrow's exam": that day's exams, straight away
+    const examDay = this.examAsk(u, body, now)
+    if (examDay) {
+      if (this.ai) this.remember(u, 'user', body, now)
+      return [{ text: this.upcomingExams(u, now, examDay), talk: true }]
+    }
     // anything else: the AI (if the admin set one up) answers, and proposes what to change
     const ai = this.ai
     if (ai) {
@@ -1150,6 +1156,14 @@ export class Buddy {
       { text: `${sorry || '🤖 I only understand commands and taps, so I don’t guess.'}\nTap below, or send *help* for all commands.` },
       this.mainMenu([[`➕ Add “${cut(body, 40)}” as a task`, `addText:${body.slice(0, 300)}`]]),
     ]
+  }
+
+  /** The day a message asks about exams on ("any exams this fri?"), or null (not that kind of question). */
+  examAsk(u, text, now = Date.now()) {
+    const t = String(text || '').toLowerCase().replace(/[’']s\b/g, '').replace(/[?!,]+/g, ' ')
+    if (t.length > 100 || !/\b(exam\w*|papers?|ujian)\b/.test(t) || /\b(next|when|which|how|study\w*|revis\w*|move|add|delete|remind\w*|after|lusa|week)\b|\d+\s*(am|pm)|\d[:.]\d/.test(t)) return null
+    const w = this.whenOf(u, t, now)
+    return w?.dayGiven && w.due ? w.due : null
   }
 
   /** A typed answer to Buddy's latest question ("yes", "no", or an option's words): { id, option } or null. */
@@ -1177,10 +1191,10 @@ export class Buddy {
   /** A message Buddy sent by itself (a reminder, a list, a result): part of the conversation too. */
   noteSent(u, item, now = Date.now()) {
     if (item.about?.list?.length) {
-      const titles = item.about.list.map((id) => this.taskById(u, id)).filter(Boolean).slice(0, 11).map((t, i) => `${i + 1}. ${cut(t.title, 50)}`)
+      const titles = item.about.list.map((id) => this.taskById(u, id)).filter(Boolean).slice(0, 11).map((t, i) => `${i + 1}. ${cut(t.title, 40)}`)
       return this.remember(u, 'assistant', `[Buddy sent a list] ${String(item.text).split('\n')[0]} ${titles.join('; ')}`, now)
     }
-    this.remember(u, 'assistant', `[Buddy sent] ${cut(String(item.text).replace(/\s+/g, ' '), 220)}`, now)
+    this.remember(u, 'assistant', `[Buddy sent] ${cut(String(item.text).replace(/\s+/g, ' '), 160)}`, now)
   }
 
   /** A command the AI proposed, in plain words: “Move “Maths” to fri 30 oct, 3:00 PM”. */
@@ -1436,33 +1450,37 @@ export class Buddy {
     const { now } = ctx
     const { tz, today, name, doc } = this.ctx(u, now)
     const s = this.st(u)
-    const when = (t) => (t.due ? `${t.due} ${t.time || ''}` : '9999')
-    const open = doc.tasks.filter((t) => !t.done).sort((a, b) => when(a).localeCompare(when(b))).slice(0, 40)
-    // one short line per task (fewer tokens: Groq's free tier counts them)
+    // Fewer tokens (Groq's free tier counts them): up to 30 tasks, soonest first, but always the ones
+    // the message seems to be about; notes only for those; recently finished only when it's asked about.
+    const words = new Set((body.toLowerCase().match(/[\p{L}\p{N}]{4,}/gu) || []))
+    const mentioned = (t) => t.id === ctx.task || (t.title.toLowerCase().match(/[\p{L}\p{N}]{4,}/gu) || []).some((w) => words.has(w))
+    const rank = (t) => (t.due ? (t.due <= addDaysKey(today, 14) ? `0${t.due} ${t.time || ''}` : `2${t.due}`) : '1')
+    const allOpen = doc.tasks.filter((t) => !t.done).sort((a, b) => rank(a).localeCompare(rank(b)))
+    const open = [...new Set([...allOpen.filter(mentioned), ...allOpen])].slice(0, 30)
     const tasks = open.map((t) => {
-      const o = [this.codeOf(u, t), cut(t.title, 80)]
+      const o = [this.codeOf(u, t), cut(t.title, 70)]
       if (t.due) o.push(`${dayAbs(t.due, today)}${t.time ? `, ${time12(t.time)}` : ''}`)
       if (t.due && t.due < today) o.push('overdue')
       if (t.status === 'doing') o.push('started')
       const steps = t.subtasks || []
       if (steps.length) o.push(`steps ${steps.filter((x) => x.done).length}/${steps.length}`)
       if (t.priority >= 2) o.push('important')
-      if (t.notes) o.push(`notes: ${cut(String(t.notes).replace(/\s+/g, ' '), 80)}`)
+      if (t.notes && mentioned(t)) o.push(`notes: ${cut(String(t.notes).replace(/\s+/g, ' '), 100)}`)
       return o.join(' · ')
     })
-    // their exams (next 3 weeks), so "any exams this friday?" gets a straight answer
-    const exams = this.examsFrom(u, today, 21).slice(0, 20).map((e) => [this.examName(e), dayAbs(e.date, today), this.examTime(e), e.venue].filter(Boolean).join(' · '))
+    // their exams (next 2 weeks), so "any exams this friday?" gets a straight answer
+    const exams = this.examsFrom(u, today, 14).slice(0, 12).map((e) => [this.examName(e), dayAbs(e.date, today), this.examTime(e), e.venue].filter(Boolean).join(' · '))
     // the next two weeks spelled out, so "the day after", "this friday" or "next week" never needs date maths
     const calendar = Array.from({ length: 15 }, (_, i) => dayAbs(addDaysKey(today, i), today))
-    const finished = doc.tasks.filter((t) => t.done && t.doneAt && now - t.doneAt < 3 * 864e5).sort((a, b) => b.doneAt - a.doneAt).slice(0, 10)
-      .map((t) => `${cut(t.title, 80)} · ${dayAbs(todayIn(tz, t.doneAt), today)}, ${time12(hmIn(tz, t.doneAt))}`)
+    const askedDone = /\b(done|did|finish\w*|complet\w*|tick\w*|already|sudah|selesai|yesterday)\b/i.test(body)
+    const finished = askedDone ? doc.tasks.filter((t) => t.done && t.doneAt && now - t.doneAt < 3 * 864e5).sort((a, b) => b.doneAt - a.doneAt).slice(0, 8)
+      .map((t) => `${cut(t.title, 70)} · ${dayAbs(todayIn(tz, t.doneAt), today)}, ${time12(hmIn(tz, t.doneAt))}`) : []
     // only a WhatsApp reply says for sure which task; otherwise the conversation does
     const cur = this.taskById(u, ctx.task)
-    const weekday = new Intl.DateTimeFormat('en-US', { weekday: 'long', timeZone: tz }).format(new Date(now))
     const history = (s.talk || []).filter((x) => x.role && now - x.at < TALK_TTL).map(({ role, content }) => ({ role, content }))
     let out
     try {
-      out = await this.propose({ key: ai.key, model: ai.model, text: body, name, now: `${weekday} ${today}, ${time12(hmIn(tz, now))}`, calendar, tasks, exams, finished, current: cur && !cur.done ? `${this.codeOf(u, cur)} · ${cut(cur.title, 80)}` : null, history, track: (x) => this.trackAi?.(u, x) })
+      out = await this.propose({ key: ai.key, model: ai.model, text: body, name, now: `${dayAbs(today, today).replace(' (today)', '')}, ${time12(hmIn(tz, now))}`, calendar, tasks, exams, finished, current: cur && !cur.done ? `${this.codeOf(u, cur)} · ${cut(cur.title, 80)}` : null, history, track: (x) => this.trackAi?.(u, x) })
     } catch (e) { console.warn(`[buddy] AI didn't answer: ${e.message}`); return null }
     if (typeof out === 'string') out = { reply: null, commands: [out] }
     // codes are for commands; in the reply it says the task's name (“*D6 – buy eartips*” → “*buy eartips*”)
