@@ -5,13 +5,13 @@
   "type": "module",
   "description": "Several independent WhatsApp accounts, one per person, each with their own login. With Gavin's Todolist built in, and WhatsApp Buddy reminders from a real WhatsApp number.",
   "engines": {
-    "node": ">=20"
+    "node": ">=22.13"
   },
   "scripts": {
-    "start": "node src/server.js",
+    "start": "node server.js",
     "dev": "node server.js",
     "build:todo": "cd todo && npm ci && npm run build",
-    "test": "node --test todo/server/*.test.js",
+    "test": "node --test todo/server/*.test.js tests/*.test.js",
     "plan": "railway config plan",
     "apply": "railway config apply",
     "deploy": "railway up"

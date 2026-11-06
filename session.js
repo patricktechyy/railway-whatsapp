@@ -2,15 +2,17 @@ import { EventEmitter } from 'node:events'
 import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
-import os from 'node:os'
 import { execFile } from 'node:child_process'
 import QRCode from 'qrcode'
 import { Store, historyCutoff, bare, isGroup, isLid, isPn, phoneOf, toPn } from './store.js'
 import { POLL_KEYS, MAX_OPTIONS, toBuf, encryptVote, openVote, pickedOptions } from './poll.js'
+import { pipeline } from 'node:stream/promises'
+import { spoolFile, spoolDir, drop, idleGuard } from './spool.js'
 
-// Ask the phone for the full backlog at pairing time. Set FULL_HISTORY=0 to
-// only take the recent slice (lighter pairing spike on huge accounts).
-const FULL_HISTORY = process.env.FULL_HISTORY !== '0'
+// Asking the phone for the full backlog at pairing time is the biggest memory spike there is: the whole
+// backlog is unpacked in one go, and anything older than HISTORY_DAYS is thrown away afterwards. So it
+// is off unless FULL_HISTORY=1. The recent slice still comes through, and every history type is still accepted.
+const FULL_HISTORY = process.env.FULL_HISTORY === '1'
 
 // Baileys wants a pino-shaped logger. This one prints compact lines to the
 // Railway logs without pulling pino into the image.
@@ -62,38 +64,60 @@ export async function hasFfmpeg() {
   if (ffmpegOk === null) ffmpegOk = await exec(process.env.FFMPEG || 'ffmpeg', ['-version']).then(() => true, () => false)
   return ffmpegOk
 }
-export async function makeVideoNote(buffer, mime = '') {
+// ffmpeg is heavy, so it runs one job at a time: a few people recording at once wait their turn instead of
+// each taking a few hundred MB at the same moment.
+/** A queue that runs one job at a time, in order; a job that fails does not stop the ones after it. */
+export function serial() {
+  let tail = Promise.resolve()
+  return (job) => {
+    const run = tail.then(() => job())
+    tail = run.catch(() => {})
+    return run
+  }
+}
+export const oneAtATime = serial()
+// Asking WhatsApp for every group an account is in is a big answer; with a few dozen accounts connecting
+// together, those answers are taken one after the other rather than all at once.
+const oneGroupLoadAtATime = serial()
+const GROUP_LOAD_WAIT_MS = 75000
+
+/**
+ * `file` is the recording, on disk. Returns { file, seconds, thumb, cleanup }: the phone-friendly MP4 (a file,
+ * not a buffer in memory) and `cleanup()`, to call once it has been sent.
+ */
+export async function makeVideoNote(file, mime = '') {
   if (!(await hasFfmpeg())) {
-    if (/mp4|quicktime/.test(mime)) return { video: buffer, seconds: null, thumb: null }
+    if (/mp4|quicktime/.test(mime)) return { file, seconds: null, thumb: null, cleanup() {} }
     throw Object.assign(new Error('Video messages from this browser need ffmpeg on the server (it’s in the Docker image).'), { status: 415 })
   }
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ptv-'))
-  try {
-    const src = path.join(dir, 'in'), out = path.join(dir, 'out.mp4'), jpg = path.join(dir, 'thumb.jpg')
-    fs.writeFileSync(src, buffer)
-    const ff = process.env.FFMPEG || 'ffmpeg'
-    await exec(ff, ['-y', '-v', 'error', '-i', src, '-t', String(VIDEO_NOTE_MAX_S),
-      // centre square, 480×480, like WhatsApp's own video notes
-      '-vf', "crop='min(iw,ih)':'min(iw,ih)',scale=480:480,setsar=1,fps=30",
-      '-c:v', 'libx264', '-profile:v', 'baseline', '-level', '3.1', '-pix_fmt', 'yuv420p', '-preset', 'veryfast', '-crf', '26',
-      '-c:a', 'aac', '-b:a', '96k', '-ac', '1', '-ar', '44100', '-movflags', '+faststart', out])
-    let seconds = null
+  return oneAtATime(async () => {
+    const dir = spoolDir('ptv-')
+    const cleanup = () => drop(dir)
     try {
-      const d = await exec(process.env.FFPROBE || 'ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', out])
-      seconds = Math.max(1, Math.round(Number(String(d).trim()) || 0)) || null
-    } catch {}
-    let thumb = null
-    try {
-      await exec(ff, ['-y', '-v', 'error', '-ss', '0.3', '-i', out, '-frames:v', '1', '-vf', 'scale=96:96', '-q:v', '5', jpg])
-      thumb = fs.readFileSync(jpg)
-    } catch {}
-    return { video: fs.readFileSync(out), seconds, thumb }
-  } catch (e) {
-    if (e.status) throw e
-    throw Object.assign(new Error('Couldn’t process that video'), { status: 400, detail: String(e.stderr || e.message).slice(0, 300) })
-  } finally {
-    fs.rmSync(dir, { recursive: true, force: true })
-  }
+      const out = path.join(dir, 'out.mp4'), jpg = path.join(dir, 'thumb.jpg')
+      const ff = process.env.FFMPEG || 'ffmpeg'
+      await exec(ff, ['-y', '-v', 'error', '-filter_threads', '1', '-threads', '1', '-i', file, '-t', String(VIDEO_NOTE_MAX_S),
+        // centre square, 480×480, like WhatsApp's own video notes
+        '-vf', "crop='min(iw,ih)':'min(iw,ih)',scale=480:480,setsar=1,fps=30",
+        '-c:v', 'libx264', '-profile:v', 'baseline', '-level', '3.1', '-pix_fmt', 'yuv420p', '-preset', 'veryfast', '-crf', '26',
+        '-c:a', 'aac', '-b:a', '96k', '-ac', '1', '-ar', '44100', '-threads', '2', '-movflags', '+faststart', out])
+      let seconds = null
+      try {
+        const d = await exec(process.env.FFPROBE || 'ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', out])
+        seconds = Math.max(1, Math.round(Number(String(d).trim()) || 0)) || null
+      } catch {}
+      let thumb = null
+      try {
+        await exec(ff, ['-y', '-v', 'error', '-filter_threads', '1', '-ss', '0.3', '-threads', '1', '-i', out, '-frames:v', '1', '-vf', 'scale=96:96', '-q:v', '5', jpg])
+        thumb = fs.readFileSync(jpg)
+      } catch {}
+      return { file: out, seconds, thumb, cleanup }
+    } catch (e) {
+      cleanup()
+      if (e.status) throw e
+      throw Object.assign(new Error('Couldn’t process that video'), { status: 400, detail: String(e.stderr || e.message).slice(0, 300) })
+    }
+  })
 }
 
 /** WhatsApp's own voice-note limit is far longer; this keeps uploads sensible. */
@@ -102,35 +126,37 @@ export const VOICE_NOTE_MAX_S = 15 * 60
  * A voice message recorded in the browser (webm/opus or mp4/aac) → what WhatsApp's apps send:
  * Ogg/Opus, mono, 48 kHz, plus its length and a 64-bar waveform (0–100) for the bubble.
  */
-export async function makeVoiceNote(buffer, mime = '') {
+export async function makeVoiceNote(file, mime = '') {
   if (!(await hasFfmpeg())) {
-    if (/ogg/.test(mime)) return { audio: buffer, seconds: null, waveform: null }
+    if (/ogg/.test(mime)) return { file, seconds: null, waveform: null, cleanup() {} }
     throw Object.assign(new Error('Voice messages from this browser need ffmpeg on the server (it’s in the Docker image).'), { status: 415 })
   }
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ptt-'))
-  try {
-    const src = path.join(dir, 'in'), out = path.join(dir, 'out.ogg'), pcm = path.join(dir, 'wave.raw')
-    fs.writeFileSync(src, buffer)
-    const ff = process.env.FFMPEG || 'ffmpeg'
-    await exec(ff, ['-y', '-v', 'error', '-i', src, '-t', String(VOICE_NOTE_MAX_S), '-vn', '-c:a', 'libopus', '-b:a', '32k', '-ac', '1', '-ar', '48000', '-application', 'voip', out])
-    let seconds = null
+  return oneAtATime(async () => {
+    const dir = spoolDir('ptt-')
+    const cleanup = () => drop(dir)
     try {
-      const d = await exec(process.env.FFPROBE || 'ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', out])
-      seconds = Math.max(1, Math.round(Number(String(d).trim()) || 0)) || null
-    } catch {}
-    let waveform = null
-    try {
-      await exec(ff, ['-y', '-v', 'error', '-i', out, '-ac', '1', '-ar', '8000', '-f', 's16le', pcm])
-      waveform = waveOf(fs.readFileSync(pcm))
-    } catch {}
-    return { audio: fs.readFileSync(out), seconds, waveform }
-  } catch (e) {
-    if (e.status) throw e
-    throw Object.assign(new Error('Couldn’t process that recording'), { status: 400, detail: String(e.stderr || e.message).slice(0, 300) })
-  } finally {
-    fs.rmSync(dir, { recursive: true, force: true })
-  }
+      const out = path.join(dir, 'out.ogg'), pcm = path.join(dir, 'wave.raw')
+      const ff = process.env.FFMPEG || 'ffmpeg'
+      await exec(ff, ['-y', '-v', 'error', '-i', file, '-t', String(VOICE_NOTE_MAX_S), '-vn', '-c:a', 'libopus', '-b:a', '32k', '-ac', '1', '-ar', '48000', '-application', 'voip', '-threads', '1', out])
+      let seconds = null
+      try {
+        const d = await exec(process.env.FFPROBE || 'ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', out])
+        seconds = Math.max(1, Math.round(Number(String(d).trim()) || 0)) || null
+      } catch {}
+      let waveform = null
+      try {
+        await exec(ff, ['-y', '-v', 'error', '-i', out, '-ac', '1', '-ar', '8000', '-f', 's16le', pcm])
+        waveform = waveOfFile(pcm)
+      } catch {}
+      return { file: out, seconds, waveform, cleanup }
+    } catch (e) {
+      cleanup()
+      if (e.status) throw e
+      throw Object.assign(new Error('Couldn’t process that recording'), { status: 400, detail: String(e.stderr || e.message).slice(0, 300) })
+    }
+  })
 }
+
 /** 64 bars, 0–100: the loudness (RMS) of each slice of 16-bit mono PCM, scaled to the loudest. */
 export function waveOf(pcm, bars = 64) {
   const n = Math.floor(pcm.length / 2)
@@ -142,6 +168,40 @@ export function waveOf(pcm, bars = 64) {
     for (let i = b * per; i < Math.min(n, (b + 1) * per); i++) { const v = pcm.readInt16LE(i * 2) / 32768; sum += v * v; c++ }
     out[b] = c ? Math.sqrt(sum / c) : 0
   }
+  const max = Math.max(...out) || 1
+  return Buffer.from(out.map((v) => Math.round((v / max) * 100)))
+}
+/** The same 64 bars as waveOf, read from the 16-bit PCM file piece by piece (a long recording is many MB of samples). */
+export function waveOfFile(file, bars = 64) {
+  const n = Math.floor(fs.statSync(file).size / 2)
+  if (!n) return null
+  const per = Math.max(1, Math.floor(n / bars))
+  const sum = new Array(bars).fill(0)
+  const cnt = new Array(bars).fill(0)
+  const fd = fs.openSync(file, 'r')
+  try {
+    const buf = Buffer.alloc(1 << 16)
+    let sample = 0
+    for (;;) {
+      let got = 0
+      while (got < buf.length) {
+        const r = fs.readSync(fd, buf, got, buf.length - got, null)
+        if (!r) break
+        got += r
+      }
+      for (let o = 0; o + 1 < got; o += 2, sample++) {
+        const b = Math.floor(sample / per)
+        if (b >= bars) break
+        const v = buf.readInt16LE(o) / 32768
+        sum[b] += v * v
+        cnt[b]++
+      }
+      if (got < buf.length || sample >= bars * per) break
+    }
+  } finally {
+    fs.closeSync(fd)
+  }
+  const out = sum.map((s, b) => (cnt[b] ? Math.sqrt(s / cnt[b]) : 0))
   const max = Math.max(...out) || 1
   return Buffer.from(out.map((v) => Math.round((v / max) * 100)))
 }
@@ -193,6 +253,9 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
 const mediaAttemptsEnv = Number(process.env.MEDIA_DOWNLOAD_ATTEMPTS || 3)
 const MEDIA_DOWNLOAD_ATTEMPTS = Number.isFinite(mediaAttemptsEnv) && mediaAttemptsEnv > 0 ? Math.floor(mediaAttemptsEnv) : 3
+// a download that has brought nothing for this long has stopped (the connection reset half way, say): try again
+const mediaIdleEnv = Number(process.env.MEDIA_IDLE_MS)
+const MEDIA_IDLE_MS = Number.isFinite(mediaIdleEnv) && mediaIdleEnv >= 50 ? mediaIdleEnv : 30000
 
 // While someone is using the site their WhatsApp shows them online, like WhatsApp
 // Web. Every open tab checks in about every 30 s; a tab that goes quiet this long
@@ -335,7 +398,8 @@ export class Session extends EventEmitter {
     this.authDir = path.join(dir, 'auth')
     this.store = new Store(path.join(dir, 'store.json'))
     this.store.onNames = () => this.namesChanged()
-    this.groupCache = new Map()
+    this.groupCache = this.store.groups // member lists live in the database, a few in memory
+    this.recipientSets = new WeakMap() // group metadata -> the people who get its messages (see groupRecipients)
     this.lidTried = new Map() // lid -> when we last asked for its number
     this.readPending = new Set() // chats whose blue ticks still need sending
     this.status = 'starting'
@@ -379,8 +443,7 @@ export class Session extends EventEmitter {
   }
 
   health() {
-    let storeBytes = 0
-    try { storeBytes = fs.statSync(this.store.file).size } catch {}
+    const storeBytes = this.store.bytes()
     const mem = process.memoryUsage()
     const ws = this.diag?.ws || null
     return {
@@ -404,8 +467,8 @@ export class Session extends EventEmitter {
       store: {
         bytes: storeBytes,
         chats: this.store.chats.size,
-        messages: [...this.store.messages.values()].reduce((n, rows) => n + rows.length, 0),
-        dirty: !!this.store.dirty,
+        messages: this.store.count(),
+        dirty: !!this.store.pending,
       },
       runtime: {
         uptimeSec: Math.round(process.uptime()),
@@ -463,6 +526,7 @@ export class Session extends EventEmitter {
     // never leave an old socket running next to the new one
     try { this.sock?.end?.(undefined) } catch {}
     this.sock = null
+    this.resendVia = null // would otherwise keep the previous socket alive
 
     const B = await loadBaileys()
     const { state, saveCreds } = await B.useMultiFileAuthState(this.authDir)
@@ -717,7 +781,7 @@ export class Session extends EventEmitter {
           const next = Math.max(messageStatusValue(existing.status) ?? 2, status)
           if (next === (messageStatusValue(existing.status) ?? 2)) continue
           existing.status = next
-          this.store.dirty = true
+          this.store.saveMessage(existing)
           this.emit('event', { type: 'message-status', jid, id, status: next })
         } catch (e) {
           this.log('message status update failed:', e?.message || e)
@@ -754,7 +818,7 @@ export class Session extends EventEmitter {
           const next = Math.max(messageStatusValue(existing.status) ?? 2, status)
           if (next === (messageStatusValue(existing.status) ?? 2)) continue
           existing.status = next
-          this.store.dirty = true
+          this.store.saveMessage(existing)
           this.emit('event', { type: 'message-status', jid, id, status: next })
         } catch (e) {
           this.log('message receipt update failed:', e?.message || e)
@@ -1063,7 +1127,7 @@ export class Session extends EventEmitter {
     if (m?.waiting) {
       m.text = 'Couldn’t load this message. Open WhatsApp on your phone to see it.'
       m.gaveUp = true
-      this.store.dirty = true
+      this.store.saveMessage(m)
       try { this.emit('event', { type: 'message', message: this.publicMsg(m) }) } catch {}
     }
   }
@@ -1574,7 +1638,6 @@ export class Session extends EventEmitter {
   async forward(jid, ids, targets) {
     this.ensureConnected()
     jid = this.store.canon(jid)
-    const all = this.store.messages.get(jid) || []
     const list = []
     for (const id of new Set(ids)) {
       const m = this.store.findMessage(jid, id)
@@ -1584,12 +1647,14 @@ export class Session extends EventEmitter {
       }
       list.push(m)
     }
-    list.sort((a, b) => all.indexOf(a) - all.indexOf(b))
+    const order = this.store.orderIds(jid, list.map((m) => m.id))
+    list.sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id))
     const firstCopy = new Map() // message id -> what we sent to the first chat
     const media = new Map() // message id -> download (once)
     let sent = 0
     let failed = 0
     let error = null
+    try {
     for (const to of [...new Set(targets.map((t) => this.store.canon(t)))]) {
       const target = await this.sendJid(to)
       for (const m of list) {
@@ -1616,6 +1681,10 @@ export class Session extends EventEmitter {
         if (list.length * targets.length > 1) await sleep(120) // easy on WhatsApp
       }
     }
+    } finally {
+      // the downloaded files are not needed any more
+      for (const p of media.values()) p.then((f) => f?.release?.(), () => {})
+    }
     this.emit('event', { type: 'chats' })
     return { sent, failed, error }
   }
@@ -1632,16 +1701,16 @@ export class Session extends EventEmitter {
     }
     if (!cache.has(m.id)) cache.set(m.id, this.media(m.jid, m.id))
     const file = await cache.get(m.id)
-    if (!file?.buffer) throw new Error('Media not available')
+    if (!file?.path) throw new Error('Media not available')
     const sub = Object.values(fromJsonSafe(m.rm).message || {})[0] || {}
     const mimetype = file.mime || sub.mimetype || undefined
     const caption = m.text || undefined
-    if (m.type === 'image') return { image: file.buffer, mimetype, caption, contextInfo }
-    if (m.type === 'ptv') return { video: file.buffer, mimetype: mimetype || 'video/mp4', ptv: true, seconds: m.dur || undefined, contextInfo }
-    if (m.type === 'video') return { video: file.buffer, mimetype, caption, gifPlayback: !!sub.gifPlayback || undefined, contextInfo }
-    if (m.type === 'audio') return { audio: file.buffer, mimetype, ptt: !!sub.ptt, contextInfo }
-    if (m.type === 'sticker') return { sticker: file.buffer, mimetype: mimetype || 'image/webp', contextInfo }
-    return { document: file.buffer, mimetype: mimetype || 'application/octet-stream', fileName: m.fileName || file.fileName || 'file', caption, contextInfo }
+    if (m.type === 'image') return { image: { url: file.path }, mimetype, caption, contextInfo }
+    if (m.type === 'ptv') return { video: { url: file.path }, mimetype: mimetype || 'video/mp4', ptv: true, seconds: m.dur || undefined, contextInfo }
+    if (m.type === 'video') return { video: { url: file.path }, mimetype, caption, gifPlayback: !!sub.gifPlayback || undefined, contextInfo }
+    if (m.type === 'audio') return { audio: { url: file.path }, mimetype, ptt: !!sub.ptt, contextInfo }
+    if (m.type === 'sticker') return { sticker: { url: file.path }, mimetype: mimetype || 'image/webp', contextInfo }
+    return { document: { url: file.path }, mimetype: mimetype || 'application/octet-stream', fileName: m.fileName || file.fileName || 'file', caption, contextInfo }
   }
 
   async react(jid, messageId, emoji) {
@@ -1661,9 +1730,20 @@ export class Session extends EventEmitter {
     return { id: messageId, reactions: updated ? this.store.reactionView(updated, this.me?.jid) : [] }
   }
 
-  async loadGroups(sock) {
+  /** Load this account's groups (one account at a time; see oneGroupLoadAtATime). */
+  loadGroups(sock) {
+    return oneGroupLoadAtATime(() => {
+      if (this.sock !== sock || this.stopped) return // it connected again, or was removed, while waiting its turn
+      return Promise.race([
+        this.loadGroupsNow(sock),
+        new Promise((resolve) => setTimeout(resolve, GROUP_LOAD_WAIT_MS).unref?.()), // a stuck answer must not hold up the others
+      ])
+    })
+  }
+  async loadGroupsNow(sock) {
     try {
       const all = await sock.groupFetchAllParticipating()
+      if (this.sock !== sock || this.stopped) return
       let linked = false
       for (const g of Object.values(all || {})) {
         this.groupCache.set(g.id, g)
@@ -1854,17 +1934,17 @@ export class Session extends EventEmitter {
     return msg ? this.publicMsg(msg) : null
   }
 
-  async sendMedia(jid, buffer, { mime, name, caption, thumb, replyTo }) {
+  async sendMedia(jid, file, { mime, name, caption, thumb, replyTo }) {
     this.ensureConnected()
     const target = await this.sendJid(jid)
     let content
     if (mime === 'image/jpeg') {
-      content = { image: buffer, mimetype: 'image/jpeg', caption: caption || undefined }
+      content = { image: { url: file }, mimetype: 'image/jpeg', caption: caption || undefined }
       // A client-made thumbnail means we don't need sharp/jimp on the server.
       if (thumb) content.jpegThumbnail = thumb
     } else {
       content = {
-        document: buffer,
+        document: { url: file },
         mimetype: mime || 'application/octet-stream',
         fileName: name || 'file',
         caption: caption || undefined,
@@ -1881,24 +1961,28 @@ export class Session extends EventEmitter {
     return msg ? this.publicMsg(msg) : null
   }
 
-  /** A video note (the round one): recorded in the browser, made phone-friendly here. */
-  async sendVideoNote(jid, buffer, { mime, seconds, replyTo } = {}) {
+  /** A video note (the round one): recorded in the browser (`file` is on disk), made phone-friendly here. */
+  async sendVideoNote(jid, file, { mime, seconds, replyTo } = {}) {
     this.ensureConnected()
-    const note = await makeVideoNote(buffer, mime)
-    const target = await this.sendJid(jid)
-    const content = { video: note.video, ptv: true, mimetype: 'video/mp4' }
-    const secs = note.seconds || Math.round(Number(seconds) || 0)
-    if (secs > 0) content.seconds = Math.min(VIDEO_NOTE_MAX_S, secs)
-    if (note.thumb) content.jpegThumbnail = note.thumb
-    const quoted = this.quotedFor(jid, replyTo)
-    const sent = await this.sock.sendMessage(target, content, quoted ? { quoted } : undefined)
-    const msg = this.ingest(sent, { bumpUnread: false })
-    this.metrics.messagesOut++
-    this.metrics.lastOutboundAt = Date.now()
-    this.metrics.lastEventAt = Date.now()
-    if (msg) this.emit('event', { type: 'message', message: this.publicMsg(msg) })
-    this.emit('event', { type: 'chats' })
-    return msg ? this.publicMsg(msg) : null
+    const note = await makeVideoNote(file, mime)
+    try {
+      const target = await this.sendJid(jid)
+      const content = { video: { url: note.file }, ptv: true, mimetype: 'video/mp4' }
+      const secs = note.seconds || Math.round(Number(seconds) || 0)
+      if (secs > 0) content.seconds = Math.min(VIDEO_NOTE_MAX_S, secs)
+      if (note.thumb) content.jpegThumbnail = note.thumb
+      const quoted = this.quotedFor(jid, replyTo)
+      const sent = await this.sock.sendMessage(target, content, quoted ? { quoted } : undefined)
+      const msg = this.ingest(sent, { bumpUnread: false })
+      this.metrics.messagesOut++
+      this.metrics.lastOutboundAt = Date.now()
+      this.metrics.lastEventAt = Date.now()
+      if (msg) this.emit('event', { type: 'message', message: this.publicMsg(msg) })
+      this.emit('event', { type: 'chats' })
+      return msg ? this.publicMsg(msg) : null
+    } finally {
+      note.cleanup()
+    }
   }
 
   // ------------------------------------------------------------------ polls
@@ -1948,7 +2032,7 @@ export class Session extends EventEmitter {
     poll.votes = { ...(poll.votes || {}) }
     if (picks.length) poll.votes[who] = picks
     else delete poll.votes[who]
-    this.store.dirty = true
+    this.store.saveMessage(poll)
     this.emit('event', { type: 'message', message: this.publicMsg(poll) })
     // Buddy's tap menus listen here (a separate event name: never counts as someone using the page)
     try {
@@ -1973,8 +2057,7 @@ export class Session extends EventEmitter {
     if (poll.poll.lid !== lid || (k.fromMe && poll.poll.meAs !== bare(o.voter))) {
       poll.poll.lid = lid
       if (k.fromMe) poll.poll.meAs = bare(o.voter)
-      this.store.dirty = true
-    }
+    } // (saved with the votes, just below)
     const who = this.store.canon(k.fromMe ? this.me.jid : voterRaw)
     this.setVotes(poll, who, pickedOptions(o.hashes, poll.poll.options))
   }
@@ -1999,7 +2082,15 @@ export class Session extends EventEmitter {
     const secret = crypto.randomBytes(32)
     const sent = await this.sock.sendMessage(target, { poll: { name: q, values: opts, selectableCount: multi ? 0 : 1, messageSecret: secret } })
     const msg = this.ingest(sent, { bumpUnread: false })
-    if (msg?.poll && !msg.poll.secret) { msg.poll.secret = secret.toString('base64'); this.store.dirty = true }
+    if (msg?.poll && !msg.poll.secret) {
+      // the saved copy gets the secret too (the one in hand is only what was just sent)
+      msg.poll.secret = secret.toString('base64')
+      const saved = this.store.findMessage(msg.jid, msg.id)
+      if (saved?.poll) {
+        saved.poll.secret = msg.poll.secret
+        this.store.saveMessage(saved)
+      }
+    }
     this.metrics.messagesOut++
     this.metrics.lastOutboundAt = Date.now()
     if (msg) this.emit('event', { type: 'message', message: this.publicMsg(msg) })
@@ -2010,7 +2101,7 @@ export class Session extends EventEmitter {
   async votePoll(jid, id, picks = []) {
     this.ensureConnected()
     const poll = this.store.findMessage(jid, id)
-    if (!poll?.poll) throw Object.assign(new Error('That poll isn’t here any more'), { status: 404 })
+    if (!poll?.poll || poll.deleted) throw Object.assign(new Error('That poll isn’t here any more'), { status: 404 })
     if (!poll.poll.secret) throw Object.assign(new Error('Can’t vote on this poll from here (it arrived before this site could read polls). Vote on your phone.'), { status: 409 })
     const n = poll.poll.options.length
     const chosen = [...new Set((Array.isArray(picks) ? picks : []).map(Number).filter((i) => Number.isInteger(i) && i >= 0 && i < n))].sort((a, b) => a - b)
@@ -2021,28 +2112,35 @@ export class Session extends EventEmitter {
     const vote = encryptVote(chosen.map((i) => poll.poll.options[i]), { secret: poll.poll.secret, pollId: poll.id, creator, voter })
     const message = { pollUpdateMessage: { pollCreationMessageKey: key, vote, senderTimestampMs: Date.now() } }
     await this.sock.relayMessage(target, message, { messageId: '3EB0' + crypto.randomBytes(9).toString('hex').toUpperCase() })
-    this.setVotes(poll, this.store.canon(this.me.jid), chosen)
-    return this.publicMsg(poll)
+    // read it again: it may have changed while the vote was on its way
+    const fresh = this.store.findMessage(poll.jid, poll.id)
+    if (!fresh?.poll || fresh.deleted) return null
+    this.setVotes(fresh, this.store.canon(this.me.jid), chosen)
+    return this.publicMsg(fresh)
   }
 
   // -------------------------------------------------------- voice messages
-  async sendVoiceNote(jid, buffer, { mime, seconds, replyTo } = {}) {
+  async sendVoiceNote(jid, file, { mime, seconds, replyTo } = {}) {
     this.ensureConnected()
-    const note = await makeVoiceNote(buffer, mime)
-    const target = await this.sendJid(jid)
-    const content = { audio: note.audio, mimetype: 'audio/ogg; codecs=opus', ptt: true }
-    const secs = note.seconds || Math.round(Number(seconds) || 0)
-    if (secs > 0) content.seconds = Math.min(VOICE_NOTE_MAX_S, secs)
-    if (note.waveform) content.waveform = new Uint8Array(note.waveform)
-    const quoted = this.quotedFor(jid, replyTo)
-    const sent = await this.sock.sendMessage(target, content, quoted ? { quoted } : undefined)
-    const msg = this.ingest(sent, { bumpUnread: false })
-    this.metrics.messagesOut++
-    this.metrics.lastOutboundAt = Date.now()
-    this.metrics.lastEventAt = Date.now()
-    if (msg) this.emit('event', { type: 'message', message: this.publicMsg(msg) })
-    this.emit('event', { type: 'chats' })
-    return msg ? this.publicMsg(msg) : null
+    const note = await makeVoiceNote(file, mime)
+    try {
+      const target = await this.sendJid(jid)
+      const content = { audio: { url: note.file }, mimetype: 'audio/ogg; codecs=opus', ptt: true }
+      const secs = note.seconds || Math.round(Number(seconds) || 0)
+      if (secs > 0) content.seconds = Math.min(VOICE_NOTE_MAX_S, secs)
+      if (note.waveform) content.waveform = new Uint8Array(note.waveform)
+      const quoted = this.quotedFor(jid, replyTo)
+      const sent = await this.sock.sendMessage(target, content, quoted ? { quoted } : undefined)
+      const msg = this.ingest(sent, { bumpUnread: false })
+      this.metrics.messagesOut++
+      this.metrics.lastOutboundAt = Date.now()
+      this.metrics.lastEventAt = Date.now()
+      if (msg) this.emit('event', { type: 'message', message: this.publicMsg(msg) })
+      this.emit('event', { type: 'chats' })
+      return msg ? this.publicMsg(msg) : null
+    } finally {
+      note.cleanup()
+    }
   }
 
   // ---------------------------------------------------------- contact info
@@ -2075,15 +2173,7 @@ export class Session extends EventEmitter {
   }
   /** The chat's photos and videos, documents and links, newest first. */
   chatMedia(jid) {
-    const list = (this.store.messages.get(this.store.canon(jid)) || []).filter((m) => !m.deleted)
-    const media = [], docs = [], links = []
-    for (let i = list.length - 1; i >= 0; i--) {
-      const m = list[i]
-      if ((m.type === 'image' || m.type === 'video' || m.type === 'ptv') && m.rm) media.push({ id: m.id, type: m.type, ts: m.ts })
-      else if (m.type === 'document' && m.rm) docs.push({ id: m.id, fileName: m.fileName || 'Document', ts: m.ts })
-      for (const u of String(m.text || '').match(/\bhttps?:\/\/[^\s<]+[^\s<.,;:!?)\]'"]/g) || []) links.push({ id: m.id, url: u.slice(0, 500), ts: m.ts })
-    }
-    return { media: media.slice(0, 300), docs: docs.slice(0, 300), links: links.slice(0, 300) }
+    return this.store.chatMedia(jid)
   }
 
   /** Validate a phone number against WhatsApp and return its chat JID. */
@@ -2095,7 +2185,7 @@ export class Session extends EventEmitter {
     msg.rcpt ??= {}
     if ((msg.rcpt[p] || 0) >= status) return
     msg.rcpt[p] = status
-    this.store.dirty = true
+    this.store.saveMessage(msg)
     this.updateGroupTick(jid, msg)
   }
 
@@ -2103,6 +2193,9 @@ export class Session extends EventEmitter {
     const md = this.groupCache.get(jid)
     if (!md?.participants) return null
     const me = this.store.canon(this.me?.jid || '')
+    // worked out once per member list: it is asked for with every receipt, and a big group sends hundreds
+    const memo = this.recipientSets.get(md)
+    if (memo && memo.me === me && memo.aliasVersion === this.store.aliasVersion) return memo.set
     const set = new Set()
     for (const p of md.participants) {
       const ids = [p.id, p.lid, p.phoneNumber, p.jid].filter(Boolean)
@@ -2111,6 +2204,7 @@ export class Session extends EventEmitter {
       const c = this.store.canon(pn || p.id)
       if (c !== me) set.add(c)
     }
+    this.recipientSets.set(md, { me, aliasVersion: this.store.aliasVersion, set })
     return set
   }
 
@@ -2121,7 +2215,12 @@ export class Session extends EventEmitter {
       if (!this.gmFetching?.has(jid) && this.sock?.groupMetadata) {
         (this.gmFetching ??= new Set()).add(jid)
         this.sock.groupMetadata(jid)
-          .then((md) => { this.groupCache.set(jid, md); this.updateGroupTick(jid, msg) })
+          .then((md) => {
+            this.groupCache.set(jid, md)
+            // the message may have changed while the list was on its way: count from what is saved now
+            const fresh = this.store.findMessage(jid, msg.id)
+            if (fresh) this.updateGroupTick(jid, fresh)
+          })
           .catch(() => {})
           .finally(() => this.gmFetching.delete(jid))
       }
@@ -2138,7 +2237,7 @@ export class Session extends EventEmitter {
     const status = total && read >= total ? 4 : total && delivered >= total ? 3 : 2
     // always tell the page, so the "Read by x of y" counts stay current
     msg.status = status
-    this.store.dirty = true
+    this.store.saveMessage(msg)
     this.emit('event', { type: 'message-status', jid, id: msg.id, status, rsum: msg.rsum })
   }
 
@@ -2335,16 +2434,8 @@ export class Session extends EventEmitter {
   readElsewhere(jid, ids) {
     const chat = this.store.chats.get(jid)
     if (!chat?.unread) return
-    const list = this.store.messages.get(jid) || []
-    let at = -1
-    for (const id of ids) {
-      const i = list.findIndex((m) => m.id === id)
-      if (i > at) at = i
-    }
-    if (at < 0) return
-    let left = 0
-    for (let i = at + 1; i < list.length; i++) if (!list[i].fromMe) left++
-    if (left >= chat.unread) return
+    const left = this.store.unreadAfter(jid, ids)
+    if (left < 0 || left >= chat.unread) return
     chat.unread = left
     this.store.dirty = true
     this.emit('event', { type: 'chats' })
@@ -2365,8 +2456,7 @@ export class Session extends EventEmitter {
     const had = chat?.unread || 0
     this.store.markRead(jid)
     if (had) this.emit('event', { type: 'chats' })
-    const list = this.store.messages.get(jid) || []
-    const batch = list.filter((m) => !m.fromMe && !m.rs).slice(-Math.min(Math.max(had, 30), 300))
+    const batch = this.store.receiptBatch(jid, Math.min(Math.max(had, 30), 300))
     if (!batch.length) return
     if (!this.sock || this.status !== 'connected') {
       this.readPending.add(jid)
@@ -2374,8 +2464,7 @@ export class Session extends EventEmitter {
     }
     try {
       await this.sock.readMessages(batch.map((m) => ({ remoteJid: m.rj || jid, id: m.id, participant: m.rp, fromMe: false })))
-      for (const m of batch) m.rs = 1 // receipt sent
-      this.store.dirty = true
+      this.store.markReceipts(jid, batch.map((m) => m.id)) // receipt sent
       this.readPending.delete(jid)
     } catch (e) {
       this.readPending.add(jid)
@@ -2390,7 +2479,46 @@ export class Session extends EventEmitter {
     for (const j of jids) this.markRead(j).catch(() => {})
   }
 
+  /**
+   * A message's picture, video, voice message or document, downloaded to a temporary file as it arrives (it is
+   * never held in memory). Returns { path, size, mime, fileName, release } or null (nothing to download); call
+   * release() when done with the file, which deletes it. People asking for the same one at the same time
+   * share a single download.
+   */
   async media(jid, id, { version } = {}) {
+    const key = `${this.store.canon(jid)}|${id}|${version ?? ''}`
+    this.mediaJobs ??= new Map()
+    let job = this.mediaJobs.get(key)
+    if (!job) {
+      job = { refs: 0, promise: this.downloadMedia(jid, id, { version }) }
+      this.mediaJobs.set(key, job)
+      const forget = () => { if (this.mediaJobs.get(key) === job) this.mediaJobs.delete(key) }
+      job.promise.then((got) => { if (!got) forget() }, forget) // nothing to share if it failed
+    }
+    job.refs++
+    let got
+    try {
+      got = await job.promise
+    } catch (e) {
+      job.refs--
+      throw e
+    }
+    if (!got) {
+      job.refs--
+      return null
+    }
+    let released = false
+    const release = () => {
+      if (released) return
+      released = true
+      if (--job.refs > 0) return // somebody else is still using the file
+      if (this.mediaJobs.get(key) === job) this.mediaJobs.delete(key)
+      drop(got.path)
+    }
+    return { ...got, release }
+  }
+
+  async downloadMedia(jid, id, { version } = {}) {
     const m = this.store.findMessage(jid, id)
     const rm = version != null ? (this.store.histOn?.() ? m?.hist?.[version]?.rm : null) : m?.rm
     if (!rm) return null
@@ -2399,14 +2527,18 @@ export class Session extends EventEmitter {
     let lastError
 
     for (let attempt = 1; attempt <= MEDIA_DOWNLOAD_ATTEMPTS; attempt++) {
+      const file = spoolFile()
       try {
-        const buffer = await B.downloadMediaMessage(raw, 'buffer', {}, {
+        const stream = await B.downloadMediaMessage(raw, 'stream', {}, {
           logger: silent,
           reuploadRequest: this.sock?.updateMediaMessage,
         })
+        // to disk as it comes; one that stops half way fails the attempt instead of waiting for ever
+        await pipeline(stream, idleGuard(MEDIA_IDLE_MS), fs.createWriteStream(file))
         const sub = Object.values(raw.message || {})[0] || {}
-        return { buffer, mime: sub.mimetype || 'application/octet-stream', fileName: sub.fileName }
+        return { path: file, size: fs.statSync(file).size, mime: sub.mimetype || 'application/octet-stream', fileName: sub.fileName }
       } catch (e) {
+        drop(file)
         lastError = e
         if (attempt === MEDIA_DOWNLOAD_ATTEMPTS) break
 

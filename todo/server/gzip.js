@@ -5,7 +5,7 @@ import zlib from 'node:zlib'
  * The chat list alone is ~150 KB of JSON and is fetched on every new message; gzipped it's
  * a fifth of that. Set `res.gzipOk` from the request's Accept-Encoding before using this.
  */
-const TEXTY = /^(text\/|application\/(json|javascript|manifest\+json)|image\/svg)/
+export const TEXTY = /^(text\/|application\/(json|javascript|manifest\+json)|image\/svg)/
 export function gzipped(res, body, headers) {
   if (!res.gzipOk || body == null) return { body, headers }
   const type = String(headers['content-type'] || '')

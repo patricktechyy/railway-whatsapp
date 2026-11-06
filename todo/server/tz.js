@@ -26,9 +26,17 @@ export function offsetMinutes(ms, tz) {
   return Math.round((asUtc - Math.floor(ms / 1000) * 1000) / 60000)
 }
 
+const tzOk = new Map()
 export function validTz(tz) {
   if (typeof tz !== 'string' || !tz || tz.length > 64) return false
-  try { new Intl.DateTimeFormat('en-US', { timeZone: tz }); return true } catch { return false }
+  let ok = tzOk.get(tz)
+  if (ok === undefined) {
+    // building a formatter is slow, and the reminder ticks ask about every task: remember the answer
+    try { new Intl.DateTimeFormat('en-US', { timeZone: tz }); ok = true } catch { ok = false }
+    if (tzOk.size >= 500) tzOk.clear()
+    tzOk.set(tz, ok)
+  }
+  return ok
 }
 
 /** 'YYYY-MM-DD' + 'HH:MM' in `tz` → epoch milliseconds. */
@@ -44,9 +52,15 @@ export function zonedTime(dateKey, time, tz = 'UTC') {
 }
 
 /** Today's date ('YYYY-MM-DD') where the person is. */
+const dayFmt = new Map()
 export function todayIn(tz, now = Date.now()) {
   if (!validTz(tz)) tz = 'UTC'
-  const p = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(now))
+  let f = dayFmt.get(tz)
+  if (!f) {
+    f = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' })
+    dayFmt.set(tz, f)
+  }
+  const p = f.formatToParts(new Date(now))
   const o = Object.fromEntries(p.map((x) => [x.type, x.value]))
   return `${o.year}-${o.month}-${o.day}`
 }

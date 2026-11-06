@@ -267,7 +267,7 @@ npm test             # repeat rules, holidays, day notes, Buddy, assignments…
 | `server/local.js` | The Todolist's way into WhatsApp: talks to the WhatsApp sessions running in the same process (status, chats, send) |
 | `server/whatsapp.js` | Turning tasks into WhatsApp messages and `todo:` messages into tasks |
 | `server/quickadd.js` | The "type naturally" parser, shared by the browser and the server |
-| `server/store.js` | One JSON file per person in `/data/users/`, written atomically and validated on every change |
+| `server/store.js` | One JSON file per person in `/data/todo/users/`, written atomically and validated on every change |
 | `server/holidays.js` | Public holidays: downloads Google's holiday calendar (ICS) per country, caches it, with a built-in fallback |
 | `src/appearance.ts` | Turns the Appearance settings into CSS colours, with readable text worked out automatically |
 | `server/buddy.js` | WhatsApp Buddy: its personalities and messages, the 💬 reminders and morning/evening schedule, and the `td …` replies (tests in `buddy.test.js`) |

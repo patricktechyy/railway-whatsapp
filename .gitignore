@@ -1,0 +1,13 @@
+node_modules/
+/todo/dist/
+*.tsbuildinfo
+.DS_Store
+
+.env
+.env.*
+!.env.example
+/data/
+*.tar.gz
+
+/HANDOFF.md
+/handoff/

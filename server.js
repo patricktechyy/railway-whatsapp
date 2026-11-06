@@ -2,13 +2,16 @@ import http from 'node:http'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { Worker } from 'node:worker_threads'
 import { Session } from './session.js'
 import { getHistoryDays } from './store.js'
 import { Auth, COOKIE, HttpError, MIN_PASSWORD } from './auth.js'
 import { createTodo } from './todo/server/app.js'
 import { Scheduler } from './schedule.js'
 import { streamBackup } from './backup.js'
-import { gzipped } from './todo/server/gzip.js'
+import { gzipped, TEXTY } from './todo/server/gzip.js'
+import { pipeline } from 'node:stream/promises'
+import { startSpool, sweepSpool, bodyToFile, drop } from './spool.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 // Works both flat (repo root) and in the Docker layout (src/ + public/).
@@ -98,7 +101,8 @@ const auth = new Auth(DATA_DIR)
 
 // ------------------------------------------------------------- sessions ---
 const sessions = new Map()
-let todo = null // Gavin's Todolist (set up below, once sign-in helpers exist)
+let todo = null // Gavin's Todolist (set up in boot(), once every account is up)
+let scheduler = null // messages written now, sent later (also set up in boot())
 
 function startSession(user, delay = 0) {
   const s = new Session({ key: user.username, label: user.name, dir: path.join(DATA_DIR, user.dir) })
@@ -108,9 +112,56 @@ function startSession(user, delay = 0) {
   s.schedule(delay)
   return s
 }
-// Stagger boot: every account reconnecting in the same instant from one IP
-// is exactly what WhatsApp's rate limiting looks for.
-auth.users.forEach((u, i) => startSession(u, i * 2000))
+// Start-up. The server is already answering (so /healthz passes) while this runs; everything else waits
+// for it, because a first start after moving to the message database can take a while: each account's
+// old store.json is moved into its database, one account at a time.
+/**
+ * Move an account's old store.json into its message database (once), in a worker thread: the big file is
+ * read into memory that is given back when the worker ends, and the server keeps answering meanwhile.
+ */
+function migrateInWorker(user) {
+  const dir = path.join(DATA_DIR, user.dir)
+  const file = path.join(dir, 'store.json')
+  if (!fs.existsSync(file) || fs.existsSync(path.join(dir, 'chat-meta.json'))) return Promise.resolve()
+  return new Promise((resolve, reject) => {
+    let result, error
+    const w = new Worker(new URL('./migrate-worker.js', import.meta.url), { workerData: { file } })
+    w.once('message', (m) => { result = m })
+    w.once('error', (e) => { error = e })
+    w.once('exit', (code) => {
+      if (code === 0 && result?.ok) resolve()
+      else reject(error || new Error(result?.error || `the move stopped unexpectedly (code ${code})`))
+    })
+  })
+}
+
+let booted = false
+let bootDone
+const bootPromise = new Promise((resolve) => { bootDone = resolve })
+async function boot() {
+  startSpool() // nothing is in flight yet: clear out whatever a crash left in the temporary folder
+  setInterval(() => sweepSpool(), 10 * 60e3).unref() // and now and then anything that was forgotten
+  // Stagger boot: every account reconnecting in the same instant from one IP
+  // is exactly what WhatsApp's rate limiting looks for.
+  for (const [i, u] of auth.users.entries()) {
+    try {
+      await migrateInWorker(u)
+      startSession(u, i * 2000)
+    } catch (e) {
+      // one account that can't start (no room on the disk, say) must not keep the others off
+      console.error(`[boot] ${u.username}: could not start (${e.message}). This account stays off until that is fixed.`)
+    }
+    await new Promise((resolve) => setImmediate(resolve)) // let the health check and the other accounts breathe
+  }
+  // Gavin's Todolist lives at /todo/, signed in with the same accounts. Its data is kept on the same volume, in /data/todo.
+  todo = createTodo({ dataDir: path.join(DATA_DIR, 'todo'), auth, sessions, whoami, version: VERSION })
+  // messages written now, sent later (from the person's own WhatsApp)
+  scheduler = new Scheduler(DATA_DIR, sessions)
+  scheduler.start(Number(process.env.SCHEDULE_TICK_MS) || 15000)
+  for (const [username, s] of sessions) todo.attach(username, s)
+  booted = true
+  bootDone()
+}
 
 // --------------------------------------------------------------- helpers ---
 const esc = (s) =>
@@ -147,6 +198,30 @@ const page = (res, html) =>
   send(res, 200, html, { 'content-type': 'text/html; charset=utf-8', 'x-frame-options': 'DENY' })
 const redirect = (res, to) => send(res, 302, '', { location: to })
 
+/**
+ * A downloaded picture, video or document, sent from its temporary file with its length, so it is never
+ * held in memory whole. (Text-like files are small, and are compressed for browsers that take it, like
+ * every other response, which needs them in memory.) The file is deleted once the browser has it.
+ */
+async function sendMediaFile(res, out, headers) {
+  try {
+    if (res.gzipOk && out.size >= 1400 && out.size <= 8 * 1048576 && TEXTY.test(String(headers['content-type'] || ''))) {
+      return send(res, 200, fs.readFileSync(out.path), headers)
+    }
+    res.writeHead(200, {
+      'cache-control': 'no-store',
+      'x-content-type-options': 'nosniff',
+      'referrer-policy': 'same-origin',
+      ...headers,
+      ...(res.noStore ? { 'cache-control': 'no-store' } : {}),
+      'content-length': out.size,
+    })
+    await pipeline(fs.createReadStream(out.path), res).catch(() => {}) // the browser went away: nothing more to do
+  } finally {
+    out.release()
+  }
+}
+
 const clientIp = (req) =>
   String(req.headers['x-real-ip'] || '').trim() ||
   String(req.headers['x-forwarded-for'] || '').split(',').pop().trim() ||
@@ -174,16 +249,6 @@ const safeNext = (n) => {
   n = String(n || '')
   return /^\/(todo\/|u\/|admin)/.test(n) && /^[\x21-\x7e]+$/.test(n) && !n.startsWith('//') && !n.includes('\\') ? n : null
 }
-
-// ----------------------------------------------------------- the Todolist ---
-// Gavin's Todolist lives at /todo/, signed in with the same accounts. Its data is
-// kept on the same volume, in /data/todo.
-todo = createTodo({ dataDir: path.join(DATA_DIR, 'todo'), auth, sessions, whoami, version: VERSION })
-
-// messages written now, sent later (from the person's own WhatsApp)
-const scheduler = new Scheduler(DATA_DIR, sessions)
-scheduler.start(Number(process.env.SCHEDULE_TICK_MS) || 15000)
-for (const [username, s] of sessions) todo.attach(username, s)
 
 function readBody(req, limit) {
   return new Promise((resolve, reject) => {
@@ -553,14 +618,14 @@ async function route(req, res) {
     }
     const out = await s.media(jid, id, { version: Number(url.searchParams.get('n')) })
     if (!out) throw new HttpError(404, 'Media not available')
-    return send(res, 200, out.buffer, { 'content-type': out.mime, 'cache-control': 'no-store' })
+    return sendMediaFile(res, out, { 'content-type': out.mime, 'cache-control': 'no-store' })
   }
   if (api === '/media') {
     const out = await s.media(jid, url.searchParams.get('id'))
     if (!out) throw new HttpError(404, 'Media not available')
     const headers = { 'content-type': out.mime, 'cache-control': 'private, max-age=86400' }
     if (out.fileName) headers['content-disposition'] = `inline; filename*=UTF-8''${encodeURIComponent(out.fileName)}`
-    return send(res, 200, out.buffer, headers)
+    return sendMediaFile(res, out, headers)
   }
 
   if (api === '/avatar') {
@@ -585,28 +650,33 @@ async function route(req, res) {
     const mime = String(req.headers['content-type'] || 'application/octet-stream').split(';')[0].trim()
     if (mime.startsWith('application/json')) throw new HttpError(415, 'Upload the file itself')
     if (!jid) throw new HttpError(400, 'jid required')
-    const buf = await readBody(req, MAX_UPLOAD)
-    if (!buf.length) throw new HttpError(400, 'Empty file')
-    // a voice message recorded in the browser
-    if (url.searchParams.get('ptt') === '1') {
-      if (!/^(audio|video)\//.test(mime)) throw new HttpError(400, 'That isn’t a recording')
-      return json(res, await s.sendVoiceNote(jid, buf, { mime, seconds: url.searchParams.get('seconds'), replyTo: url.searchParams.get('replyTo') || undefined }))
+    // the file goes straight to disk as it arrives (it is never held in memory), and is deleted when done
+    const up = await bodyToFile(req, MAX_UPLOAD)
+    try {
+      if (!up.size) throw new HttpError(400, 'Empty file')
+      // a voice message recorded in the browser
+      if (url.searchParams.get('ptt') === '1') {
+        if (!/^(audio|video)\//.test(mime)) throw new HttpError(400, 'That isn’t a recording')
+        return json(res, await s.sendVoiceNote(jid, up.file, { mime, seconds: url.searchParams.get('seconds'), replyTo: url.searchParams.get('replyTo') || undefined }))
+      }
+      // a video note recorded in the browser
+      if (url.searchParams.get('ptv') === '1') {
+        if (!/^video\//.test(mime)) throw new HttpError(400, 'That isn’t a video')
+        return json(res, await s.sendVideoNote(jid, up.file, { mime, seconds: url.searchParams.get('seconds'), replyTo: url.searchParams.get('replyTo') || undefined }))
+      }
+      const thumbHeader = req.headers['x-thumb']
+      const thumb = thumbHeader ? Buffer.from(String(thumbHeader), 'base64') : undefined
+      const msg = await s.sendMedia(jid, up.file, {
+        mime,
+        name: url.searchParams.get('name') || 'file',
+        caption: (url.searchParams.get('caption') || '').slice(0, 4000),
+        replyTo: url.searchParams.get('replyTo') || undefined,
+        thumb: thumb?.length && thumb.length < 20000 ? thumb : undefined,
+      })
+      return json(res, msg)
+    } finally {
+      drop(up.file)
     }
-    // a video note recorded in the browser
-    if (url.searchParams.get('ptv') === '1') {
-      if (!/^video\//.test(mime)) throw new HttpError(400, 'That isn’t a video')
-      return json(res, await s.sendVideoNote(jid, buf, { mime, seconds: url.searchParams.get('seconds'), replyTo: url.searchParams.get('replyTo') || undefined }))
-    }
-    const thumbHeader = req.headers['x-thumb']
-    const thumb = thumbHeader ? Buffer.from(String(thumbHeader), 'base64') : undefined
-    const msg = await s.sendMedia(jid, buf, {
-      mime,
-      name: url.searchParams.get('name') || 'file',
-      caption: (url.searchParams.get('caption') || '').slice(0, 4000),
-      replyTo: url.searchParams.get('replyTo') || undefined,
-      thumb: thumb?.length && thumb.length < 20000 ? thumb : undefined,
-    })
-    return json(res, msg)
   }
 
   requireJson(req)
@@ -747,6 +817,7 @@ async function route(req, res) {
 const server = http.createServer(async (req, res) => {
   res.gzipOk = /\bgzip\b/.test(String(req.headers['accept-encoding'] || '')) // text responses go out gzipped
   try {
+    if (!booted && !/^\/(healthz|ui\.css|favicon\.ico)(\?|$)/.test(String(req.url))) await bootPromise
     await route(req, res)
   } catch (e) {
     const status = e.status || 500
@@ -763,7 +834,28 @@ server.listen(PORT, () => {
   console.log('    admin login: username "admin"')
   if (!auth.adminFromEnv) console.log(`    admin password: ${auth.adminPassword}   (set ADMIN_PASSWORD to choose your own)`)
   console.log('')
+  boot().catch((e) => {
+    console.error('start-up failed:', e)
+    process.exit(1)
+  })
 })
+
+// Memory log: one line a minute, so the Railway logs show where the process memory really goes.
+// MEM_LOG_MS=0 turns it off.
+const MEM_LOG_MS = Number(process.env.MEM_LOG_MS ?? 60000)
+if (MEM_LOG_MS > 0) {
+  const mb = (n) => Math.round(n / 1048576)
+  setInterval(() => {
+    const m = process.memoryUsage()
+    let connected = 0
+    let viewers = 0
+    for (const s of sessions.values()) {
+      if (s.status === 'connected') connected++
+      viewers += s.viewers()
+    }
+    console.log(`[mem] rss=${mb(m.rss)}MB heap=${mb(m.heapUsed)}/${mb(m.heapTotal)}MB external=${mb(m.external)}MB buffers=${mb(m.arrayBuffers)}MB sessions=${sessions.size} connected=${connected} viewers=${viewers}`)
+  }, MEM_LOG_MS).unref()
+}
 
 // One broken request or one flaky session must never take the others down.
 process.on('uncaughtException', (e) => console.error('uncaught:', e))
@@ -772,7 +864,9 @@ server.on('clientError', (err, socket) => {
   if (socket.writable) socket.end('HTTP/1.1 400 Bad Request\r\n\r\n')
 })
 const bye = () => {
-  for (const s of sessions.values()) s.shutdown()
+  for (const s of sessions.values()) {
+    try { s.shutdown() } catch (e) { console.error('shutdown:', e.message) }
+  }
   process.exit(0)
 }
 process.on('SIGTERM', bye)

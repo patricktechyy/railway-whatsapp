@@ -126,8 +126,14 @@ export function waInstant(t, tz) {
 /** Which version of the reminder this is: changing the time (or the due date) makes a new one. */
 export const waSig = (t) => (typeof t.wa?.at === 'number' ? `at:${t.wa.at}` : `b:${t.due}|${t.time}|${t.wa?.before}`)
 
+const hmFmt = new Map()
 function hmIn(tz, ms) {
-  const p = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(ms)).map((x) => [x.type, x.value]))
+  let f = hmFmt.get(tz)
+  if (!f) {
+    f = new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+    hmFmt.set(tz, f)
+  }
+  const p = Object.fromEntries(f.formatToParts(new Date(ms)).map((x) => [x.type, x.value]))
   return `${p.hour}:${p.minute}`
 }
 const addDaysKey = (k, n) => { const [y, m, d] = k.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10) }

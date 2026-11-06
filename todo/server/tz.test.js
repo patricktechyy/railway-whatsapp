@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { zonedTime, offsetMinutes, validTz } from './tz.js'
+import { zonedTime, offsetMinutes, validTz, todayIn } from './tz.js'
 
 test('fixed-offset zones', () => {
   assert.equal(new Date(zonedTime('2026-09-27', '09:00', 'Asia/Jakarta')).toISOString(), '2026-09-27T02:00:00.000Z')
@@ -19,4 +19,16 @@ test('daylight saving', () => {
 test('bad zone falls back to UTC', () => {
   assert.equal(validTz('Not/AZone'), false)
   assert.equal(new Date(zonedTime('2026-09-27', '09:00', 'Not/AZone')).toISOString(), '2026-09-27T09:00:00.000Z')
+})
+
+test('timezone answers are the same on repeat calls (they are remembered)', () => {
+  for (let i = 0; i < 3; i++) {
+    assert.equal(validTz('Asia/Jakarta'), true)
+    assert.equal(validTz('Not/AZone'), false)
+    assert.equal(validTz(''), false)
+    assert.equal(validTz('x'.repeat(65)), false)
+    assert.equal(todayIn('Pacific/Kiritimati', Date.UTC(2026, 0, 1, 12)), '2026-01-02')
+    assert.equal(todayIn('Pacific/Pago_Pago', Date.UTC(2026, 0, 1, 12)), '2026-01-01')
+    assert.equal(todayIn('Not/AZone', Date.UTC(2026, 0, 1, 12)), '2026-01-01')
+  }
 })

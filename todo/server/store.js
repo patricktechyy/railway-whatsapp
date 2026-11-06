@@ -10,7 +10,7 @@ import { COUNTRIES } from './holidays.js'
 
 /**
  * One JSON file per person on the /data volume:
- *   /data/users/<username>.json  →  { rev, profile, lists, tasks }
+ *   /data/todo/users/<username>.json  →  { rev, profile, lists, tasks }
  * Every change bumps `rev` and is announced to that person's open tabs, so
  * phone and laptop stay in step.
  */

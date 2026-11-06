@@ -1,0 +1,648 @@
+import fs from 'node:fs'
+import path from 'node:path'
+
+const MAX_CHATS = Number(process.env.MAX_CHATS || 800)
+// A chat-list preview is one line that the page cuts off with an ellipsis, so there is no use in keeping
+// a whole 60,000-character message in memory for every chat.
+const PREVIEW_MAX = 300
+export function clipPreview(s) {
+  s = String(s || '')
+  if (s.length <= PREVIEW_MAX) return s
+  let t = s.slice(0, PREVIEW_MAX)
+  const c = t.charCodeAt(t.length - 1)
+  if (c >= 0xd800 && c <= 0xdbff) t = t.slice(0, -1) // never cut an emoji in half
+  return t
+}
+// Message retention is time-based so a busy chat cannot evict recent messages
+// simply because it crossed an arbitrary message-count cap. This is especially
+// important for groups where thousands of messages can arrive within a day.
+// HISTORY_DAYS is the actual retention boundary; default 14 gives a full week
+// of scrollback with some breathing room. The server may override it via an
+// environment variable, but it never goes below MIN_HISTORY_DAYS.
+export const MIN_HISTORY_DAYS = 7
+const DEFAULT_HISTORY_DAYS = 14
+let historyDays = Math.max(MIN_HISTORY_DAYS, Number(process.env.HISTORY_DAYS) || DEFAULT_HISTORY_DAYS)
+export const getHistoryDays = () => historyDays
+export function setHistoryDays(n) {
+  historyDays = Math.min(3650, Math.max(MIN_HISTORY_DAYS, Math.round(Number(n)) || MIN_HISTORY_DAYS))
+  return historyDays
+}
+export const historyCutoff = () => Math.floor(Date.now() / 1000) - historyDays * 86400
+
+export const isLid = (j) => typeof j === 'string' && j.endsWith('@lid')
+export const isPn = (j) => typeof j === 'string' && j.endsWith('@s.whatsapp.net')
+export const isGroup = (j) => typeof j === 'string' && j.endsWith('@g.us')
+
+/** "123:4@s.whatsapp.net" -> "123@s.whatsapp.net" (strip the device suffix) */
+export const bare = (j) => (typeof j === 'string' ? j.replace(/:\d+(?=@)/, '') : j)
+
+/** Accept a JID or a bare phone number and return a phone JID, or null. */
+export function toPn(v) {
+  if (!v) return null
+  if (isPn(v)) return bare(v)
+  const digits = String(v).replace(/\D/g, '')
+  return /^\d{6,16}$/.test(digits) && !String(v).includes('@') ? `${digits}@s.whatsapp.net` : null
+}
+
+/** "+62 812-3456-7890" and the like: a number dressed up as a name. */
+// Also catches the masked numbers WhatsApp puts in place of a name for some
+// chats (e.g. "+65••••••46"), which would otherwise beat the real saved name.
+export const looksLikePhone = (s) => typeof s === 'string' && /^[+\d\s().\-•·∙⋅*…]{6,}$/.test(s.trim()) && /\d/.test(s)
+
+export const phoneOf = (jid) => (isPn(jid) ? '+' + jid.split('@')[0] : '')
+
+/**
+ * Everything lives in Maps; a compact JSON snapshot goes to the volume every
+ * few seconds. Chats are keyed by a *canonical* JID: the phone JID when we know
+ * it, otherwise the LID. When a LID→phone mapping turns up later, the LID chat
+ * is merged into the phone chat so one person never shows up twice.
+ */
+export class Store {
+  constructor(file) {
+    this.file = file
+    this.chats = new Map() //    jid -> { jid, subject?, t, unread, preview, cap? }
+    this.messages = new Map() // jid -> [msg]
+    this.contacts = new Map() // jid -> { name?, notify?, verified? }
+    this.alias = new Map() //    lid -> phone jid
+    this.gone = new Set() //     message ids deleted "for me" (never re-added)
+    this.locked = new Set() //   chats behind the chat lock (canonical jids)
+    this.dirty = false
+    this.load()
+    this.timer = setInterval(() => this.flush(), 5000)
+    this.timer.unref?.()
+  }
+
+  // ------------------------------------------------------------ persistence
+  load() {
+    try {
+      const raw = JSON.parse(fs.readFileSync(this.file, 'utf8'))
+      for (const c of raw.chats || []) {
+        if (typeof c.preview === 'string') c.preview = clipPreview(c.preview)
+        this.chats.set(c.jid, c)
+      }
+      for (const [jid, c] of raw.contacts || []) {
+        // older snapshots stored a plain string name
+        const info = typeof c === 'string' ? { notify: c } : { ...c }
+        for (const k of ['name', 'verified', 'notify']) if (looksLikePhone(info[k])) delete info[k]
+        this.contacts.set(jid, info)
+      }
+      for (const [lid, pn] of raw.alias || []) this.alias.set(lid, pn)
+      for (const id of raw.gone || []) this.gone.add(id)
+      for (const j of raw.locked || []) this.locked.add(j)
+      for (const [jid, list] of Object.entries(raw.messages || {})) this.messages.set(jid, list)
+      for (const [jid, list] of this.messages) if (isGroup(jid)) this.fillSenders(list)
+    } catch {
+      /* first run or unreadable snapshot: start empty */
+    }
+  }
+
+  flush() {
+    if (!this.dirty) return
+    this.dirty = false
+    try {
+      const chats = [...this.chats.values()]
+        .sort((a, b) => (b.t || 0) - (a.t || 0))
+        .slice(0, MAX_CHATS)
+      const keep = new Set(chats.map((c) => c.jid))
+      const messages = {}
+      const cutoff = historyCutoff()
+      for (const [jid, list] of this.messages) {
+        // drop anything past the history window, in memory and on disk
+        const fresh = list.filter((m) => m.ts >= cutoff)
+        if (fresh.length !== list.length) this.messages.set(jid, fresh)
+        if (keep.has(jid) && fresh.length) messages[jid] = fresh
+      }
+      fs.mkdirSync(path.dirname(this.file), { recursive: true })
+      const tmp = this.file + '.tmp'
+      fs.writeFileSync(
+        tmp,
+        JSON.stringify({ chats, contacts: [...this.contacts], alias: [...this.alias], messages, gone: [...this.gone].slice(-3000), locked: [...this.locked] })
+      )
+      fs.renameSync(tmp, this.file)
+    } catch (e) {
+      console.error('store flush failed:', e.message)
+    }
+  }
+
+  close() {
+    clearInterval(this.timer)
+    this.flush()
+  }
+
+  // ----------------------------------------------------------- identities
+  canon(jid) {
+    const b = bare(jid)
+    return this.alias.get(b) || b
+  }
+
+  /** Record lid <-> phone. Returns true if anything changed. */
+  link(lid, pn) {
+    lid = bare(lid)
+    pn = toPn(pn)
+    if (!isLid(lid) || !pn || this.alias.get(lid) === pn) return false
+    this.alias.set(lid, pn)
+    this.merge(lid, pn)
+    this.dirty = true
+    try { this.onNames?.() } catch {}
+    return true
+  }
+
+  /** Link two JIDs where we don't know which one is the LID. */
+  linkPair(a, b) {
+    if (!a || !b) return false
+    if (isLid(a) && (isPn(b) || toPn(b))) return this.link(a, b)
+    if (isLid(b) && (isPn(a) || toPn(a))) return this.link(b, a)
+    return false
+  }
+
+  merge(from, to) {
+    this.moveLock(from, to)
+    const fc = this.contacts.get(from)
+    if (fc) {
+      this.contacts.set(to, { ...fc, ...pickDefined(this.contacts.get(to)) })
+      this.contacts.delete(from)
+    }
+    const fchat = this.chats.get(from)
+    if (fchat) {
+      const tchat = this.chats.get(to)
+      if (tchat) {
+        tchat.unread = (tchat.unread || 0) + (fchat.unread || 0)
+        if ((fchat.t || 0) > (tchat.t || 0)) {
+          tchat.t = fchat.t
+          tchat.preview = fchat.preview
+        }
+        tchat.cap = Math.max(tchat.cap || 0, fchat.cap || 0) || undefined
+      } else {
+        this.chats.set(to, { ...fchat, jid: to })
+      }
+      this.chats.delete(from)
+    }
+    const fm = this.messages.get(from)
+    if (fm) {
+      const tm = this.messages.get(to) || []
+      const seen = new Set(tm.map((m) => m.id))
+      // keep the address it really came from (rj): receipts must go back to that one
+      for (const m of fm) if (!seen.has(m.id)) tm.push({ ...m, jid: to, rj: m.rj || from })
+      tm.sort((a, b) => a.ts - b.ts)
+      this.messages.set(to, tm)
+      this.messages.delete(from)
+    }
+  }
+
+  setContact(jid, info = {}) {
+    if (!jid) return
+    jid = this.canon(jid)
+    if (isGroup(jid)) return
+    const cur = this.contacts.get(jid) || {}
+    info = { ...info }
+    for (const k of ['name', 'verified', 'notify']) if (looksLikePhone(info[k])) delete info[k]
+    const next = { ...cur, ...pickDefined(info) }
+    if (JSON.stringify(cur) === JSON.stringify(next)) return
+    this.contacts.set(jid, next)
+    this.dirty = true
+  }
+
+  setGroup(jid, subject) {
+    if (!isGroup(jid) || !subject) return
+    const chat = this.chats.get(jid)
+    if (chat) {
+      if (chat.subject !== subject) {
+        chat.subject = subject
+        this.dirty = true
+      }
+    } else {
+      this.chats.set(jid, { jid, subject, t: 0, unread: 0, preview: '' })
+      this.dirty = true
+    }
+  }
+
+  displayName(jid) {
+    if (!jid) return ''
+    jid = this.canon(jid)
+    const c = this.contacts.get(jid) || {}
+    if (c.nick) return c.nick // local nickname beats everything
+    if (isGroup(jid)) return this.chats.get(jid)?.subject || 'Group'
+    const ok = (v) => v && !looksLikePhone(v)
+    return (ok(c.name) && c.name) || (ok(c.verified) && c.verified) || (ok(c.notify) && c.notify) || phoneOf(jid) || 'Unknown contact'
+  }
+
+  /** The name the person set on their own WhatsApp profile, if we've seen it. */
+  profileName(jid) {
+    const c = this.contacts.get(this.canon(jid)) || {}
+    return c.notify && !looksLikePhone(c.notify) ? c.notify : ''
+  }
+
+  /** Nickname only this site shows. Empty clears it. Never sent to WhatsApp. */
+  setNick(jid, nick) {
+    jid = this.canon(jid)
+    const c = { ...(this.contacts.get(jid) || {}) }
+    nick = String(nick || '').trim().slice(0, 60)
+    if (nick) c.nick = nick
+    else delete c.nick
+    this.contacts.set(jid, c)
+    this.dirty = true
+    return this.displayName(jid)
+  }
+
+  // ------------------------------------------------------------ chat lock
+  isLocked(jid) { return !!jid && this.locked.size > 0 && this.locked.has(this.canon(jid)) }
+  setLocked(jid, on) {
+    const j = this.canon(jid)
+    if (on) this.locked.add(j)
+    else this.locked.delete(j)
+    this.dirty = true
+    return this.locked.has(j)
+  }
+  /** Keep locks on the right chat when a hidden id turns out to be a known number. */
+  moveLock(from, to) {
+    if (this.locked.delete(from)) { this.locked.add(to); this.dirty = true }
+  }
+
+  // ------------------------------------------------------------ chats/msgs
+  touchChat(jid, patch = {}) {
+    let chat = this.chats.get(jid)
+    if (!chat) {
+      chat = { jid, t: 0, unread: 0, preview: '' }
+      this.chats.set(jid, chat)
+    }
+    if (patch.t != null && patch.t > (chat.t || 0)) chat.t = patch.t
+    if (patch.unread != null) chat.unread = patch.unread
+    if (patch.localArchived != null) chat.localArchived = !!patch.localArchived
+    if (patch.localPinned != null) chat.localPinned = !!patch.localPinned
+    // muted until (ms, -1 = always, 0 = not): on this site, and as WhatsApp on the phone says
+    if (patch.localMute !== undefined) { if (patch.localMute) chat.localMute = patch.localMute; else delete chat.localMute }
+    if (patch.waMute !== undefined) { if (patch.waMute) chat.waMute = patch.waMute; else delete chat.waMute }
+    this.dirty = true
+    return chat
+  }
+
+  addMessage(msg, { bumpUnread = false } = {}) {
+    if (this.gone.has(msg.id)) return null // deleted for me: never bring it back
+    let list = this.messages.get(msg.jid)
+    if (!list) {
+      list = []
+      this.messages.set(msg.jid, list)
+    }
+    const i = list.findIndex((m) => m.id === msg.id)
+    // the real message taking the place of its "waiting for this message" bubble counts as new
+    const wasWaiting = i >= 0 && list[i].waiting && !msg.waiting
+    const isNew = i < 0
+    if (isNew) list.push(msg)
+    else {
+      const old = list[i]
+      // a re-sent copy often lacks fields we already know (a group message's sender, above all):
+      // never let a missing field wipe a known one
+      list[i] = { ...old }
+      for (const [k, v] of Object.entries(msg)) if (v !== undefined) list[i][k] = v
+      // a re-sync of the original must not undo a delete or an edit
+      if (old.deleted) Object.assign(list[i], { deleted: true, text: '', rm: undefined, quote: undefined })
+      else if (old.edited) Object.assign(list[i], { edited: true, text: old.text })
+      if (wasWaiting) { delete list[i].waiting; delete list[i].gaveUp }
+    }
+    // a reply says who wrote the message it quotes: fill in a group message that came without its sender
+    if (isGroup(msg.jid) && msg.quote?.sender) this.fillSenders(list, [msg])
+    if (isNew && list.length > 1 && list[list.length - 2].ts > msg.ts) {
+      list.sort((a, b) => a.ts - b.ts)
+    }
+
+    const chat = this.touchChat(msg.jid)
+    // Do not cap by message count here. Retention is based on timestamp in
+    // flush(), which guarantees a busy chat keeps at least the configured
+    // number of recent days instead of truncating at an arbitrary count.
+
+    if (msg.ts >= (chat.t || 0)) {
+      chat.t = msg.ts
+      chat.preview = clipPreview(previewOf(msg, this))
+    }
+    if (bumpUnread && (isNew || wasWaiting) && !msg.fromMe) chat.unread = (chat.unread || 0) + 1
+    this.dirty = true
+    return msg
+  }
+
+  refreshPreview(jid) {
+    const chat = this.chats.get(jid)
+    if (!chat) return
+    const last = (this.messages.get(jid) || []).at(-1)
+    chat.preview = last ? clipPreview(previewOf(last, this)) : ''
+    this.dirty = true
+  }
+
+  /** Delete for me: gone from this site for good. */
+  removeMessage(jid, id) {
+    jid = this.canon(jid)
+    const list = this.messages.get(jid) || []
+    const next = list.filter((m) => m.id !== id)
+    this.messages.set(jid, next)
+    this.gone.add(id)
+    this.refreshPreview(jid)
+    return next.length !== list.length
+  }
+
+  /** Deleted for everyone (by you or by them): keep a placeholder like WhatsApp. */
+  /** Keep a version of a message (before it was deleted or edited), only when history is on for this account. */
+  keepVersion(m, kind) {
+    if (!this.histOn?.() || (kind === 'deleted' && m.deleted)) return
+    const v = { kind, at: Date.now(), type: m.type, text: m.text || '' }
+    if (kind === 'deleted' && m.rm) { v.rm = m.rm; if (m.fileName) v.fileName = m.fileName }
+    m.hist = [...(m.hist || []), v].slice(-20)
+    this.dirty = true
+  }
+  /** What history shows for a message: each earlier version (oldest first), then how it is now. */
+  historyOf(jid, id) {
+    const m = this.findMessage(jid, id)
+    if (!m?.hist?.length) return null
+    return {
+      versions: m.hist.map((v, n) => ({ n, kind: v.kind, at: v.at, type: v.type, text: v.text, media: !!v.rm, fileName: v.fileName })),
+      now: { deleted: !!m.deleted, text: m.deleted ? '' : m.text, edited: !!m.edited },
+    }
+  }
+
+  markDeleted(jid, id) {
+    const m = this.findMessage(jid, id)
+    if (!m) return null
+    this.keepVersion(m, 'deleted')
+    Object.assign(m, { deleted: true, text: '', rm: undefined, quote: undefined, reactions: undefined, edited: false })
+    this.refreshPreview(this.canon(jid))
+    return m
+  }
+
+  markEdited(jid, id, text) {
+    const m = this.findMessage(jid, id)
+    if (!m || m.deleted) return null
+    if (String(text) !== m.text) this.keepVersion(m, 'edit')
+    Object.assign(m, { text: String(text), edited: true })
+    this.refreshPreview(this.canon(jid))
+    return m
+  }
+
+  /** [{t: "6581234567", name: "Budi", me: false}] for highlighting @mentions */
+  mentionView(m, mineJid) {
+    if (!m.mentions?.length) return undefined
+    const mine = mineJid ? this.canon(mineJid) : null
+    return m.mentions.map((x) => {
+      const me = !!mine && this.canon(x.j) === mine
+      return { t: x.t, name: me ? 'You' : this.displayName(x.j), me }
+    })
+  }
+
+  quoteView(q) {
+    if (!q) return undefined
+    return { id: q.id, text: q.text, name: q.fromMe ? 'You' : q.sender ? this.displayName(q.sender) : '' }
+  }
+
+  /**
+   * Replies say who wrote the message they quote. That fills in group messages saved without
+   * a sender, and when the reply names them by number but the message by hidden id (LID) (or
+   * the other way round), it tells us which number that LID is.
+   */
+  fillSenders(list, from = list) {
+    const by = new Map()
+    for (const m of from) if (m.quote?.id && m.quote.sender && !m.quote.fromMe) by.set(m.quote.id, m.quote.sender)
+    if (!by.size) return 0
+    let linked = 0
+    for (const m of list) {
+      if (m.fromMe || !by.has(m.id)) continue
+      const q = this.canon(by.get(m.id))
+      if (!m.sender) {
+        m.sender = q
+        this.dirty = true
+        continue
+      }
+      const s = this.canon(m.sender)
+      if (s !== q && ((isLid(s) && isPn(q)) || (isPn(s) && isLid(q)))) linked += this.linkPair(s, q) ? 1 : 0
+    }
+    return linked
+  }
+
+  findMessage(jid, id) {
+    return (this.messages.get(this.canon(jid)) || []).find((m) => m.id === id) || null
+  }
+
+  /** Add/replace one user's reaction on a message. Empty emoji removes it. */
+  setReaction(jid, id, sender, emoji) {
+    const m = this.findMessage(jid, id)
+    if (!m || !sender) return null
+    const reactions = Array.isArray(m.reactions) ? [...m.reactions] : []
+    const idx = reactions.findIndex((r) => r?.sender === sender)
+    if (!emoji) {
+      if (idx >= 0) reactions.splice(idx, 1)
+    } else if (idx >= 0) {
+      reactions[idx] = { sender, emoji: String(emoji).slice(0, 16) }
+    } else {
+      reactions.push({ sender, emoji: String(emoji).slice(0, 16) })
+    }
+    m.reactions = reactions
+    this.dirty = true
+    return m
+  }
+
+  reactionView(m, mineJid) {
+    const rows = Array.isArray(m?.reactions) ? m.reactions : []
+    const grouped = new Map()
+    for (const r of rows) {
+      if (!r?.emoji) continue
+      const cur = grouped.get(r.emoji) || { emoji: r.emoji, count: 0, mine: false }
+      cur.count++
+      if (mineJid && this.canon(r.sender) === this.canon(mineJid)) cur.mine = true
+      grouped.set(r.emoji, cur)
+    }
+    return [...grouped.values()]
+  }
+
+  oldest(jid) {
+    jid = this.canon(jid)
+    return (this.messages.get(jid) || [])[0] || null
+  }
+
+  raiseCap(jid, by = 60) {
+    // Kept for compatibility with the older fetch-older path. Recent-message
+    // retention is now time-based, so there is no per-chat count cap to raise.
+    this.touchChat(jid)
+    return true
+  }
+
+  markRead(jid) {
+    const chat = this.chats.get(jid)
+    if (chat?.unread) {
+      chat.unread = 0
+      this.dirty = true
+    }
+  }
+
+  // ------------------------------------------------------------- views
+  /** The chat list: the unlocked chats, or (lockedOnly) just the locked ones. */
+  chatList({ lockedOnly = false } = {}) {
+    return [...this.chats.values()]
+      .filter((c) => c.t && this.locked.has(c.jid) === lockedOnly)
+      .sort((a, b) => (b.t || 0) - (a.t || 0))
+      .slice(0, MAX_CHATS)
+      .map((c) => ({
+        jid: c.jid,
+        name: this.displayName(c.jid),
+        phone: phoneOf(c.jid),
+        profile: this.profileName(c.jid),
+        t: c.t,
+        unread: c.unread || 0,
+        preview: plainPreview(c.preview),
+        group: isGroup(c.jid),
+        archived: !!c.localArchived,
+        pinned: !!c.localPinned,
+        muted: this.mutedUntil(c.jid) || undefined, // ms, or -1 for always
+        locked: lockedOnly || undefined,
+      }))
+  }
+
+  /** When notifications for a chat come back: 0 (not muted), -1 (muted for good) or a time (ms). */
+  mutedUntil(jid, now = Date.now()) {
+    const c = this.chats.get(this.canon(jid))
+    if (!c) return 0
+    const live = (v) => (v === -1 || v > now ? v : 0)
+    const a = live(c.localMute || 0), b = live(c.waMute || 0)
+    if (a === -1 || b === -1) return -1
+    return Math.max(a, b)
+  }
+
+  /** Newest `limit` messages, or a page before `beforeId`, or everything from `sinceId` on. */
+  messageList(jid, mineJid, { beforeId, sinceId, limit } = {}) {
+    jid = this.canon(jid)
+    const group = isGroup(jid)
+    let list = this.messages.get(jid) || []
+    const n = Math.max(1, Math.min(Number(limit) || 200, 5000))
+    if (sinceId) {
+      const i = list.findIndex((m) => m.id === sinceId)
+      list = i >= 0 ? list.slice(i) : list.slice(-n)
+    } else if (beforeId) {
+      const i = list.findIndex((m) => m.id === beforeId)
+      list = i > 0 ? list.slice(Math.max(0, i - n), i) : []
+    } else if (limit) {
+      list = list.slice(-n)
+    }
+    return list.map((m) => ({
+      id: m.id,
+      jid: m.jid,
+      fromMe: m.fromMe,
+      status: m.fromMe ? (Number.isFinite(Number(m.status)) ? Math.max(0, Math.min(5, Number(m.status))) : 2) : undefined,
+      rsum: m.fromMe && m.rsum ? m.rsum : undefined,
+      ts: m.ts,
+      type: m.type,
+      text: m.text,
+      gaveUp: m.gaveUp || undefined,
+      media: !!m.rm,
+      fileName: m.fileName,
+      dur: m.dur || undefined,
+      ptt: m.ptt || undefined,
+      wf: m.wf,
+      poll: this.pollView(m, mineJid),
+      quote: this.quoteView(m.quote),
+      deleted: !!m.deleted,
+      edited: !!m.edited,
+      hist: this.histOn?.() && m.hist?.length ? m.hist.length : undefined,
+      fwd: m.fwd && !m.deleted ? m.fwd : undefined, // forwarding score (hops)
+      senderName: group && !m.fromMe && m.sender ? this.displayName(m.sender) : '',
+      sender: group && !m.fromMe ? m.sender : undefined,
+      reactions: this.reactionView(m, mineJid),
+      mentions: this.mentionView(m, mineJid),
+    }))
+  }
+
+  /** A poll as the page shows it: each answer with its votes (yours marked) and who voted. */
+  pollView(m, mineJid) {
+    if (!m?.poll) return undefined
+    const mine = mineJid ? this.canon(mineJid) : null
+    const options = m.poll.options.map((name) => ({ name, n: 0, mine: false, who: [] }))
+    const votes = m.votes || {}
+    for (const [who, picks] of Object.entries(votes)) {
+      for (const i of picks) {
+        const o = options[i]
+        if (!o) continue
+        o.n++
+        if (who === mine) o.mine = true
+        if (o.who.length < 12) o.who.push(who === mine ? 'You' : this.displayName(who))
+      }
+    }
+    return { multi: !!m.poll.multi, options, voters: Object.keys(votes).length, canVote: !!m.poll.secret }
+  }
+
+  /** People you can start a chat with: contacts + existing chats. */
+  contactList(q = '', limit = 60, { withLocked = false } = {}) {
+    this.showLocked = withLocked
+    const needle = q.trim().toLowerCase()
+    const digits = needle.replace(/\D/g, '')
+    const seen = new Set()
+    const out = []
+    const consider = (jid) => {
+      jid = this.canon(jid)
+      if (seen.has(jid) || jid.endsWith('@broadcast') || jid.endsWith('@newsletter')) return
+      if (this.locked.has(jid) && !this.showLocked) return // locked chats stay out of "new chat" search
+      seen.add(jid)
+      const name = this.displayName(jid)
+      const phone = phoneOf(jid)
+      if (isLid(jid) && name === 'Unknown contact') return
+      if (needle) {
+        const hit =
+          name.toLowerCase().includes(needle) || (digits.length >= 3 && phone.replace(/\D/g, '').includes(digits))
+        if (!hit) return
+      }
+      out.push({ jid, name, phone, group: isGroup(jid), t: this.chats.get(jid)?.t || 0 })
+    }
+    for (const jid of this.chats.keys()) consider(jid)
+    for (const jid of this.contacts.keys()) consider(jid)
+    out.sort((a, b) => (b.t || 0) - (a.t || 0) || a.name.localeCompare(b.name))
+    return out.slice(0, limit)
+  }
+
+  /** Every hidden id (LID) we still don't have a number for: chats, contacts, and people who wrote in groups. */
+  pendingLids() {
+    const s = new Set()
+    const add = (j) => { if (isLid(j) && !this.alias.has(bare(j))) s.add(bare(j)) }
+    for (const jid of this.chats.keys()) add(jid)
+    for (const jid of this.contacts.keys()) add(jid)
+    for (const [jid, list] of this.messages) {
+      if (!isGroup(jid)) continue
+      for (const m of list) { add(m.sender); add(m.quote?.sender) }
+    }
+    return [...s]
+  }
+}
+
+function pickDefined(o = {}) {
+  const r = {}
+  for (const [k, v] of Object.entries(o || {})) if (v != null && v !== '') r[k] = v
+  return r
+}
+
+/** A chat-list preview reads as plain text: WhatsApp's *bold* _italic_ ~strike~ marks come off, lines join up. */
+export const plainPreview = (s) => String(s || '')
+  .replace(/(^|[\s(])([*_~])(?=\S)([^\n]*?\S)\2(?=$|[\s).,!?:;])/g, '$1$3')
+  .replace(/\s*\n+\s*/g, ' ')
+  .trim()
+
+export function previewOf(msg, store) {
+  if (msg.deleted) return msg.fromMe ? '🚫 You deleted this message' : '🚫 This message was deleted'
+  const body =
+    msg.type === 'poll'
+      ? '📊 ' + (msg.text || 'Poll')
+      : msg.text && msg.type !== 'document'
+      ? msg.text
+      : {
+          image: '📷 Photo',
+          video: '🎥 Video',
+          ptv: '📹 Video message',
+          audio: '🎤 Voice message',
+          document: '📄 ' + (msg.fileName || msg.text || 'Document'),
+          sticker: 'Sticker',
+          location: '📍 Location',
+          contact: '👤 Contact',
+        }[msg.type] || ''
+  // "@6581234567" reads better as "@Budi" in the chat list
+  let bodyText = body
+  if (msg.mentions?.length && store) {
+    for (const x of msg.mentions) bodyText = bodyText.split('@' + x.t).join('@' + store.displayName(x.j))
+  }
+  const who = msg.fromMe
+    ? 'You: '
+    : isGroup(msg.jid) && msg.sender && store
+      ? store.displayName(msg.sender) + ': '
+      : ''
+  return who + bodyText
+}

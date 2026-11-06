@@ -362,7 +362,8 @@ test('clear reminders cancels task reminders and asks WhatsApp to remove Buddyâ€
   assert.ok(sent.some((x) => x.ep === 'delete-message'))
 })
 
-test('the AI (if the admin set one up) proposes; you confirm with a tap. Lists just run. Bad or no answers fall back.', async () => {
+test('the AI (if the admin set one up) proposes; you confirm with a tap. Lists just run. Bad or no answers fall back.', async (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: zonedTime('2026-10-05', '10:00', TZ) })
   const { store, buddy, sent } = setup()
   const today = todayIn(TZ)
   const now = zonedTime(today, '10:00', TZ)
@@ -446,7 +447,8 @@ test('the AI double-checks a new task when day/time words are left in its name, 
   buddy.aiConfig = () => null
 })
 
-test('small talk and typed answers, like a person', async () => {
+test('small talk and typed answers, like a person', async (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: zonedTime('2026-10-05', '10:00', TZ) })
   const { smallTalk } = await import('./buddy.js')
   assert.equal(smallTalk('aight bet thanks'), 'thanks')
   assert.equal(smallTalk('thank you so much!!'), 'thanks')
