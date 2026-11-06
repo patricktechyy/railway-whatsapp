@@ -4,7 +4,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { Worker } from 'node:worker_threads'
 import { Session } from './session.js'
-import { getHistoryDays } from './store.js'
+import { getHistoryDays, setHistoryDays } from './store.js'
 import { Auth, COOKIE, HttpError, MIN_PASSWORD } from './auth.js'
 import { createTodo } from './todo/server/app.js'
 import { Scheduler } from './schedule.js'
@@ -12,6 +12,8 @@ import { streamBackup } from './backup.js'
 import { gzipped, TEXTY } from './todo/server/gzip.js'
 import { pipeline } from 'node:stream/promises'
 import { startSpool, sweepSpool, bodyToFile, drop } from './spool.js'
+import { cgroupLog, createIdleReclaimer, findMemoryCgroup, sampleCgroup, writeReclaim } from './memory.js'
+import { LIMITS, readRuntimeSettings, updateRuntimeSettings } from './runtime-settings.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 // Works both flat (repo root) and in the Docker layout (src/ + public/).
@@ -98,6 +100,17 @@ const MSG_ID = /^[\x21-\x7e]{1,128}$/
 
 fs.mkdirSync(DATA_DIR, { recursive: true })
 const auth = new Auth(DATA_DIR)
+const runtimeFile = path.join(DATA_DIR, 'runtime-settings.json')
+let runtime = readRuntimeSettings(runtimeFile)
+if (runtime.historyDays !== undefined) setHistoryDays(runtime.historyDays)
+const reclaimEnabled = process.env.MEM_IDLE_RECLAIM === '1'
+const idleMinutes = () => runtime.idleMinutes ?? 15
+const cooldownMinutes = () => runtime.cooldownMinutes ?? 30
+const runtimeView = () => ({ historyDays: getHistoryDays(), idleMinutes: idleMinutes(), cooldownMinutes: cooldownMinutes(), reclaimEnabled, limits: LIMITS })
+
+let lastBrowserActivity = Date.now()
+let activeRequests = 0
+const browserActivity = () => { lastBrowserActivity = Date.now() }
 
 // ------------------------------------------------------------- sessions ---
 const sessions = new Map()
@@ -154,11 +167,12 @@ async function boot() {
     await new Promise((resolve) => setImmediate(resolve)) // let the health check and the other accounts breathe
   }
   // Gavin's Todolist lives at /todo/, signed in with the same accounts. Its data is kept on the same volume, in /data/todo.
-  todo = createTodo({ dataDir: path.join(DATA_DIR, 'todo'), auth, sessions, whoami, version: VERSION })
+  todo = createTodo({ dataDir: path.join(DATA_DIR, 'todo'), auth, sessions, whoami, version: VERSION, browserActivity })
   // messages written now, sent later (from the person's own WhatsApp)
   scheduler = new Scheduler(DATA_DIR, sessions)
   scheduler.start(Number(process.env.SCHEDULE_TICK_MS) || 15000)
   for (const [username, s] of sessions) todo.attach(username, s)
+  browserActivity()
   booted = true
   bootDone()
 }
@@ -371,15 +385,29 @@ async function route(req, res) {
     const c = whoami(req)
     // the ADMIN_PASSWORD login, or any account the admin has marked as an admin
     const isAdmin = c?.k === 'admin' || (c?.k === 'user' && !!auth.get(c.u)?.isAdmin)
+    const canManageRuntime = c?.k === 'admin' && auth.adminEnvName === 'ADMIN_PASSWORD' && !!process.env.ADMIN_PASSWORD?.replace(/\r?\n$/, '')
     const actor = c?.k === 'admin' ? 'admin' : c?.u
     if (p === '/admin' || p === '/admin/') {
       if (!isAdmin) return redirect(res, '/')
+      browserActivity()
       let html = render('admin.html', { ADMIN_ENV: auth.adminFromEnv ? '1' : '0', ME: actor })
       // backups hold everyone's WhatsApp logins and chats: only the ADMIN_PASSWORD login sees the option
       if (c?.k !== 'admin') html = html.replace(/<!--backup[\s\S]*?<!--\/backup-->\s*/, '')
+      if (!canManageRuntime) html = html.replace(/<!--runtime:start-->[\s\S]*?<!--runtime:end-->\s*/, '')
       return page(res, vault(html, c?.k === 'admin'))
     }
     if (!isAdmin) throw new HttpError(401, 'Admin login required')
+    if (M !== 'GET' || (p !== '/admin/api/users' && p !== '/admin/api/stats')) browserActivity()
+    if (p === '/admin/api/runtime-settings') {
+      if (!canManageRuntime) throw new HttpError(403, 'Sign in as admin using ADMIN_PASSWORD')
+      if (M === 'GET') return json(res, runtimeView())
+      if (M !== 'POST') throw new HttpError(405, 'Method not allowed')
+      requireJson(req)
+      const body = await readJson(req)
+      runtime = updateRuntimeSettings(runtimeFile, runtime, body, getHistoryDays())
+      if (runtime.historyDays !== undefined && runtime.historyDays !== getHistoryDays()) setHistoryDays(runtime.historyDays)
+      return json(res, runtimeView())
+    }
 
     if (p === '/admin/api/users' && M === 'GET') {
       return json(
@@ -542,6 +570,7 @@ async function route(req, res) {
 
   if (rest === '' || rest === '/') {
     if (!allowed) return redirect(res, '/')
+    browserActivity()
     if (rest === '') return redirect(res, `/u/${username}/`)
     const u = auth.get(username)
     sessions.get(username)?.wake()
@@ -549,6 +578,7 @@ async function route(req, res) {
   }
   if (rest === '/status' || rest === '/status/') {
     if (!allowed) return redirect(res, '/')
+    browserActivity()
     const u = auth.get(username)
     sessions.get(username)?.wake()
     return page(res, render('status.html', { USER: username, LABEL: u.name }))
@@ -558,6 +588,7 @@ async function route(req, res) {
   const s = sessions.get(username)
   if (!s) throw new HttpError(404, 'Session not found')
   const api = rest.replace(/^\/api/, '')
+  if (api !== '/events' && api !== '/state' && api !== '/health') browserActivity()
   const jid = url.searchParams.get('jid')
 
   // ---- chat lock: a locked chat needs the pass (from your password) for anything about it
@@ -815,6 +846,7 @@ async function route(req, res) {
 }
 
 const server = http.createServer(async (req, res) => {
+  activeRequests++
   res.gzipOk = /\bgzip\b/.test(String(req.headers['accept-encoding'] || '')) // text responses go out gzipped
   try {
     if (!booted && !/^\/(healthz|ui\.css|favicon\.ico)(\?|$)/.test(String(req.url))) await bootPromise
@@ -824,6 +856,8 @@ const server = http.createServer(async (req, res) => {
     if (status >= 500) console.error('request failed:', req.method, req.url, e)
     if (!res.headersSent) json(res, { error: status >= 500 ? 'Something went wrong: ' + e.message : e.message }, status)
     else res.end()
+  } finally {
+    activeRequests--
   }
 })
 
@@ -840,20 +874,58 @@ server.listen(PORT, () => {
   })
 })
 
-// Memory log: one line a minute, so the Railway logs show where the process memory really goes.
-// MEM_LOG_MS=0 turns it off.
+const MINUTE = 60000
+const cgroupDir = process.platform === 'linux' ? findMemoryCgroup() : Promise.resolve(null)
+const containerSample = async () => sampleCgroup(await cgroupDir)
+const isIdle = () => {
+  const now = Date.now()
+  if (!booted || activeRequests || now - lastBrowserActivity < idleMinutes() * MINUTE) return false
+  for (const s of sessions.values()) if (s.memoryBusy(now)) return false
+  return true
+}
+if (reclaimEnabled) {
+  cgroupDir.then(async (dir) => {
+    if (!await sampleCgroup(dir)) return console.log('[mem-reclaim] unavailable: no readable cgroup v2 for this process')
+    const check = createIdleReclaimer({
+      sample: () => sampleCgroup(dir),
+      reclaim: (permitWrite) => writeReclaim(dir, permitWrite),
+      isIdle,
+      cooldownMs: () => cooldownMinutes() * MINUTE,
+    })
+    setInterval(() => check().catch((e) => console.warn('[mem-reclaim] check failed', e.code || 'unknown error')), MINUTE).unref()
+  })
+}
+
+setInterval(() => {
+  if (!booted) return
+  const now = Date.now()
+  for (const s of sessions.values()) s.trimCaches(now, 15 * MINUTE)
+  todo.evictIdle(now)
+}, MINUTE).unref()
+
+// Memory logging is independent of the cache cleanup and reclaim timers.
 const MEM_LOG_MS = Number(process.env.MEM_LOG_MS ?? 60000)
 if (MEM_LOG_MS > 0) {
   const mb = (n) => Math.round(n / 1048576)
-  setInterval(() => {
-    const m = process.memoryUsage()
-    let connected = 0
-    let viewers = 0
-    for (const s of sessions.values()) {
-      if (s.status === 'connected') connected++
-      viewers += s.viewers()
+  let sampling = false
+  setInterval(async () => {
+    if (sampling) return
+    sampling = true
+    try {
+      const container = cgroupLog(await containerSample())
+      const m = process.memoryUsage()
+      let connected = 0
+      let viewers = 0
+      for (const s of sessions.values()) {
+        if (s.status === 'connected') connected++
+        viewers += s.viewers()
+      }
+      const counts = todo?.cacheCounts()
+      const tasks = counts ? ` todoDocs=${counts.documents} todoReminderViews=${counts.reminderViews} todoStudyPlans=${counts.studyPlans} todoStudyViews=${counts.studyViews}` : ''
+      console.log(`[mem] rss=${mb(m.rss)}MB heap=${mb(m.heapUsed)}/${mb(m.heapTotal)}MB external=${mb(m.external)}MB buffers=${mb(m.arrayBuffers)}MB sessions=${sessions.size} connected=${connected} viewers=${viewers}${tasks}${container}`)
+    } finally {
+      sampling = false
     }
-    console.log(`[mem] rss=${mb(m.rss)}MB heap=${mb(m.heapUsed)}/${mb(m.heapTotal)}MB external=${mb(m.external)}MB buffers=${mb(m.arrayBuffers)}MB sessions=${sessions.size} connected=${connected} viewers=${viewers}`)
   }, MEM_LOG_MS).unref()
 }
 

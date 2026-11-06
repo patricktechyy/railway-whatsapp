@@ -7,6 +7,7 @@ import { Store } from './store.js'
 import { Buddy, snoozeUntil, waInstant, waSig, parseCommand, CODE_RE } from './buddy.js'
 import { zonedTime, todayIn } from './tz.js'
 import { Reminders } from './reminders.js'
+import { StudyPlans } from './study.js'
 
 const TZ = 'Asia/Singapore'
 const addDays = (k, n) => { const [y, m, d] = k.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10) }
@@ -172,6 +173,64 @@ test('a task with a bell and "WhatsApp me" at the same time: one WhatsApp messag
   assert.equal(wa.filter((m) => m.text.includes('Read Books')).length, 1, wa.map((m) => m.text).join('\n---\n'))
   assert.equal(wa.filter((m) => m.text.includes('Bell only')).length, 1) // no "WhatsApp me": the bell still comes to WhatsApp
   assert.equal(pushed.filter((n) => n.title.includes('Read Books')).length, 1) // and the bell still rings on the phone/browser
+})
+
+test('idle reminder scans leave full documents cold and reload the current task when its edited reminder is due', async (t) => {
+  const { store, buddy, sent } = setup()
+  const dir = path.dirname(buddy.file)
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }))
+  fs.mkdirSync(path.join(dir, 'push'))
+  const pushed = []
+  const push = { devices: () => [{}], timezone: () => TZ, send: async (u, n) => { pushed.push(n); return { sent: 1 } } }
+  const rem = new Reminders(dir, store, push, { enabled: () => true }, buddy)
+  const day = '2026-10-06'
+  const before = zonedTime(day, '10:00', 'America/New_York')
+  t.mock.timers.enable({ apis: ['Date'], now: before })
+  const task = store.addTask('gavin', { title: 'Original', notes: 'Full notes', due: day, time: '10:40', remind: 0, wa: { before: 0 } })
+  store.setProfile('gavin', { tz: 'America/New_York' })
+  store.updateTask('gavin', task.id, { title: 'Edited', wa: { at: before + 40 * 60000 } })
+  const cold = () => store.evictIdle(Date.now() + 16 * 60000)
+  cold()
+  await buddy.tick(before + 30 * 60000)
+  await rem.tick(before + 30 * 60000)
+  assert.equal(store.cacheCounts().documents, 0)
+  assert.equal(store.reminderView('gavin').tasks[0].notes, undefined)
+  assert.equal(sent.length, 0)
+  await buddy.tick(before + 40 * 60000)
+  await rem.tick(before + 40 * 60000)
+  assert.equal(sent.filter((x) => x.ep === 'send' && x.text.includes('Edited')).length, 1)
+  assert.equal(pushed.length, 1)
+  assert.match(pushed[0].body, /Full notes/)
+  cold()
+  await buddy.tick(before + 41 * 60000)
+  await rem.tick(before + 41 * 60000)
+  assert.equal(store.cacheCounts().documents, 0)
+  assert.equal(pushed.length, 1)
+  assert.equal(sent.filter((x) => x.ep === 'send').length, 1)
+})
+
+test('study reminder checks use the compact plan until an unfinished block is due', async (t) => {
+  const { buddy, sent } = setup()
+  const dir = path.dirname(buddy.file)
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }))
+  const study = new StudyPlans(dir)
+  const date = '2026-10-06'
+  study.put('gavin', { rev: 0, subjects: [{ id: 'math', name: 'Maths' }], blocks: [
+    { id: 'unfinished', subject: 'math', date, time: '14:00', topics: [{ id: 'a', text: 'Practice', done: false }] },
+    { id: 'complete', subject: 'math', date, time: '14:00', topics: [{ id: 'b', text: 'Already done', done: true }] },
+  ] })
+  buddy.planner = { study }
+  const cold = () => study.evictIdle(Date.now() + 16 * 60000)
+  cold()
+  await buddy.tick(zonedTime(date, '13:00', TZ))
+  assert.equal(study.cache.size, 0)
+  await buddy.tick(zonedTime(date, '14:00', TZ))
+  assert.equal(sent.filter((x) => x.ep === 'send').length, 1)
+  assert.match(sent.find((x) => x.ep === 'send').text, /Maths/)
+  cold()
+  await buddy.tick(zonedTime(date, '14:01', TZ))
+  assert.equal(study.cache.size, 0)
+  assert.equal(sent.filter((x) => x.ep === 'send').length, 1)
 })
 
 // ---------------------------------------------------------- the new Buddy

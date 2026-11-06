@@ -17,6 +17,7 @@ import { COUNTRIES } from './holidays.js'
 
 const MAX_TASKS = 5000
 const MAX_LISTS = 100
+const CACHE_IDLE_MS = 15 * 60e3
 // fixed categorical order, checked for colour-blind separation in light and dark
 const COLORS = ['blue', 'orange', 'aqua', 'yellow', 'magenta', 'green', 'violet']
 const listColor = (c, fallback) => (COLORS.includes(c) || HEX.test(c || '') ? (COLORS.includes(c) ? c : c.toLowerCase()) : fallback)
@@ -277,11 +278,23 @@ export function applyTask(task, body, doc) {
 }
 
 // ------------------------------------------------------------------ store
+function reminderViewOf(doc) {
+  const { tz, waReminders = true, buddy, waNotify } = doc?.profile || {}
+  const tasks = []
+  for (const t of doc?.tasks || []) {
+    if (t.done || (!t.wa && (!t.due || t.remind == null))) continue
+    const wa = t.wa ? { at: t.wa.at, before: t.wa.before, sent: t.wa.sent } : null
+    tasks.push({ id: t.id, due: t.due, time: t.time, remind: t.remind, repeat: !!t.repeat, createdAt: t.createdAt, wa })
+  }
+  return { profile: { tz, waReminders, buddy: buddy && { ...buddy }, waNotify: waNotify && { ...waNotify } }, tasks }
+}
+
 export class Store {
   constructor(dataDir) {
     this.dir = path.join(dataDir, 'users')
     fs.mkdirSync(this.dir, { recursive: true })
     this.docs = new Map()
+    this.reminderViews = new Map()
     this.bus = new EventEmitter()
     this.bus.setMaxListeners(0)
   }
@@ -290,14 +303,25 @@ export class Store {
     return path.join(this.dir, `${username}.json`)
   }
 
-  load(username) {
-    let doc = this.docs.get(username)
-    if (doc) return doc
+  read(username) {
     try {
-      doc = JSON.parse(fs.readFileSync(this.file(username), 'utf8'))
-    } catch {
-      doc = defaults()
+      const doc = JSON.parse(fs.readFileSync(this.file(username), 'utf8'))
+      if (!Array.isArray(doc?.tasks) || !doc.profile || !Array.isArray(doc.lists)) throw new Error('Invalid Todolist document')
+      return doc
+    } catch (e) {
+      if (e.code === 'ENOENT') return null
+      throw e
     }
+  }
+
+  load(username) {
+    const cached = this.docs.get(username)
+    if (cached) {
+      cached.usedAt = Date.now()
+      return cached.doc
+    }
+    const saved = this.read(username)
+    const doc = saved || defaults()
     // tasks from before statuses existed
     for (const t of doc.tasks) {
       if (!t.status) t.status = t.done ? 'done' : 'todo'
@@ -305,11 +329,51 @@ export class Store {
     }
     if (doc.profile.waReminders === undefined) doc.profile.waReminders = true
     if (!doc.board) doc.board = defaultBoard()
-    this.docs.set(username, doc)
+    this.docs.set(username, { doc, usedAt: Date.now(), evictable: !!saved })
     return doc
   }
 
+  reminderView(username) {
+    let view = this.reminderViews.get(username)
+    if (!view) {
+      const cached = this.docs.get(username)
+      // A failed save may have changed the in-memory document. Index the last successful copy.
+      view = reminderViewOf(cached?.evictable ? cached.doc : this.read(username))
+      this.reminderViews.set(username, view)
+    }
+    return view
+  }
+
+  *reminderUsers() {
+    for (const username of this.usernames()) {
+      let view
+      try { view = this.reminderView(username) } catch (e) {
+        console.warn('[todo] Could not read reminder data', e.code || 'invalid document')
+        continue
+      }
+      yield [username, view]
+    }
+  }
+
+  evictIdle(now = Date.now()) {
+    for (const [username, entry] of this.docs) {
+      // Unsaved defaults keep their list IDs. Failed saves keep their in-memory data for a retry.
+      if (entry.evictable && now - entry.usedAt >= CACHE_IDLE_MS) this.docs.delete(username)
+    }
+  }
+
+  cacheCounts() {
+    return { documents: this.docs.size, reminderViews: this.reminderViews.size }
+  }
+
+  forget(username) {
+    this.docs.delete(username)
+    this.reminderViews.delete(username)
+  }
+
   save(username, doc, { quiet = false } = {}) {
+    const entry = { doc, usedAt: Date.now(), evictable: false }
+    this.docs.set(username, entry)
     if (!quiet) doc.rev++
     const file = this.file(username)
     const tmp = `${file}.${process.pid}.tmp`
@@ -321,6 +385,8 @@ export class Store {
       fs.closeSync(fd)
     }
     fs.renameSync(tmp, file)
+    entry.evictable = true
+    this.reminderViews.set(username, reminderViewOf(doc))
     if (!quiet) this.bus.emit(username, { type: 'changed', rev: doc.rev })
   }
 

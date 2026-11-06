@@ -5,6 +5,7 @@ import { parseQuickAdd } from './quickadd.js'
 import { dayLabel, dueText, time12 } from './whatsapp.js'
 import { describeRepeat } from './repeat.js'
 import { askBuddy, readWhen } from './ai.js'
+import { studyBlockDone } from './study.js'
 
 /**
  * WhatsApp Buddy 🤖: the todolist's bot in WhatsApp. It never guesses.
@@ -125,6 +126,8 @@ export function waInstant(t, tz) {
 }
 /** Which version of the reminder this is: changing the time (or the due date) makes a new one. */
 export const waSig = (t) => (typeof t.wa?.at === 'number' ? `at:${t.wa.at}` : `b:${t.due}|${t.time}|${t.wa?.before}`)
+const legacyRepeatReminder = (t, tz) =>
+  t.repeat && t.due && typeof t.wa.at === 'number' && t.createdAt > t.wa.at + 60e3 && t.wa.at < zonedTime(t.due, '00:00', tz)
 
 const hmFmt = new Map()
 function hmIn(tz, ms) {
@@ -326,7 +329,7 @@ export class Buddy {
   }
 
   settings(u) {
-    const b = { ...BUDDY_DEFAULTS, ...(this.store.snapshot(u).profile.buddy || {}) }
+    const b = { ...BUDDY_DEFAULTS, ...this.store.reminderView(u).profile.buddy }
     return STYLES.includes(b.style) ? b : { ...b, style: 'friendly' }
   }
   get botUser() { return this.getBot() || null }
@@ -735,7 +738,7 @@ export class Buddy {
     if (!p) return []
     return p.blocks.filter((b) => b.date === date).sort((a, b) => (a.time || '99').localeCompare(b.time || '99') || a.order - b.order)
   }
-  blockDone(b) { return b.topics.length ? b.topics.every((t) => t.done) : b.done }
+  blockDone(b) { return studyBlockDone(b) }
   /**
    * One study block: its topics as bullets, each with its number for "/topic 2" in brackets
    * at the end. The numbers run on through the whole message (so every topic has its own).
@@ -1568,16 +1571,19 @@ export class Buddy {
         await go([{ text: this.examMessage(u, list, now), kind: 'exam' }], 'exam')
       }
     }
-    if (b.study && s.studyDay !== today && due(b.study) && this.studyBlocks(u, today).some((x) => !this.blockDone(x))) {
+    const blocks = (b.studyBlocks || b.study && s.studyDay !== today && due(b.study))
+      ? this.planner.study?.reminderBlocks(u, today) : undefined
+    if (b.study && s.studyDay !== today && due(b.study) && blocks) {
       s.studyDay = today
       this.saveState()
       await go(this.studyItems(u, today, now), 'study')
     }
-    if (b.studyBlocks) {
-      for (const blk of this.studyBlocks(u, today)) {
-        if (!blk.time || this.blockDone(blk)) continue
-        const key = `${today}|${blk.id}|${blk.time}`
-        if ((s.blocksSent || []).includes(key) || !due(blk.time, 2 * 3600e3)) continue
+    if (b.studyBlocks && blocks) {
+      for (const candidate of blocks) {
+        const key = `${today}|${candidate.id}|${candidate.time}`
+        if ((s.blocksSent || []).includes(key) || !due(candidate.time, 2 * 3600e3)) continue
+        const blk = this.studyBlocks(u, today).find((x) => x.id === candidate.id && x.time === candidate.time)
+        if (!blk || this.blockDone(blk)) continue
         s.blocksSent = [...(s.blocksSent || []), key].slice(-200)
         this.saveState()
         const text = this.blockMessage(u, blk, now)
@@ -1594,20 +1600,26 @@ export class Buddy {
 
   async tick(now = Date.now()) {
     if (!this.available) return
-    for (const u of this.store.usernames()) {
+    for (const [u, doc] of this.store.reminderUsers()) {
       if (u === this.botUser) continue
-      const doc = this.store.snapshot(u)
       const tz = doc.profile.tz || 'UTC'
       // tasks you asked Buddy to remind you about
-      for (const t of doc.tasks) {
-        if (t.done || !t.wa) continue
+      for (const candidate of doc.tasks) {
+        if (!candidate.wa) continue
+        const candidateAt = waInstant(candidate, tz)
+        if (!legacyRepeatReminder(candidate, tz) &&
+            (candidateAt === null || candidateAt > now || candidate.wa.sent === waSig(candidate))) continue
+        // A task may have changed during an earlier send in this tick. Load it only when it needs work.
+        const t = this.taskById(u, candidate.id)
+        if (!t?.wa || t.done) continue
+        const currentTz = this.store.reminderView(u).profile.tz || 'UTC'
         // a repeat made by an older version kept the last one's fixed time (from an earlier date,
         // older than the task itself), so it showed "Sent" and never went off. Back to its own time.
-        if (t.repeat && t.due && typeof t.wa.at === 'number' && t.createdAt > t.wa.at + 60e3 && t.wa.at < zonedTime(t.due, '00:00', tz)) {
+        if (legacyRepeatReminder(t, currentTz)) {
           try { this.store.updateTask(u, t.id, { wa: t.wa.base ? { ...t.wa.base } : { before: 0 } }); console.log(`[buddy] ${u}: "${t.title}" repeat's WhatsApp back to its own time`) } catch {}
           continue // picked up on the next tick with the new time
         }
-        const at = waInstant(t, tz)
+        const at = waInstant(t, currentTz)
         const sig = waSig(t)
         if (at === null || at > now || t.wa.sent === sig) continue
         this.store.setWaSent(u, t.id, sig) // first, so it never goes out twice
@@ -1622,7 +1634,11 @@ export class Buddy {
       const b = this.settings(u)
       const today = todayIn(tz, now)
       const s = this.st(u)
-      if (this.planner) await this.plannerTick(u, b, s, tz, today, now)
+      if (this.planner) {
+        try { await this.plannerTick(u, b, s, tz, today, now) } catch (e) {
+          console.warn('[buddy] Could not check planner reminders', e.code || 'invalid planner data')
+        }
+      }
       // the morning brief and the evening check-in
       if (!b.on) continue
       for (const kind of ['morning', 'evening']) {

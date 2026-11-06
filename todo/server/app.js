@@ -40,7 +40,7 @@ const DIST = path.join(__dirname, '..', 'dist')
 const USERNAME_RE = /^[a-z0-9][a-z0-9_.-]{1,31}$/
 const ENV_ADMIN = 'admin' // the ADMIN_PASSWORD login's own todolist
 
-export function createTodo({ dataDir, auth, sessions, whoami, version = '?', brand = process.env.TODO_BRAND || "Gavin's Todolist", tickMs = Number(process.env.REMINDER_TICK_MS) || 30000 }) {
+export function createTodo({ dataDir, auth, sessions, whoami, version = '?', brand = process.env.TODO_BRAND || "Gavin's Todolist", tickMs = Number(process.env.REMINDER_TICK_MS) || 30000, browserActivity = () => {} }) {
   fs.mkdirSync(dataDir, { recursive: true })
   const store = new Store(dataDir)
   const push = new Push(dataDir)
@@ -517,6 +517,7 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
     const M = req.method
     const c = who(req)
     if (!c) throw new HttpError(401, 'Please sign in again')
+    if (p !== '/api/badge' && p !== '/api/wa/status' && p !== '/api/events') browserActivity()
     const u = c.u
     res.revOf = u
 
@@ -851,7 +852,7 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
   }
 
   // ---------------------------------------------------- message notifications
-  const waNotifySettings = (u) => ({ ...WA_NOTIFY_DEFAULTS, ...(store.snapshot(u).profile.waNotify || {}) })
+  const waNotifySettings = (u) => ({ ...WA_NOTIFY_DEFAULTS, ...store.reminderView(u).profile.waNotify })
   const lastPush = new Map() // `${user}|${chat}` -> when
   /**
    * A new WhatsApp message: a notification on the devices that asked for them in Whats Up,
@@ -936,7 +937,7 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
       const dir = path.join(dataDir, 'removed')
       fs.mkdirSync(dir, { recursive: true })
       if (fs.existsSync(store.file(username))) fs.renameSync(store.file(username), path.join(dir, `${username}-${Date.now()}.json`))
-      store.docs.delete(username)
+      store.forget(username)
       // their notification devices and Buddy's notes (their number) go too, so a new account
       // with the same username starts clean
       fs.rmSync(push.file(username), { force: true })
@@ -963,5 +964,11 @@ export function createTodo({ dataDir, auth, sessions, whoami, version = '?', bra
     return true
   }
 
-  return { handle, attach, forget, store, buddy, link, who }
+  function evictIdle(now) {
+    store.evictIdle(now)
+    study.evictIdle(now)
+  }
+
+  const cacheCounts = () => ({ ...store.cacheCounts(), studyPlans: study.cache.size, studyViews: study.reminderCache.size })
+  return { handle, attach, forget, store, buddy, link, who, evictIdle, cacheCounts }
 }

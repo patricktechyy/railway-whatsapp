@@ -163,6 +163,22 @@ details.older summary { cursor: pointer; color: var(--muted); font-size: var(--t
         <div class="actions"><a class="btn" id="bkdl" href="/admin/api/backup" download>Download backup</a><span class="help" id="bkstate"></span></div>
       </section>
       <!--/backup-->
+      <!--runtime:start-->
+      <section class="card">
+        <h2>Memory and chat retention</h2>
+        <p class="help" id="runtime-reclaim"></p>
+        <form id="runtime-settings">
+          <fieldset disabled style="border:0;padding:0;margin:0;min-width:0">
+            <label class="field"><span>Minutes idle before reclaim</span><input class="input" name="idleMinutes" type="number" required step="1"></label>
+            <label class="field"><span>Minutes between reclaim attempts</span><input class="input" name="cooldownMinutes" type="number" required step="1"></label>
+            <label class="field"><span>Days to keep local WhatsApp messages</span><input class="input" name="historyDays" type="number" required step="1"></label>
+            <p class="help">This applies to every account’s local Whats Up history. A shorter period permanently removes older messages from this server during its next cleanup. It does not delete messages from WhatsApp.</p>
+            <div class="actions"><button class="btn" type="submit">Save settings</button></div>
+          </fieldset>
+          <p class="help" id="runtime-state" role="status">Loading…</p>
+        </form>
+      </section>
+      <!--runtime:end-->
       <section class="card">
         <h2>Changelog <span class="help" id="clver" style="font-weight:500;display:inline"></span></h2>
         <p class="help">Everyone sees this once after the update. One change per line, **bold** and *italic* work.</p>
@@ -392,6 +408,54 @@ async function loadStats() {
 }
 loadStats(); setInterval(loadStats, 15000);
 load(); setInterval(load, 5000);
+
+const runtimeForm = $('#runtime-settings');
+if (runtimeForm) {
+  const fields = runtimeForm.querySelector('fieldset');
+  const status = $('#runtime-state');
+  const keys = ['idleMinutes', 'cooldownMinutes', 'historyDays'];
+  let saved;
+  const showSettings = (settings) => {
+    saved = settings;
+    for (const key of keys) {
+      const field = runtimeForm.elements[key];
+      [field.min, field.max] = settings.limits[key];
+      field.value = settings[key];
+    }
+    $('#runtime-reclaim').textContent = settings.reclaimEnabled
+      ? 'Railway allows idle cache reclaim. Shorter intervals can increase CPU use and disk reads.'
+      : 'Idle cache reclaim is off. These timings take effect if MEM_IDLE_RECLAIM is enabled in Railway.';
+  };
+  call('GET', '/admin/api/runtime-settings').then((settings) => {
+    showSettings(settings);
+    fields.disabled = false;
+    status.textContent = '';
+  }).catch((e) => { status.textContent = e.message; });
+  runtimeForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!saved || fields.disabled) return;
+    const changes = {};
+    for (const key of keys) {
+      const value = runtimeForm.elements[key].valueAsNumber;
+      if (value !== saved[key]) changes[key] = value;
+    }
+    if (!Object.keys(changes).length) { status.textContent = 'No changes to save.'; return; }
+    if (changes.historyDays < saved.historyDays) {
+      if (!confirm(`Keep only ${changes.historyDays} days? Older local Whats Up messages will be permanently removed during the next cleanup.`)) return;
+      changes.confirmHistoryDays = changes.historyDays;
+    }
+    fields.disabled = true;
+    status.textContent = 'Saving…';
+    try {
+      showSettings(await call('POST', '/admin/api/runtime-settings', changes));
+      status.textContent = 'Settings saved.';
+    } catch (e) {
+      status.textContent = e.message;
+    } finally {
+      fields.disabled = false;
+    }
+  });
+}
 
 // ---- backup: the browser downloads it; just say it's on its way (big volumes take a moment)
 $('#bkdl')?.addEventListener('click', async (e) => {

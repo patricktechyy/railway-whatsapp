@@ -28,6 +28,19 @@ const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/
 const empty = () => ({ rev: 0, subjects: [], tags: [], days: {}, tests: [], blocks: [] })
 const newId = () => crypto.randomBytes(5).toString('base64url')
 const okId = (x) => (ID_RE.test(String(x)) ? String(x) : newId())
+const CACHE_IDLE_MS = 15 * 60e3
+export const studyBlockDone = (b) => b.topics?.length ? b.topics.every((t) => t.done) : b.done
+
+function reminderDays(plan) {
+  const days = new Map()
+  for (const b of plan.blocks) {
+    if (studyBlockDone(b)) continue
+    if (!days.has(b.date)) days.set(b.date, [])
+    if (b.time) days.get(b.date).push({ id: b.id, time: b.time, order: b.order })
+  }
+  for (const blocks of days.values()) blocks.sort((a, b) => a.time.localeCompare(b.time) || a.order - b.order)
+  return days
+}
 
 export class StudyPlans {
   constructor(dataDir, { onChange = () => {} } = {}) {
@@ -35,17 +48,39 @@ export class StudyPlans {
     fs.mkdirSync(this.dir, { recursive: true })
     this.onChange = onChange
     this.cache = new Map()
+    this.reminderCache = new Map()
   }
 
   file(u) { return path.join(this.dir, `${u}.json`) }
 
-  get(u) {
-    if (!this.cache.has(u)) {
-      let d = empty()
-      try { d = { ...d, ...JSON.parse(fs.readFileSync(this.file(u), 'utf8')) } } catch {}
-      this.cache.set(u, d)
+  read(u) {
+    try {
+      return { ...empty(), ...JSON.parse(fs.readFileSync(this.file(u), 'utf8')) }
+    } catch (e) {
+      if (e.code === 'ENOENT') return empty()
+      throw e
     }
-    return this.cache.get(u)
+  }
+
+  get(u) {
+    const entry = this.cache.get(u) || { plan: this.read(u) }
+    entry.usedAt = Date.now()
+    this.cache.set(u, entry)
+    return entry.plan
+  }
+
+  reminderBlocks(u, day) {
+    if (!this.reminderCache.has(u)) {
+      this.reminderCache.set(u, reminderDays(this.cache.get(u)?.plan || this.read(u)))
+    }
+    // An empty list means an unfinished untimed block. Undefined means there is nothing left that day.
+    return this.reminderCache.get(u).get(day)
+  }
+
+  evictIdle(now) {
+    for (const [u, entry] of this.cache) {
+      if (now - entry.usedAt >= CACHE_IDLE_MS) this.cache.delete(u)
+    }
   }
 
   /** Save the whole plan. `rev` is the version the page started from. */
@@ -56,7 +91,8 @@ export class StudyPlans {
     const tmp = `${this.file(u)}.${process.pid}.tmp`
     fs.writeFileSync(tmp, JSON.stringify(next), { mode: 0o600 })
     fs.renameSync(tmp, this.file(u))
-    this.cache.set(u, next)
+    this.cache.set(u, { plan: next, usedAt: Date.now() })
+    this.reminderCache.set(u, reminderDays(next))
     this.onChange(u, next.rev)
     return next
   }
@@ -69,6 +105,7 @@ export class StudyPlans {
 
   forget(u) {
     this.cache.delete(u)
+    this.reminderCache.delete(u)
     fs.rmSync(this.file(u), { force: true })
   }
 }

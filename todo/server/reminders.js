@@ -26,6 +26,8 @@ function formatDue(t) {
   return `Due ${h % 12 || 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`
 }
 
+const isDue = (at, now) => at !== null && at <= now && now - at <= LATE_LIMIT
+
 export class Reminders {
   constructor(dataDir, store, push, link = null, buddy = null) {
     this.buddy = buddy // when there is one, WhatsApp reminders come in Buddy's voice (and "td done" works on them)
@@ -42,22 +44,31 @@ export class Reminders {
     setTimeout(() => this.tick().catch(() => {}), 3000).unref?.()
   }
 
+  dueTask(username, candidate, now) {
+    const doc = this.store.snapshot(username)
+    const t = doc.tasks.find((x) => x.id === candidate.id)
+    if (!t || t.done || reminderKey(t) !== reminderKey(candidate)) return null
+    const tz = doc.profile.tz || this.push.timezone(username) || 'UTC'
+    return isDue(reminderInstant(t, tz), now) ? { t, tz, toWa: !!doc.profile.waReminders } : null
+  }
+
   async tick(now = Date.now()) {
     let changed = false
     const waOn = !!this.link?.enabled('reminders')
-    for (const username of this.store.usernames()) {
-      const doc = this.store.snapshot(username)
+    for (const [username, doc] of this.store.reminderUsers()) {
+      if (!doc.tasks.length) continue
       const toPush = this.push.devices(username).length > 0
       const toWa = waOn && !!doc.profile.waReminders
       if (!toPush && !toWa) continue
       const tz = doc.profile.tz || this.push.timezone(username) || 'UTC'
-      for (const t of doc.tasks) {
-        if (t.done) continue
-        const at = reminderInstant(t, tz)
-        if (at === null || at > now || now - at > LATE_LIMIT) continue
-        const base = `${username}|${reminderKey(t)}`
+      for (const candidate of doc.tasks) {
+        if (!isDue(reminderInstant(candidate, tz), now)) continue
+        const base = `${username}|${reminderKey(candidate)}`
         // each channel remembers on its own, so one failing doesn't block the other
         if (toPush && !this.sent[base]) {
+          const current = this.dueTask(username, candidate, now)
+          if (!current) continue
+          const { t } = current
           this.sent[base] = now
           changed = true
           const r = await this.push.send(username, {
@@ -70,7 +81,10 @@ export class Reminders {
           console.log(`[reminders] ${username}: "${t.title}" → ${r.sent} device(s)`)
         }
         // a task with its own "WhatsApp me" message gets that one: the bell doesn't send a second copy
-        if (toWa && !t.wa && !this.sent[`wa|${base}`]) {
+        if (toWa && !candidate.wa && !this.sent[`wa|${base}`]) {
+          const current = this.dueTask(username, candidate, now)
+          if (!current?.toWa || current.t.wa) continue
+          const { t, tz } = current
           this.sent[`wa|${base}`] = now
           changed = true
           try {

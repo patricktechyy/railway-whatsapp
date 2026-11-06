@@ -69,6 +69,35 @@ test('something that cannot be stored does not break the account', () => {
   assert.doesNotThrow(() => store.groups.set('late@g.us', { id: 'late@g.us' }))
 })
 
+test('idle cleanup evicts only group data that can be reloaded and expired About entries', () => {
+  const s = account()
+  const g = group(1)
+  const odd = { id: 'odd@g.us', big: 10n, participants: [] }
+  const start = Date.now()
+  s.groupCache.set(g.id, g)
+  s.groupCache.set(odd.id, odd)
+  s.aboutCache = new Map([['old', { at: start - 3600e3 }], ['fresh', { at: start }]])
+  s.trimCaches(start + 16 * 60e3, 15 * 60e3)
+  assert.equal(s.groupCache.recent.has(g.id), false)
+  assert.deepEqual(s.groupCache.get(g.id), g)
+  assert.equal(s.groupCache.get(odd.id), odd)
+  assert.deepEqual([...s.aboutCache.keys()], ['fresh'])
+  s.shutdown()
+})
+
+test('memory maintenance treats recent history batches and media as busy even without viewers', () => {
+  const s = account()
+  const now = Date.now()
+  assert.equal(s.memoryBusy(now), false)
+  s.lastHistoryAt = now - 3 * 60e3
+  s.metrics.historyProgress = 50
+  assert.equal(s.memoryBusy(now), true)
+  s.metrics.historyProgress = 100
+  assert.equal(s.memoryBusy(now), false)
+  s.mediaJobs = new Map([['download', {}]])
+  assert.equal(s.memoryBusy(now), true)
+  s.shutdown()
+})
 test('memory: a hundred big groups cost far less in the cache than in a Map', () => {
   const store = new Store(path.join(tmp(), 'store.json'))
   const groups = Array.from({ length: 100 }, (_, i) => group(i, 400))

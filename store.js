@@ -21,11 +21,12 @@ export function clipPreview(s) {
 // of scrollback with some breathing room. The server may override it via an
 // environment variable, but it never goes below MIN_HISTORY_DAYS.
 export const MIN_HISTORY_DAYS = 7
+export const MAX_HISTORY_DAYS = 3650
 const DEFAULT_HISTORY_DAYS = 14
 let historyDays = Math.max(MIN_HISTORY_DAYS, Number(process.env.HISTORY_DAYS) || DEFAULT_HISTORY_DAYS)
 export const getHistoryDays = () => historyDays
 export function setHistoryDays(n) {
-  historyDays = Math.min(3650, Math.max(MIN_HISTORY_DAYS, Math.round(Number(n)) || MIN_HISTORY_DAYS))
+  historyDays = Math.min(MAX_HISTORY_DAYS, Math.max(MIN_HISTORY_DAYS, Math.round(Number(n)) || MIN_HISTORY_DAYS))
   return historyDays
 }
 export const historyCutoff = () => Math.floor(Date.now() / 1000) - historyDays * 86400
@@ -272,22 +273,22 @@ export class GroupCache {
     this.keep = keep
     this.recent = new Map() // jid -> metadata, least recently used first
   }
-  remember(jid, md) {
+  remember(jid, md, stored) {
     this.recent.delete(jid)
-    this.recent.set(jid, md)
+    this.recent.set(jid, { md, stored, at: Date.now() })
     while (this.recent.size > this.keep) this.recent.delete(this.recent.keys().next().value)
   }
   get(jid) {
     if (typeof jid !== 'string') return undefined
     const hit = this.recent.get(jid)
     if (hit) {
-      this.remember(jid, hit)
-      return hit
+      this.remember(jid, hit.md, hit.stored)
+      return hit.md
     }
     const row = this.store.q1(SQL.grpGet, jid)
     if (!row) return undefined
     const md = JSON.parse(row.doc)
-    this.remember(jid, md)
+    this.remember(jid, md, true)
     return md
   }
   has(jid) {
@@ -295,7 +296,7 @@ export class GroupCache {
   }
   set(jid, md) {
     if (typeof jid !== 'string' || !md || typeof md !== 'object') return this
-    this.remember(jid, md)
+    this.remember(jid, md, false)
     let doc
     try {
       doc = JSON.stringify(md)
@@ -303,8 +304,17 @@ export class GroupCache {
       this.store.qw(SQL.grpDel, jid)
       return this // can't be stored: it stays in memory for now, and is asked for again when it is gone
     }
-    this.store.qw(SQL.grpSet, jid, doc)
+    if (typeof doc !== 'string') {
+      this.store.qw(SQL.grpDel, jid)
+      return this
+    }
+    if (this.store.qw(SQL.grpSet, jid, doc).changes) this.remember(jid, md, true)
     return this
+  }
+  evictBefore(cutoff) {
+    for (const [jid, entry] of this.recent) {
+      if (entry.stored && entry.at <= cutoff) this.recent.delete(jid)
+    }
   }
   delete(jid) {
     this.recent.delete(jid)

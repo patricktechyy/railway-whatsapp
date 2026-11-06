@@ -80,6 +80,9 @@ export const oneAtATime = serial()
 // together, those answers are taken one after the other rather than all at once.
 const oneGroupLoadAtATime = serial()
 const GROUP_LOAD_WAIT_MS = 75000
+const ABOUT_TTL_MS = 3600e3
+const HISTORY_SETTLE_MS = 2 * 60e3
+const HISTORY_BATCH_WAIT_MS = 15 * 60e3
 
 /**
  * `file` is the recording, on disk. Returns { file, seconds, thumb, cleanup }: the phone-friendly MP4 (a file,
@@ -502,6 +505,22 @@ export class Session extends EventEmitter {
     return this.listenerCount('event')
   }
 
+  memoryBusy(now) {
+    const progress = this.metrics.historyProgress
+    const historyWait = Number.isFinite(progress) && progress < 100 ? HISTORY_BATCH_WAIT_MS : HISTORY_SETTLE_MS
+    return !!this.selfWanted || this.mediaJobs?.size > 0 || this.groupLoads > 0 ||
+      this.status === 'starting' || this.status === 'qr' ||
+      now - (this.connectedAt || 0) < HISTORY_SETTLE_MS ||
+      now - (this.lastHistoryAt || 0) < historyWait
+  }
+
+  trimCaches(now, idleMs) {
+    for (const [jid, entry] of this.aboutCache || []) {
+      if (now - entry.at >= ABOUT_TTL_MS) this.aboutCache.delete(jid)
+    }
+    this.groupCache.evictBefore(now - idleMs)
+  }
+
   /** Someone opened the page: start an idle (never-linked) session. */
   wake() {
     this.wokeAt = Date.now()
@@ -676,6 +695,8 @@ export class Session extends EventEmitter {
         this.scheduleLidResolve()
       } catch (e) {
         this.log('history batch failed:', e?.message || e)
+      } finally {
+        this.lastHistoryAt = Date.now()
       }
     })
 
@@ -1732,13 +1753,14 @@ export class Session extends EventEmitter {
 
   /** Load this account's groups (one account at a time; see oneGroupLoadAtATime). */
   loadGroups(sock) {
+    this.groupLoads = (this.groupLoads || 0) + 1
     return oneGroupLoadAtATime(() => {
       if (this.sock !== sock || this.stopped) return // it connected again, or was removed, while waiting its turn
       return Promise.race([
         this.loadGroupsNow(sock),
         new Promise((resolve) => setTimeout(resolve, GROUP_LOAD_WAIT_MS).unref?.()), // a stuck answer must not hold up the others
       ])
-    })
+    }).finally(() => { this.groupLoads-- })
   }
   async loadGroupsNow(sock) {
     try {
@@ -2152,7 +2174,7 @@ export class Session extends EventEmitter {
     if (!group && this.sock && this.status === 'connected') {
       this.aboutCache ??= new Map()
       const hit = this.aboutCache.get(c)
-      if (hit && Date.now() - hit.at < 3600e3) Object.assign(out, hit.v)
+      if (hit && Date.now() - hit.at < ABOUT_TTL_MS) Object.assign(out, hit.v)
       else {
         try {
           const r = await Promise.race([this.sock.fetchStatus(c), new Promise((_, no) => setTimeout(() => no(new Error('timeout')), 6000))])
@@ -2330,6 +2352,7 @@ export class Session extends EventEmitter {
       { remoteJid: oldest.rj || jid, id: oldest.id, fromMe: oldest.fromMe, participant: oldest.rp },
       oldest.ts
     )
+    this.lastHistoryAt = Date.now()
     return { requested: true }
   }
 
